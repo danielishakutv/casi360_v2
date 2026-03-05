@@ -52,6 +52,6 @@ jobs:
           REMOTE_USER: ${{ secrets.SSH_USER }}
           REMOTE_PORT: ${{ secrets.SSH_PORT }}
           SOURCE: dist/
-          TARGET: ${{ secrets.DEPLOY_PATH }}
+          TARGET: /home/casi360/public_html
           ARGS: "-rlgoDzvc -i"
           EXCLUDE: ""
