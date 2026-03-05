@@ -42,14 +42,8 @@ jobs:
         run: npm run build
 
       # ── 6. Deploy to server via rsync over SSH ────────────
-      #
-      # Strategy: upload everything from dist/ and delete stale files
-      # that belong to the build (assets/, index.html, etc.) while
-      # keeping unrelated server files (.htaccess, PHP, uploads, etc.).
-      #
-      # --delete-after  : remove stale files AFTER transfer
-      # --filter rules  : protect any server-only files/dirs from deletion
-      #
+      # Copy dist/ contents into public_html, overwriting matching files.
+      # No deletions — existing server files are left untouched.
       - name: Deploy to server
         uses: easingthemes/ssh-deploy@v4
         with:
@@ -59,5 +53,5 @@ jobs:
           REMOTE_PORT: ${{ secrets.SSH_PORT }}
           SOURCE: dist/
           TARGET: ${{ secrets.DEPLOY_PATH }}
-          ARGS: "-rlgoDzvc -i --delete-after"
-          EXCLUDE: ".htaccess, .well-known/, cgi-bin/, .user.ini, error_log, .env, uploads/, storage/"
+          ARGS: "-rlgoDzvc -i"
+          EXCLUDE: ""
