@@ -1,7 +1,7 @@
 /**
  * CASI360 — HR Module API service
  *
- * Departments, Designations, and Employees endpoints.
+ * Departments, Designations, Employees, and Notes endpoints.
  * All requests go through the shared `api` client (cookie auth, XSRF).
  */
 
@@ -44,4 +44,16 @@ export const employeesApi = {
   terminate:    (id)             => api.delete(`/hr/employees/${id}`),
   updateStatus: (id, status)     => api.patch(`/hr/employees/${id}/status`, { status }),
   stats:        ()               => api.get('/hr/employees/stats'),
+}
+
+/* ------------------------------------------------------------------ */
+/* Notes (employee notes / memos)                                     */
+/* ------------------------------------------------------------------ */
+
+export const notesApi = {
+  list:   (params)         => api.get('/hr/notes', params),
+  get:    (id)             => api.get(`/hr/notes/${id}`),
+  create: (data)           => api.post('/hr/notes', data),
+  update: (id, data)       => api.patch(`/hr/notes/${id}`, data),
+  delete: (id)             => api.delete(`/hr/notes/${id}`),
 }
