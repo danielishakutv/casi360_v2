@@ -272,8 +272,8 @@ export default function StaffList() {
                     </td>
                     <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{emp.name}</td>
                     <td>{emp.email}</td>
-                    <td>{emp.department?.name || '—'}</td>
-                    <td>{emp.designation?.title || '—'}</td>
+                    <td>{typeof emp.department === 'string' ? emp.department : (emp.department?.name || '—')}</td>
+                    <td>{emp.position || emp.designation?.title || emp.designation || '—'}</td>
                     <td>
                       <select
                         className="hr-status-select"

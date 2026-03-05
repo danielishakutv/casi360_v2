@@ -10,7 +10,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 export default function Pagination({ meta, onPageChange }) {
   if (!meta || meta.last_page <= 1) return null
 
-  const { current_page, last_page, from, to, total } = meta
+  const { current_page, last_page, per_page, total } = meta
+
+  // Compute from/to if not provided by the API
+  const from = meta.from ?? ((current_page - 1) * per_page + 1)
+  const to = meta.to ?? Math.min(current_page * per_page, total)
 
   // Build visible page numbers with surrounding window
   const delta = 2

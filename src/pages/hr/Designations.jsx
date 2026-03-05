@@ -220,7 +220,7 @@ export default function Designations() {
                 designations.map((d) => (
                   <tr key={d.id}>
                     <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{d.title}</td>
-                    <td>{d.department?.name || '—'}</td>
+                    <td>{typeof d.department === 'string' ? d.department : (d.department?.name || '—')}</td>
                     <td>
                       {d.level ? (
                         <span className="card-badge blue">{capitalize(d.level)}</span>

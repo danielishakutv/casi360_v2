@@ -125,7 +125,7 @@ export default function HROverview() {
                         </span>
                       </td>
                       <td>{d.head || '—'}</td>
-                      <td>{d.employees_count ?? 0}</td>
+                      <td>{d.employee_count ?? d.employees_count ?? 0}</td>
                       <td>
                         <span className={`status-badge ${d.status || 'inactive'}`}>
                           <span className="status-dot" />
