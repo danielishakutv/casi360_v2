@@ -1,0 +1,257 @@
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  LayoutDashboard,
+  Users,
+  ShoppingCart,
+  FolderKanban,
+  MessageSquare,
+  BarChart3,
+  Settings,
+  HelpCircle,
+  ChevronRight,
+  ChevronLeft,
+  LogOut,
+  Eye,
+  UserCheck,
+  Building2,
+  Award,
+  StickyNote,
+  Cog,
+  ClipboardList,
+  FileText,
+  Store,
+  Package,
+  Briefcase,
+  Heart,
+  PieChart,
+  Mail,
+  Smartphone,
+  Bell,
+} from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { capitalize } from '../utils/capitalize'
+
+const navItems = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    path: '/',
+  },
+  {
+    id: 'hr',
+    label: 'HR Management',
+    icon: Users,
+    children: [
+      { label: 'Overview',     icon: Eye,          path: '/hr' },
+      { label: 'Staff List',   icon: UserCheck,    path: '/hr/staff' },
+      { label: 'Departments',  icon: Building2,    path: '/hr/departments' },
+      { label: 'Designations', icon: Award,        path: '/hr/designations' },
+      { label: 'Notes',        icon: StickyNote,   path: '/hr/notes' },
+      { label: 'Settings',     icon: Cog,          path: '/hr/settings' },
+    ],
+  },
+  {
+    id: 'procurement',
+    label: 'Procurement',
+    icon: ShoppingCart,
+    children: [
+      { label: 'Overview',        icon: Eye,           path: '/procurement' },
+      { label: 'Requisitions',    icon: ClipboardList, path: '/procurement/requisitions' },
+      { label: 'Purchase Orders', icon: FileText,      path: '/procurement/purchase-orders' },
+      { label: 'Vendors',         icon: Store,         path: '/procurement/vendors' },
+      { label: 'Inventory',       icon: Package,       path: '/procurement/inventory' },
+    ],
+  },
+  {
+    id: 'programs',
+    label: 'Programs',
+    icon: FolderKanban,
+    children: [
+      { label: 'Overview',      icon: Eye,       path: '/programs' },
+      { label: 'Projects',      icon: Briefcase, path: '/programs/projects' },
+      { label: 'Beneficiaries', icon: Heart,     path: '/programs/beneficiaries' },
+      { label: 'Reports',       icon: PieChart,  path: '/programs/reports' },
+    ],
+  },
+  {
+    id: 'communication',
+    label: 'Communication',
+    icon: MessageSquare,
+    children: [
+      { label: 'Overview',     icon: Eye,        path: '/communication' },
+      { label: 'Send Email',   icon: Mail,       path: '/communication/email' },
+      { label: 'Send SMS',     icon: Smartphone, path: '/communication/sms' },
+      { label: 'Send Notice',  icon: Bell,       path: '/communication/notice' },
+    ],
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: BarChart3,
+    path: '/reports',
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Settings,
+    path: '/settings',
+  },
+  {
+    id: 'help',
+    label: 'Help Center',
+    icon: HelpCircle,
+    path: '/help',
+  },
+]
+
+export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+  const [openMenus, setOpenMenus] = useState({})
+
+  const initials = user?.name
+    ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+    : '??'
+  const displayRole = user?.role ? capitalize(user.role.replace('_', ' ')) : ''
+  const displayName = user?.name || 'User'
+
+  const isActive = (path) => location.pathname === path
+  const isParentActive = (item) =>
+    item.children?.some((child) => location.pathname === child.path)
+
+  const toggleMenu = (id) => {
+    setOpenMenus((prev) => prev[id] ? {} : { [id]: true })
+  }
+
+  const handleNav = (path) => {
+    navigate(path)
+    onCloseMobile()
+  }
+
+  const handleItemClick = (item) => {
+    if (item.children) {
+      // If sidebar is collapsed, expand it first then open the submenu
+      if (collapsed) {
+        onToggle() // expand sidebar
+        setOpenMenus({ [item.id]: true })
+      } else {
+        toggleMenu(item.id)
+      }
+    } else {
+      handleNav(item.path)
+    }
+  }
+
+  const sidebarClass = [
+    'sidebar',
+    collapsed ? 'collapsed' : '',
+    mobileOpen ? 'mobile-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <aside className={sidebarClass}>
+      {/* Toggle */}
+      <button className="sidebar-toggle" onClick={onToggle} title="Toggle sidebar" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+      </button>
+
+      {/* Brand */}
+      <div className="sidebar-header">
+        <div className="sidebar-logo">C3</div>
+        <div className="sidebar-brand">
+          <h1>CASI360</h1>
+          <span>Care Aid Support Initiative</span>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="sidebar-nav">
+        <div className="nav-label">Main Menu</div>
+
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const hasChildren = !!item.children
+          // Show as open if explicitly toggled, or if it's the active parent and nothing else is explicitly open
+          const hasExplicitOpen = Object.values(openMenus).some(Boolean)
+          const isOpen = hasChildren && (openMenus[item.id] || (!hasExplicitOpen && isParentActive(item)))
+          const active = item.path ? isActive(item.path) : isParentActive(item)
+
+          return (
+            <div className="nav-section" key={item.id}>
+              <div
+                className={`nav-item ${active ? 'active' : ''}`}
+                onClick={() => handleItemClick(item)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleItemClick(item) } }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={hasChildren ? isOpen : undefined}
+                aria-label={item.label}
+              >
+                <span className="nav-item-icon">
+                  <Icon size={18} />
+                </span>
+                <span className="nav-item-text">{item.label}</span>
+                {hasChildren && (
+                  <ChevronRight
+                    size={14}
+                    className={`nav-chevron ${isOpen ? 'open' : ''}`}
+                  />
+                )}
+              </div>
+
+              {hasChildren && (
+                <div className={`nav-submenu ${isOpen ? 'open' : ''}`}>
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon
+                    return (
+                      <div
+                        key={child.path}
+                        className={`nav-item ${isActive(child.path) ? 'active' : ''}`}
+                        onClick={() => handleNav(child.path)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav(child.path) } }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={child.label}
+                      >
+                        <span className="nav-item-icon">
+                          <ChildIcon size={15} />
+                        </span>
+                        <span className="nav-item-text">{child.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="sidebar-footer">
+        <div className="sidebar-profile" onClick={() => { navigate('/profile'); onCloseMobile() }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/profile'); onCloseMobile() } }} style={{ cursor: 'pointer' }}>
+          <div className="sidebar-avatar" aria-hidden="true">{initials}</div>
+          <div className="sidebar-footer-info">
+            <h4>{displayName}</h4>
+            <p>{displayRole}{user?.department ? ` · ${user.department}` : ''}</p>
+          </div>
+        </div>
+
+        <button className="logout-btn" aria-label="Logout" onClick={async () => { onCloseMobile(); await logout(); navigate('/login') }}>
+          <LogOut size={18} />
+          <span className="logout-text">Logout</span>
+        </button>
+
+        <div className="sidebar-footer-meta">
+          <p>v1.0.0 · © CASI360 2026</p>
+          <p>Developed by Toko Technologies</p>
+        </div>
+      </div>
+    </aside>
+  )
+}

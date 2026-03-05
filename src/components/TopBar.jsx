@@ -1,0 +1,127 @@
+import { useState, useRef, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Menu, Search, Bell, Sun, Moon, User, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { capitalize } from '../utils/capitalize'
+
+const pageTitles = {
+  '/':                        { title: 'Dashboard',        sub: 'Welcome back! Here\'s your overview.' },
+  '/hr':                      { title: 'HR Management',    sub: 'Human Resources overview & analytics' },
+  '/hr/staff':                { title: 'Staff List',       sub: 'Manage all staff members' },
+  '/hr/departments':          { title: 'Departments',      sub: 'Organizational departments' },
+  '/hr/designations':         { title: 'Designations',     sub: 'Staff roles & designations' },
+  '/hr/notes':                { title: 'Notes',            sub: 'HR notes & memos' },
+  '/hr/settings':             { title: 'HR Settings',      sub: 'HR module configuration' },
+  '/procurement':             { title: 'Procurement',      sub: 'Procurement overview & analytics' },
+  '/procurement/requisitions': { title: 'Requisitions',    sub: 'Manage purchase requisitions' },
+  '/procurement/purchase-orders': { title: 'Purchase Orders', sub: 'Track & manage POs' },
+  '/procurement/vendors':     { title: 'Vendors',          sub: 'Vendor management' },
+  '/procurement/inventory':   { title: 'Inventory',        sub: 'Stock & inventory tracking' },
+  '/programs':                { title: 'Programs',         sub: 'Programs overview & analytics' },
+  '/programs/projects':       { title: 'Projects',         sub: 'Active projects & monitoring' },
+  '/programs/beneficiaries':  { title: 'Beneficiaries',    sub: 'Beneficiary database' },
+  '/programs/reports':        { title: 'Program Reports',  sub: 'Program performance reports' },
+  '/communication':           { title: 'Communication',    sub: 'Communication center' },
+  '/communication/email':     { title: 'Send Email',       sub: 'Compose & send emails' },
+  '/communication/sms':       { title: 'Send SMS',         sub: 'SMS messaging' },
+  '/communication/notice':    { title: 'Send Notice',      sub: 'Broadcast notices' },
+  '/reports':                 { title: 'Reports',          sub: 'Organization-wide reports' },
+  '/profile':                 { title: 'My Profile',       sub: 'View and manage your profile' },
+  '/settings':                { title: 'Settings',         sub: 'System configuration' },
+  '/help':                    { title: 'Help Center',      sub: 'Documentation & support' },
+}
+
+export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+  const page = pageTitles[location.pathname] || { title: 'CASI360', sub: '' }
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef(null)
+
+  const initials = user?.name
+    ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+    : '??'
+  const displayRole = user?.role ? capitalize(user.role.replace('_', ' ')) : ''
+  const displayName = user?.name || 'User'
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <header className="top-bar">
+      <div className="top-bar-left">
+        <button className="mobile-menu-btn" onClick={onMobileMenuClick} aria-label="Open navigation menu">
+          <Menu size={22} />
+        </button>
+        <div className="page-title-section">
+          <h2>{page.title}</h2>
+          <p>{page.sub}</p>
+        </div>
+      </div>
+
+      <div className="top-bar-right">
+        <div className="search-box">
+          <Search size={16} className="search-icon" />
+          <input type="text" placeholder="Search anything..." aria-label="Search" />
+        </div>
+
+        <button className="top-bar-btn" title="Toggle theme" onClick={onToggleTheme}>
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+
+        <button className="top-bar-btn" title="Notifications" aria-label="Notifications">
+          <Bell size={20} />
+          <span className="notification-dot" aria-hidden="true" />
+        </button>
+
+        {/* Profile Avatar */}
+        <div className="topbar-profile" ref={profileRef}>
+          <button
+            className="topbar-avatar-btn"
+            onClick={() => setProfileOpen((prev) => !prev)}
+            aria-label="Profile menu"
+            aria-expanded={profileOpen}
+          >
+            <div className="topbar-avatar">{initials}</div>
+            <ChevronDown size={14} className={`topbar-avatar-chevron ${profileOpen ? 'open' : ''}`} />
+          </button>
+
+          {profileOpen && (
+            <div className="topbar-dropdown">
+              <div className="topbar-dropdown-header">
+                <div className="topbar-dropdown-avatar">{initials}</div>
+                <div>
+                  <div className="topbar-dropdown-name">{displayName}</div>
+                  <div className="topbar-dropdown-role">{displayRole}{user?.department ? ` · ${user.department}` : ''}</div>
+                </div>
+              </div>
+              <div className="topbar-dropdown-divider" />
+              <button className="topbar-dropdown-item" onClick={() => { navigate('/profile'); setProfileOpen(false) }}>
+                <User size={16} />
+                My Profile
+              </button>
+              <button className="topbar-dropdown-item" onClick={() => { navigate('/settings'); setProfileOpen(false) }}>
+                <Settings size={16} />
+                Settings
+              </button>
+              <div className="topbar-dropdown-divider" />
+              <button className="topbar-dropdown-item danger" onClick={async () => { setProfileOpen(false); await logout(); navigate('/login') }}>
+                <LogOut size={16} />
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  )
+}

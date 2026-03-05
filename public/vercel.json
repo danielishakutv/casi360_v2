@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/((?!api|sanctum|assets).*)", "destination": "/index.html" }
+  ]
+}

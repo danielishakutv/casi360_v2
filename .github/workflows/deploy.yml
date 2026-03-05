@@ -1,0 +1,55 @@
+name: Build & Deploy
+
+# Trigger: when a version tag is pushed (e.g. v1.0.0, v2.3.1)
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Allow manual trigger from the Actions tab too
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ──────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Node.js ──────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # ── 3. Install dependencies ───────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. Create .env for build ──────────────────────────
+      - name: Create .env
+        run: echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > .env
+
+      # ── 5. Build ──────────────────────────────────────────
+      - name: Build production bundle
+        run: npm run build
+
+      # ── 6. Deploy to server via rsync over SSH ────────────
+      - name: Deploy to server
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.SSH_HOST }}
+          REMOTE_USER: ${{ secrets.SSH_USER }}
+          REMOTE_PORT: ${{ secrets.SSH_PORT }}
+          SOURCE: dist/
+          TARGET: ${{ secrets.DEPLOY_PATH }}
+          ARGS: "-rlgoDzvc -i --delete"
+          EXCLUDE: ""
