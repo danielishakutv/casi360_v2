@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { employeesApi, departmentsApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
-import { extractItems } from '../../utils/apiHelpers'
+import { extractItems, extractStats } from '../../utils/apiHelpers'
 
 /** Maps API stat keys → card config */
 const STAT_CONFIG = [
@@ -29,7 +29,7 @@ export default function HROverview() {
         employeesApi.stats(),
         departmentsApi.list({ per_page: 0 }),
       ])
-      setStats(statsRes.data ?? statsRes)
+      setStats(extractStats(statsRes))
       setDepartments(extractItems(deptsRes))
     } catch (err) {
       setError(err.message || 'Failed to load HR data')
