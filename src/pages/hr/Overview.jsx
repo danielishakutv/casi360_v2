@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react'
 import {
-  Users, UserCheck, Building2, Clock,
-  TrendingUp, TrendingDown, AlertCircle, RefreshCw,
+  Users, UserCheck, Building2, Clock, UserX, Briefcase,
+  AlertCircle, RefreshCw,
 } from 'lucide-react'
-import { employeesApi, departmentsApi } from '../../services/hr'
+import { employeesApi, departmentsApi, designationsApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
-import { extractItems, extractStats } from '../../utils/apiHelpers'
-
-/** Maps API stat keys → card config */
-const STAT_CONFIG = [
-  { key: 'total_employees',  label: 'Total Employees', icon: Users,     color: 'blue' },
-  { key: 'active_employees', label: 'Active Staff',     icon: UserCheck, color: 'green' },
-  { key: 'departments_count', label: 'Departments',     icon: Building2, color: 'purple' },
-  { key: 'on_leave',         label: 'On Leave',         icon: Clock,     color: 'orange' },
-]
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
 
 export default function HROverview() {
-  const [stats, setStats] = useState(null)
+  const [employees, setEmployees] = useState([])
   const [departments, setDepartments] = useState([])
+  const [designations, setDesignations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -25,12 +18,14 @@ export default function HROverview() {
     setLoading(true)
     setError('')
     try {
-      const [statsRes, deptsRes] = await Promise.all([
-        employeesApi.stats(),
+      const [empRes, deptsRes, desigRes] = await Promise.all([
+        employeesApi.list({ per_page: 0 }),
         departmentsApi.list({ per_page: 0 }),
+        designationsApi.list({ per_page: 0 }),
       ])
-      setStats(extractStats(statsRes))
+      setEmployees(extractItems(empRes))
       setDepartments(extractItems(deptsRes))
+      setDesignations(extractItems(desigRes))
     } catch (err) {
       setError(err.message || 'Failed to load HR data')
     } finally {
@@ -63,29 +58,37 @@ export default function HROverview() {
     )
   }
 
-  /* ---------- Stat cards ---------- */
-  const statCards = STAT_CONFIG.map((cfg) => {
-    const value  = stats?.[cfg.key] ?? 0
-    const change = stats?.[`${cfg.key}_change`] ?? null
-    return { ...cfg, value, change }
-  })
+  /* ---------- Compute stats from real data ---------- */
+  const totalEmployees = employees.length
+  const activeEmployees = employees.filter((e) => e.status === 'active').length
+  const onLeave = employees.filter((e) => e.status === 'on_leave').length
+  const terminated = employees.filter((e) => e.status === 'terminated').length
+  const totalDepts = departments.length
+  const totalDesigs = designations.length
+
+  const statCards = [
+    { key: 'total',   label: 'Total Employees', value: totalEmployees, icon: Users,     color: 'blue' },
+    { key: 'active',  label: 'Active Staff',     value: activeEmployees, icon: UserCheck, color: 'green' },
+    { key: 'depts',   label: 'Departments',      value: totalDepts,     icon: Building2, color: 'purple' },
+    { key: 'leave',   label: 'On Leave',          value: onLeave,       icon: Clock,     color: 'orange' },
+    { key: 'termed',  label: 'Terminated',        value: terminated,    icon: UserX,     color: 'red' },
+    { key: 'desigs',  label: 'Designations',      value: totalDesigs,   icon: Briefcase, color: 'indigo' },
+  ]
+
+  /* ---------- Recent employees (last 5 by created_at) ---------- */
+  const recentEmployees = [...employees]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 5)
 
   return (
     <>
       <div className="stats-grid">
         {statCards.map((stat) => {
           const Icon = stat.icon
-          const up = stat.change != null ? stat.change >= 0 : null
           return (
             <div className={`stat-card ${stat.color} animate-in`} key={stat.key}>
               <div className="stat-top">
                 <div className={`stat-icon ${stat.color}`}><Icon size={22} /></div>
-                {stat.change != null && (
-                  <div className={`stat-change ${up ? 'up' : 'down'}`}>
-                    {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                    {up && stat.change > 0 ? '+' : ''}{stat.change}
-                  </div>
-                )}
               </div>
               <div className="stat-value">{Number(stat.value).toLocaleString()}</div>
               <div className="stat-label">{stat.label}</div>
@@ -94,10 +97,11 @@ export default function HROverview() {
         })}
       </div>
 
+      {/* Departments table */}
       <div className="card animate-in">
         <div className="card-header">
-          <h3>Departments Overview</h3>
-          <span className="card-badge blue">{departments.length} departments</span>
+          <h3>Departments</h3>
+          <span className="card-badge blue">{departments.length} total</span>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <div className="table-wrapper">
@@ -131,6 +135,57 @@ export default function HROverview() {
                           <span className="status-dot" />
                           {capitalize(d.status || 'inactive')}
                         </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent employees table */}
+      <div className="card animate-in">
+        <div className="card-header">
+          <h3>Recent Employees</h3>
+          <span className="card-badge green">{employees.length} total</span>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Staff ID</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Position</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentEmployees.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="hr-empty-cell">No employees found</td>
+                  </tr>
+                ) : (
+                  recentEmployees.map((emp) => (
+                    <tr key={emp.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--text-muted)', fontSize: 12 }}>
+                        {emp.staff_id || '—'}
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{emp.name}</td>
+                      <td>{typeof emp.department === 'string' ? emp.department : (emp.department?.name || '—')}</td>
+                      <td>{emp.position || emp.designation?.title || '—'}</td>
+                      <td>
+                        <span className={`status-badge ${(emp.status || 'inactive').replace(/ /g, '_')}`}>
+                          <span className="status-dot" />
+                          {capitalize((emp.status || 'inactive').replace(/_/g, ' '))}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {emp.join_date ? new Date(emp.join_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
                       </td>
                     </tr>
                   ))

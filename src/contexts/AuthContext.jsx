@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { authApi } from '../services/api'
+import { authApi, onUnauthorized } from '../services/api'
 
 const AuthContext = createContext(null)
 
@@ -35,6 +35,12 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => { checkSession() }, [checkSession])
+
+  /* Subscribe to global 401 events — clear user so ProtectedRoute redirects to /login */
+  useEffect(() => {
+    onUnauthorized(() => setUser(null))
+    return () => onUnauthorized(null)
+  }, [])
 
   /* ---------------------------------------------------------------- */
   /* Login                                                            */

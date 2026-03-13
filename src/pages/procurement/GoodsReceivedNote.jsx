@@ -3,22 +3,22 @@ import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { demoPurchaseOrders, nextId } from '../../data/procurementDemo'
+import { demoGRN, nextId } from '../../data/procurementDemo'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
-const STATUSES = ['draft', 'issued', 'approved', 'partially_received', 'received', 'cancelled']
+const STATUSES = ['draft', 'pending_inspection', 'inspected', 'accepted', 'rejected', 'partial']
 const PER_PAGE = 15
 function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 
 const INITIAL_FORM = {
-  title: '', vendor: '', pr_reference: '', rfq_reference: '',
-  total_amount: '', delivery_date: '', status: 'draft',
+  po_reference: '', vendor: '', received_by: '',
+  received_date: '', total_amount: '', status: 'draft',
   description: '', notes: '',
 }
 
-export default function PurchaseOrders() {
-  const [items, setItems] = useState(demoPurchaseOrders)
+export default function GoodsReceivedNote() {
+  const [items, setItems] = useState(demoGRN)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -31,7 +31,7 @@ export default function PurchaseOrders() {
 
   const filtered = useMemo(() => {
     let r = items
-    if (search) { const q = search.toLowerCase(); r = r.filter((i) => (i.title + i.vendor + i.po_number + i.pr_reference).toLowerCase().includes(q)) }
+    if (search) { const q = search.toLowerCase(); r = r.filter((i) => (i.grn_number + i.po_reference + i.vendor + i.received_by).toLowerCase().includes(q)) }
     if (statusFilter) r = r.filter((i) => i.status === statusFilter)
     return r
   }, [items, search, statusFilter])
@@ -43,7 +43,7 @@ export default function PurchaseOrders() {
   function openCreate() { setEditing(null); setForm(INITIAL_FORM); setModalOpen(true) }
   function openEdit(item) {
     setEditing(item)
-    setForm({ title: item.title || '', vendor: item.vendor, pr_reference: item.pr_reference || '', rfq_reference: item.rfq_reference || '', total_amount: item.total_amount, delivery_date: item.delivery_date || '', status: item.status, description: item.description || '', notes: item.notes || '' })
+    setForm({ po_reference: item.po_reference || '', vendor: item.vendor || '', received_by: item.received_by || '', received_date: item.received_date || '', total_amount: item.total_amount, status: item.status, description: item.description || '', notes: item.notes || '' })
     setModalOpen(true)
   }
   function closeModal() { setModalOpen(false); setEditing(null) }
@@ -55,7 +55,7 @@ export default function PurchaseOrders() {
       setItems((prev) => prev.map((i) => i.id === editing.id ? { ...i, ...form, total_amount: Number(form.total_amount) || 0 } : i))
     } else {
       const id = nextId()
-      setItems((prev) => [{ id, po_number: `PO-2026-${String(id).padStart(3, '0')}`, ...form, total_amount: Number(form.total_amount) || 0, created_at: new Date().toISOString().slice(0, 10) }, ...prev])
+      setItems((prev) => [{ id, grn_number: `GRN-2026-${String(id).padStart(3, '0')}`, ...form, total_amount: Number(form.total_amount) || 0, created_at: new Date().toISOString().slice(0, 10) }, ...prev])
     }
     closeModal()
   }
@@ -71,32 +71,32 @@ export default function PurchaseOrders() {
       <div className="card animate-in">
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
-            <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search purchase orders…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
+            <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search GRNs…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> New PO</button>
+            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> New GRN</button>
           </div>
         </div>
 
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>PO #</th><th>Vendor</th><th>PR Ref</th><th>Amount</th><th>Delivery</th><th>Status</th><th>Created</th><th style={{ width: 120 }}>Actions</th></tr></thead>
+            <thead><tr><th>GRN #</th><th>PO Ref</th><th>Vendor</th><th>Received By</th><th>Amount</th><th>Received</th><th>Status</th><th style={{ width: 120 }}>Actions</th></tr></thead>
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={8} className="hr-empty-cell">No purchase orders found</td></tr>
+                <tr><td colSpan={8} className="hr-empty-cell">No GRNs found</td></tr>
               ) : paged.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{r.po_number}</td>
-                  <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.vendor}</td>
-                  <td>{r.pr_reference || '—'}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{r.grn_number}</td>
+                  <td>{r.po_reference || '—'}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.vendor || '—'}</td>
+                  <td>{r.received_by || '—'}</td>
                   <td style={{ fontWeight: 600 }}>{naira(r.total_amount)}</td>
-                  <td style={{ fontSize: 12 }}>{fmtDate(r.delivery_date)}</td>
+                  <td style={{ fontSize: 12 }}>{fmtDate(r.received_date)}</td>
                   <td><span className={`status-badge ${r.status.replace(/ /g, '_')}`}><span className="status-dot" />{fmtStatus(r.status)}</span></td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</td>
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
@@ -112,18 +112,17 @@ export default function PurchaseOrders() {
         <Pagination meta={meta} onPageChange={setPage} />
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Purchase Order Details" size="md">
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="GRN Details" size="md">
         {viewItem && (
           <div className="note-detail">
-            <div className="note-detail-header"><h3>{viewItem.po_number} — {viewItem.title || viewItem.vendor}</h3></div>
+            <div className="note-detail-header"><h3>{viewItem.grn_number}</h3></div>
             <div className="note-detail-meta">
-              <span><strong>Vendor:</strong> {viewItem.vendor}</span>
-              <span><strong>PR Ref:</strong> {viewItem.pr_reference || '—'}</span>
-              <span><strong>RFQ Ref:</strong> {viewItem.rfq_reference || '—'}</span>
+              <span><strong>PO Reference:</strong> {viewItem.po_reference || '—'}</span>
+              <span><strong>Vendor:</strong> {viewItem.vendor || '—'}</span>
+              <span><strong>Received by:</strong> {viewItem.received_by || '—'}</span>
+              <span><strong>Date received:</strong> {fmtDate(viewItem.received_date)}</span>
               <span><strong>Amount:</strong> {naira(viewItem.total_amount)}</span>
-              <span><strong>Delivery:</strong> {fmtDate(viewItem.delivery_date)}</span>
               <span><strong>Status:</strong> {fmtStatus(viewItem.status)}</span>
-              <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
             </div>
             <div className="note-detail-content">{viewItem.description || viewItem.notes || 'No description'}</div>
             <div className="hr-form-actions">
@@ -134,33 +133,32 @@ export default function PurchaseOrders() {
         )}
       </Modal>
 
-      <Modal open={modalOpen} onClose={closeModal} title={editing ? 'Edit Purchase Order' : 'New Purchase Order'} size="md">
+      <Modal open={modalOpen} onClose={closeModal} title={editing ? 'Edit GRN' : 'New Goods Received Note'} size="md">
         <form onSubmit={handleSubmit} className="hr-form">
           <div className="hr-form-row">
-            <div className="hr-form-field"><label>Title</label><input type="text" value={form.title} onChange={(e) => updateField('title', e.target.value)} placeholder="PO title" /></div>
-            <div className="hr-form-field"><label>Vendor *</label><input type="text" value={form.vendor} onChange={(e) => updateField('vendor', e.target.value)} required placeholder="Vendor name" /></div>
+            <div className="hr-form-field"><label>PO Reference *</label><input type="text" value={form.po_reference} onChange={(e) => updateField('po_reference', e.target.value)} required placeholder="e.g. PO-2026-001" /></div>
+            <div className="hr-form-field"><label>Vendor</label><input type="text" value={form.vendor} onChange={(e) => updateField('vendor', e.target.value)} placeholder="Vendor name" /></div>
           </div>
           <div className="hr-form-row">
-            <div className="hr-form-field"><label>PR Reference</label><input type="text" value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)} placeholder="e.g. PR-2026-001" /></div>
-            <div className="hr-form-field"><label>RFQ Reference</label><input type="text" value={form.rfq_reference} onChange={(e) => updateField('rfq_reference', e.target.value)} placeholder="e.g. RFQ-2026-001" /></div>
+            <div className="hr-form-field"><label>Received By</label><input type="text" value={form.received_by} onChange={(e) => updateField('received_by', e.target.value)} placeholder="Name of receiver" /></div>
+            <div className="hr-form-field"><label>Date Received</label><input type="date" value={form.received_date} onChange={(e) => updateField('received_date', e.target.value)} /></div>
           </div>
           <div className="hr-form-row">
-            <div className="hr-form-field"><label>Total Amount (₦) *</label><input type="number" value={form.total_amount} onChange={(e) => updateField('total_amount', e.target.value)} required placeholder="0.00" min="0" step="0.01" /></div>
-            <div className="hr-form-field"><label>Delivery Date</label><input type="date" value={form.delivery_date} onChange={(e) => updateField('delivery_date', e.target.value)} /></div>
+            <div className="hr-form-field"><label>Total Amount (₦)</label><input type="number" value={form.total_amount} onChange={(e) => updateField('total_amount', e.target.value)} placeholder="0.00" min="0" step="0.01" /></div>
+            <div className="hr-form-field"><label>Status</label><select value={form.status} onChange={(e) => updateField('status', e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}</select></div>
           </div>
-          <div className="hr-form-field"><label>Status</label><select value={form.status} onChange={(e) => updateField('status', e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}</select></div>
-          <div className="hr-form-field"><label>Description</label><textarea value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={4} placeholder="Line items and details…" /></div>
+          <div className="hr-form-field"><label>Description</label><textarea value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={4} placeholder="Items received, quantities, condition…" /></div>
           <div className="hr-form-field"><label>Notes</label><textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} placeholder="Additional notes…" /></div>
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={closeModal}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">{editing ? 'Update' : 'Create PO'}</button>
+            <button type="submit" className="hr-btn-primary">{editing ? 'Update' : 'Create GRN'}</button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Purchase Order" size="sm">
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete GRN" size="sm">
         <div className="hr-confirm-delete">
-          <p>Delete <strong>{deleteTarget?.po_number || deleteTarget?.title}</strong>? This cannot be undone.</p>
+          <p>Delete <strong>{deleteTarget?.grn_number}</strong>? This cannot be undone.</p>
           <div className="hr-form-actions">
             <button className="hr-btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
             <button className="hr-btn-danger" onClick={confirmDelete}>Delete</button>

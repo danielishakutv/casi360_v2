@@ -8,8 +8,15 @@
  * Sanctum cookies are shared via SESSION_DOMAIN=.casi360.com on the backend.
  */
 
-const API_ORIGIN = import.meta.env.VITE_API_URL || 'https://api.casi360.com'
+const API_ORIGIN = import.meta.env.VITE_API_URL || ''
 const API_BASE   = API_ORIGIN + '/api/v1'
+
+/* ------------------------------------------------------------------ */
+/* Global 401 listener — AuthContext subscribes to this so that any   */
+/* expired-session response triggers a redirect to /login.            */
+/* ------------------------------------------------------------------ */
+let _onUnauthorized = null
+export function onUnauthorized(cb) { _onUnauthorized = cb }
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                            */
@@ -21,7 +28,7 @@ function getCookie(name) {
 }
 
 async function request(method, path, { body, params } = {}) {
-  const url = new URL(API_BASE + path)
+  const url = new URL(API_BASE + path, window.location.origin)
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v)
@@ -50,6 +57,11 @@ async function request(method, path, { body, params } = {}) {
   const json = await res.json().catch(() => null)
 
   if (!res.ok) {
+    // Expired session — notify listener so app redirects to login
+    if (res.status === 401 && _onUnauthorized) {
+      _onUnauthorized()
+      // Still throw so the calling code stops, but no error banner needed
+    }
     const err = new Error(json?.message || `Request failed (${res.status})`)
     err.status = res.status
     err.errors = json?.errors || null // Laravel 422 validation bag

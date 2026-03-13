@@ -7,10 +7,13 @@ import { useAuth } from '../contexts/AuthContext'
  * Behaviour:
  *  1. While initial session check is running → show a loading spinner
  *  2. Not authenticated → redirect to /login
- *  3. Authenticated but force_password_change → redirect to /change-password
+ *  3. Authenticated but force_password_change (unless allowPasswordChange) → redirect to /change-password
  *  4. Otherwise → render children
+ *
+ * Props:
+ *  - allowPasswordChange  Skip the force-redirect to /change-password (used ON the change-password page itself)
  */
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, allowPasswordChange = false }) {
   const { isAuthenticated, loading, mustChangePassword } = useAuth()
 
   if (loading) {
@@ -28,7 +31,7 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />
   }
 
-  if (mustChangePassword) {
+  if (mustChangePassword && !allowPasswordChange) {
     return <Navigate to="/change-password" replace />
   }
 

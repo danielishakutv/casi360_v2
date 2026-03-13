@@ -1,54 +1,73 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 
-// Layout components
+// Layout & guards (always needed — keep eager)
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
+import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import GuestRoute from './components/GuestRoute'
 
+// ─── Lazy-loaded pages (route-level code-splitting) ──────────
+
 // Auth pages (public)
-import Login from './pages/auth/Login'
-import ForgotPassword from './pages/auth/ForgotPassword'
-import ResetPassword from './pages/auth/ResetPassword'
-import ForceChangePassword from './pages/auth/ForceChangePassword'
+const Login               = lazy(() => import('./pages/auth/Login'))
+const ForgotPassword      = lazy(() => import('./pages/auth/ForgotPassword'))
+const ResetPassword       = lazy(() => import('./pages/auth/ResetPassword'))
+const ForceChangePassword = lazy(() => import('./pages/auth/ForceChangePassword'))
 
 // Dashboard
-import Dashboard from './pages/Dashboard'
+const Dashboard = lazy(() => import('./pages/Dashboard'))
 
-// HR pages
-import HROverview from './pages/hr/Overview'
-import StaffList from './pages/hr/StaffList'
-import Departments from './pages/hr/Departments'
-import Designations from './pages/hr/Designations'
-import HRNotes from './pages/hr/Notes'
-import HRSettings from './pages/hr/Settings'
+// HR
+const HROverview   = lazy(() => import('./pages/hr/Overview'))
+const StaffList    = lazy(() => import('./pages/hr/StaffList'))
+const Departments  = lazy(() => import('./pages/hr/Departments'))
+const Designations = lazy(() => import('./pages/hr/Designations'))
+const HRNotes      = lazy(() => import('./pages/hr/Notes'))
+const HRSettings   = lazy(() => import('./pages/hr/Settings'))
 
-// Procurement pages
-import ProcOverview from './pages/procurement/Overview'
-import Requisitions from './pages/procurement/Requisitions'
-import PurchaseOrders from './pages/procurement/PurchaseOrders'
-import Vendors from './pages/procurement/Vendors'
-import Inventory from './pages/procurement/Inventory'
+// Procurement
+const ProcOverview       = lazy(() => import('./pages/procurement/Overview'))
+const PurchaseRequests   = lazy(() => import('./pages/procurement/PurchaseRequests'))
+const CreatePurchaseRequest = lazy(() => import('./pages/procurement/CreatePurchaseRequest'))
+const BillOfQuantities   = lazy(() => import('./pages/procurement/BillOfQuantities'))
+const CreateBillOfQuantities = lazy(() => import('./pages/procurement/CreateBillOfQuantities'))
+const RequestForQuotation = lazy(() => import('./pages/procurement/RequestForQuotation'))
+const PurchaseOrders     = lazy(() => import('./pages/procurement/PurchaseOrders'))
+const GoodsReceivedNote  = lazy(() => import('./pages/procurement/GoodsReceivedNote'))
+const RequestForPayment  = lazy(() => import('./pages/procurement/RequestForPayment'))
 
-// Programs pages
-import ProgOverview from './pages/programs/Overview'
-import Projects from './pages/programs/Projects'
-import Beneficiaries from './pages/programs/Beneficiaries'
-import ProgReports from './pages/programs/Reports'
+// Programs
+const ProgOverview  = lazy(() => import('./pages/programs/Overview'))
+const Projects      = lazy(() => import('./pages/programs/Projects'))
+const Beneficiaries = lazy(() => import('./pages/programs/Beneficiaries'))
+const ProgReports   = lazy(() => import('./pages/programs/Reports'))
 
-// Communication pages
-import CommOverview from './pages/communication/Overview'
-import SendEmail from './pages/communication/SendEmail'
-import SendSMS from './pages/communication/SendSMS'
-import SendNotice from './pages/communication/SendNotice'
+// Communication
+const CommOverview = lazy(() => import('./pages/communication/Overview'))
+const SendEmail    = lazy(() => import('./pages/communication/SendEmail'))
+const SendSMS      = lazy(() => import('./pages/communication/SendSMS'))
+const SendNotice   = lazy(() => import('./pages/communication/SendNotice'))
 
-// Other pages
-import Reports from './pages/Reports'
-import Settings from './pages/Settings'
-import HelpCenter from './pages/HelpCenter'
-import Profile from './pages/Profile'
-import NotFound from './pages/NotFound'
+// Other
+const Reports    = lazy(() => import('./pages/Reports'))
+const Settings   = lazy(() => import('./pages/Settings'))
+const HelpCenter = lazy(() => import('./pages/HelpCenter'))
+const Profile    = lazy(() => import('./pages/Profile'))
+const NotFound   = lazy(() => import('./pages/NotFound'))
+
+/* ─── Suspense fallback ─── */
+function PageSpinner() {
+  return (
+    <div className="auth-page">
+      <div className="auth-loading">
+        <div className="auth-spinner large" />
+        <p>Loading…</p>
+      </div>
+    </div>
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /* Theme                                                              */
@@ -73,13 +92,13 @@ function AppLayout({ theme, toggleTheme }) {
   return (
     <div className="app-layout">
       {/* Mobile overlay */}
-      <div
-        className={`sidebar-overlay ${mobileOpen ? 'visible' : ''}`}
-        onClick={closeMobile}
-        role="button"
-        aria-label="Close menu"
-        tabIndex={-1}
-      />
+      {mobileOpen && (
+        <div
+          className="sidebar-overlay visible"
+          onClick={closeMobile}
+          role="presentation"
+        />
+      )}
 
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -92,43 +111,51 @@ function AppLayout({ theme, toggleTheme }) {
         <TopBar onMobileMenuClick={toggleMobile} theme={theme} onToggleTheme={toggleTheme} />
 
         <div className="page-content">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
+          <ErrorBoundary>
+            <Suspense fallback={<PageSpinner />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
 
-            {/* HR Management */}
-            <Route path="/hr" element={<HROverview />} />
-            <Route path="/hr/staff" element={<StaffList />} />
-            <Route path="/hr/departments" element={<Departments />} />
-            <Route path="/hr/designations" element={<Designations />} />
-            <Route path="/hr/notes" element={<HRNotes />} />
-            <Route path="/hr/settings" element={<HRSettings />} />
+                {/* HR Management */}
+                <Route path="/hr" element={<HROverview />} />
+                <Route path="/hr/staff" element={<StaffList />} />
+                <Route path="/hr/departments" element={<Departments />} />
+                <Route path="/hr/designations" element={<Designations />} />
+                <Route path="/hr/notes" element={<HRNotes />} />
+                <Route path="/hr/settings" element={<HRSettings />} />
 
-            {/* Procurement */}
-            <Route path="/procurement" element={<ProcOverview />} />
-            <Route path="/procurement/requisitions" element={<Requisitions />} />
-            <Route path="/procurement/purchase-orders" element={<PurchaseOrders />} />
-            <Route path="/procurement/vendors" element={<Vendors />} />
-            <Route path="/procurement/inventory" element={<Inventory />} />
+                {/* Procurement */}
+                <Route path="/procurement" element={<ProcOverview />} />
+                <Route path="/procurement/purchase-requests" element={<PurchaseRequests />} />
+                <Route path="/procurement/purchase-requests/create" element={<CreatePurchaseRequest />} />
+                <Route path="/procurement/boq" element={<BillOfQuantities />} />
+                <Route path="/procurement/boq/create" element={<CreateBillOfQuantities />} />
+                <Route path="/procurement/rfq" element={<RequestForQuotation />} />
+                <Route path="/procurement/purchase-orders" element={<PurchaseOrders />} />
+                <Route path="/procurement/grn" element={<GoodsReceivedNote />} />
+                <Route path="/procurement/rfp" element={<RequestForPayment />} />
 
-            {/* Programs */}
-            <Route path="/programs" element={<ProgOverview />} />
-            <Route path="/programs/projects" element={<Projects />} />
-            <Route path="/programs/beneficiaries" element={<Beneficiaries />} />
-            <Route path="/programs/reports" element={<ProgReports />} />
+                {/* Programs */}
+                <Route path="/programs" element={<ProgOverview />} />
+                <Route path="/programs/projects" element={<Projects />} />
+                <Route path="/programs/beneficiaries" element={<Beneficiaries />} />
+                <Route path="/programs/reports" element={<ProgReports />} />
 
-            {/* Communication */}
-            <Route path="/communication" element={<CommOverview />} />
-            <Route path="/communication/email" element={<SendEmail />} />
-            <Route path="/communication/sms" element={<SendSMS />} />
-            <Route path="/communication/notice" element={<SendNotice />} />
+                {/* Communication */}
+                <Route path="/communication" element={<CommOverview />} />
+                <Route path="/communication/email" element={<SendEmail />} />
+                <Route path="/communication/sms" element={<SendSMS />} />
+                <Route path="/communication/notice" element={<SendNotice />} />
 
-            {/* Other */}
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/help" element={<HelpCenter />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+                {/* Other */}
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/help" element={<HelpCenter />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>
@@ -168,12 +195,12 @@ function App() {
   return (
     <Routes>
       {/* ---- Guest (public) routes ---- */}
-      <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-      <Route path="/forgot-password" element={<GuestRoute><ForgotPassword /></GuestRoute>} />
-      <Route path="/reset-password" element={<GuestRoute><ResetPassword /></GuestRoute>} />
+      <Route path="/login" element={<GuestRoute><Suspense fallback={<PageSpinner />}><Login /></Suspense></GuestRoute>} />
+      <Route path="/forgot-password" element={<GuestRoute><Suspense fallback={<PageSpinner />}><ForgotPassword /></Suspense></GuestRoute>} />
+      <Route path="/reset-password" element={<GuestRoute><Suspense fallback={<PageSpinner />}><ResetPassword /></Suspense></GuestRoute>} />
 
-      {/* ---- Force change password (authenticated but restricted) ---- */}
-      <Route path="/change-password" element={<ForceChangePassword />} />
+      {/* ---- Force change password (requires auth, but skip force-redirect loop) ---- */}
+      <Route path="/change-password" element={<ProtectedRoute allowPasswordChange><Suspense fallback={<PageSpinner />}><ForceChangePassword /></Suspense></ProtectedRoute>} />
 
       {/* ---- Protected app shell ---- */}
       <Route

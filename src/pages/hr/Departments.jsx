@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Pencil, Trash2, AlertCircle } from 'lucide-react'
-import { departmentsApi } from '../../services/hr'
+import { departmentsApi, employeesApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
 import { useDebounce } from '../../hooks/useDebounce'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -32,6 +32,10 @@ export default function Departments() {
 
   const [error, setError] = useState('')
 
+  /* -------- Staff list for head dropdown -------- */
+  const [staffList, setStaffList] = useState([])
+  const [staffLoading, setStaffLoading] = useState(false)
+
   /* ================================================================ */
   /* Fetch list                                                       */
   /* ================================================================ */
@@ -62,11 +66,26 @@ export default function Departments() {
   /* ================================================================ */
   /* Modal handlers                                                   */
   /* ================================================================ */
+  /** Fetch all employees for the head dropdown (only when modal opens). */
+  async function loadStaff() {
+    if (staffList.length > 0) return // already loaded
+    setStaffLoading(true)
+    try {
+      const res = await employeesApi.list({ per_page: 0 }) // 0 = all
+      setStaffList(extractItems(res))
+    } catch {
+      // Silently fall back — dropdown will be empty with a hint
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
   function openCreate() {
     setEditing(null)
     setForm(INITIAL_FORM)
     setFormErrors({})
     setModalOpen(true)
+    loadStaff()
   }
 
   function openEdit(dept) {
@@ -80,6 +99,7 @@ export default function Departments() {
     })
     setFormErrors({})
     setModalOpen(true)
+    loadStaff()
   }
 
   function closeModal() {
@@ -256,12 +276,15 @@ export default function Departments() {
 
           <div className="hr-form-field">
             <label>Department Head</label>
-            <input
-              type="text"
+            <select
               value={form.head}
               onChange={(e) => updateField('head', e.target.value)}
-              placeholder="e.g. John Smith"
-            />
+            >
+              <option value="">{staffLoading ? 'Loading staff…' : '— Select Head —'}</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}{s.position ? ` — ${s.position}` : ''}</option>
+              ))}
+            </select>
             {formErrors.head && <span className="hr-field-error">{formErrors.head[0]}</span>}
           </div>
 
