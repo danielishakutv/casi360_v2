@@ -67,6 +67,7 @@ const navItems = [
       { label: 'Purchase Orders',      icon: Store,         path: '/procurement/purchase-orders' },
       { label: 'Goods Received',       icon: Truck,         path: '/procurement/grn' },
       { label: 'Request for Payment',  icon: CreditCard,    path: '/procurement/rfp' },
+      { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors' },
     ],
   },
   {

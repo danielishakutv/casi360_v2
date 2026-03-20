@@ -2982,6 +2982,11 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   padding: 8px 0;
 }
 
+/* Vendor rating stars */
+.vendor-rating { display: inline-flex; gap: 2px; }
+.vendor-rating .star-filled { color: #f59e0b; fill: #f59e0b; }
+.vendor-rating .star-empty  { color: #d1d5db; }
+
 /* Sign-off blocks */
 .pr-signoffs-grid {
   display: grid;
