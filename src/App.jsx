@@ -34,9 +34,13 @@ const CreatePurchaseRequest = lazy(() => import('./pages/procurement/CreatePurch
 const BillOfQuantities   = lazy(() => import('./pages/procurement/BillOfQuantities'))
 const CreateBillOfQuantities = lazy(() => import('./pages/procurement/CreateBillOfQuantities'))
 const RequestForQuotation = lazy(() => import('./pages/procurement/RequestForQuotation'))
+const CreateRequestForQuotation = lazy(() => import('./pages/procurement/CreateRequestForQuotation'))
 const PurchaseOrders     = lazy(() => import('./pages/procurement/PurchaseOrders'))
+const CreatePurchaseOrder = lazy(() => import('./pages/procurement/CreatePurchaseOrder'))
 const GoodsReceivedNote  = lazy(() => import('./pages/procurement/GoodsReceivedNote'))
+const CreateGoodsReceivedNote = lazy(() => import('./pages/procurement/CreateGoodsReceivedNote'))
 const RequestForPayment  = lazy(() => import('./pages/procurement/RequestForPayment'))
+const CreateRequestForPayment = lazy(() => import('./pages/procurement/CreateRequestForPayment'))
 
 // Programs
 const ProgOverview  = lazy(() => import('./pages/programs/Overview'))
@@ -131,9 +135,13 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/boq" element={<BillOfQuantities />} />
                 <Route path="/procurement/boq/create" element={<CreateBillOfQuantities />} />
                 <Route path="/procurement/rfq" element={<RequestForQuotation />} />
+                <Route path="/procurement/rfq/create" element={<CreateRequestForQuotation />} />
                 <Route path="/procurement/purchase-orders" element={<PurchaseOrders />} />
+                <Route path="/procurement/purchase-orders/create" element={<CreatePurchaseOrder />} />
                 <Route path="/procurement/grn" element={<GoodsReceivedNote />} />
+                <Route path="/procurement/grn/create" element={<CreateGoodsReceivedNote />} />
                 <Route path="/procurement/rfp" element={<RequestForPayment />} />
+                <Route path="/procurement/rfp/create" element={<CreateRequestForPayment />} />
 
                 {/* Programs */}
                 <Route path="/programs" element={<ProgOverview />} />

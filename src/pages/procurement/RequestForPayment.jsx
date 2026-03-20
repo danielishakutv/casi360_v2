@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
@@ -18,6 +19,7 @@ const INITIAL_FORM = {
 }
 
 export default function RequestForPayment() {
+  const navigate = useNavigate()
   const [items, setItems] = useState(demoRFP)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -78,7 +80,7 @@ export default function RequestForPayment() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> New RFP</button>
+            <button className="hr-btn-primary" onClick={() => navigate('/procurement/rfp/create')}><Plus size={16} /> New RFP</button>
           </div>
         </div>
 

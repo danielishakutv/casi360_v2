@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
@@ -15,6 +16,7 @@ const INITIAL_FORM = {
 }
 
 export default function RequestForQuotation() {
+  const navigate = useNavigate()
   const [items, setItems] = useState(demoRFQ)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -75,7 +77,7 @@ export default function RequestForQuotation() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> New RFQ</button>
+            <button className="hr-btn-primary" onClick={() => navigate('/procurement/rfq/create')}><Plus size={16} /> New RFQ</button>
           </div>
         </div>
 
