@@ -2987,6 +2987,137 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .vendor-rating .star-filled { color: #f59e0b; fill: #f59e0b; }
 .vendor-rating .star-empty  { color: #d1d5db; }
 
+/* ─── Communication: Audience tabs, chips, dropdown ─── */
+.comm-audience-tabs {
+  display: flex;
+  gap: 8px;
+}
+.comm-audience-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.comm-audience-tab:hover { border-color: var(--primary); color: var(--primary); }
+.comm-audience-tab.active {
+  background: var(--primary-100);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.comm-audience-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.comm-dept-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.comm-dept-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.comm-dept-chip:hover { border-color: var(--primary); }
+.comm-dept-chip input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 15px;
+  height: 15px;
+}
+
+.comm-recipient-input-wrap {
+  position: relative;
+}
+.comm-staff-dropdown {
+  position: absolute;
+  z-index: 50;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.comm-staff-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+.comm-staff-option:hover { background: var(--sidebar-active-bg); }
+.comm-staff-name { font-weight: 600; }
+.comm-staff-dept { font-size: 11px; color: var(--text-muted); }
+
+.comm-recipient-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.comm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--primary-100);
+  color: var(--primary);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.comm-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--primary);
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.comm-chip button:hover { opacity: 1; }
+
+.comm-sms-preview {
+  padding: 8px 12px;
+  background: var(--primary-100);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--primary);
+}
+
 /* Sign-off blocks */
 .pr-signoffs-grid {
   display: grid;
