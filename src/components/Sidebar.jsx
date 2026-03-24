@@ -31,6 +31,7 @@ import {
   Mail,
   Smartphone,
   Bell,
+  Tag,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
@@ -68,6 +69,7 @@ const navItems = [
       { label: 'Goods Received',       icon: Truck,         path: '/procurement/grn' },
       { label: 'Request for Payment',  icon: CreditCard,    path: '/procurement/rfp' },
       { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors' },
+      { label: 'Vendor Categories',      icon: Tag,           path: '/procurement/vendor-categories' },
     ],
   },
   {

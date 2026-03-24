@@ -2987,6 +2987,32 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .vendor-rating .star-filled { color: #f59e0b; fill: #f59e0b; }
 .vendor-rating .star-empty  { color: #d1d5db; }
 
+/* Status toggle button */
+.status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-input);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.status-toggle:hover { border-color: var(--primary); }
+.status-toggle.active { border-color: #22c55e; color: #16a34a; }
+.status-toggle.inactive { border-color: #ef4444; color: #dc2626; }
+.status-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background 0.15s;
+}
+.status-toggle.active .status-toggle-dot { background: #22c55e; }
+.status-toggle.inactive .status-toggle-dot { background: #ef4444; }
+
 /* ─── Communication: Audience tabs, chips, dropdown ─── */
 .comm-audience-tabs {
   display: flex;

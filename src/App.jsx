@@ -42,6 +42,7 @@ const CreateGoodsReceivedNote = lazy(() => import('./pages/procurement/CreateGoo
 const RequestForPayment  = lazy(() => import('./pages/procurement/RequestForPayment'))
 const CreateRequestForPayment = lazy(() => import('./pages/procurement/CreateRequestForPayment'))
 const Vendors            = lazy(() => import('./pages/procurement/Vendors'))
+const VendorCategories   = lazy(() => import('./pages/procurement/VendorCategories'))
 
 // Programs
 const ProgOverview  = lazy(() => import('./pages/programs/Overview'))
@@ -144,6 +145,7 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/rfp" element={<RequestForPayment />} />
                 <Route path="/procurement/rfp/create" element={<CreateRequestForPayment />} />
                 <Route path="/procurement/vendors" element={<Vendors />} />
+                <Route path="/procurement/vendor-categories" element={<VendorCategories />} />
 
                 {/* Programs */}
                 <Route path="/programs" element={<ProgOverview />} />

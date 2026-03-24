@@ -81,3 +81,20 @@ export const demoVendors = [
   { id: 68, vendor_code: 'VND-009', name: 'GreenLeaf Catering',       category: 'Catering & Events',     contact_person: 'Mrs. Aisha Mohammed', email: 'events@greenleaf.ng',     phone: '08090123456', address: '10 Garki Area 11, Abuja',         tin: '90123456-0009', bank_name: 'FCMB',                   account_no: '7890123456', status: 'active',   rating: 5, notes: 'Handles all workshop and event catering.',  created_at: '2025-12-02' },
   { id: 69, vendor_code: 'VND-010', name: 'PrintWorks Media',         category: 'Printing & Branding',   contact_person: 'Mr. Dayo Ajayi',    email: 'orders@printworks.ng',      phone: '08001234567', address: '7 Ikeja GRA, Lagos',              tin: '01234567-0010', bank_name: 'Sterling Bank',          account_no: '8901234567', status: 'blacklisted', rating: 1, notes: 'Substandard print quality on last job. Blacklisted.', created_at: '2025-03-22' },
 ]
+
+export const demoVendorCategories = [
+  { id: 80, name: 'Office Supplies',        description: 'Stationery, paper, pens, toner, office equipment',               status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 81, name: 'Cleaning & Janitorial',  description: 'Cleaning products, waste management, janitorial services',       status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 82, name: 'Vehicle Maintenance',    description: 'Car servicing, spare parts, tyres, fleet maintenance',           status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 83, name: 'Safety & PPE',           description: 'Personal protective equipment, safety gear, first aid',          status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 84, name: 'Fuel & Petroleum',       description: 'Diesel, petrol, lubricants, fuel cards',                         status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 85, name: 'Construction',           description: 'Building materials, civil works, renovations',                   status: 'active',   vendor_count: 1, created_at: '2025-01-10' },
+  { id: 86, name: 'Security & IT',          description: 'CCTV, access control, networking, security services',            status: 'active',   vendor_count: 1, created_at: '2025-02-15' },
+  { id: 87, name: 'IT Equipment',           description: 'Laptops, desktops, printers, servers, accessories',              status: 'active',   vendor_count: 1, created_at: '2025-02-15' },
+  { id: 88, name: 'Catering & Events',      description: 'Food services, event planning, workshop catering',               status: 'active',   vendor_count: 1, created_at: '2025-03-01' },
+  { id: 89, name: 'Printing & Branding',    description: 'Printing services, branding materials, signage',                 status: 'inactive', vendor_count: 0, created_at: '2025-03-01' },
+  { id: 90, name: 'Furniture',              description: 'Office furniture, ergonomic chairs, shelving, storage',          status: 'active',   vendor_count: 0, created_at: '2025-04-10' },
+  { id: 91, name: 'Medical Supplies',       description: 'Medical kits, clinic supplies, health & wellness products',      status: 'active',   vendor_count: 0, created_at: '2025-04-10' },
+  { id: 92, name: 'Consultancy',            description: 'Professional consulting, auditing, legal advisory',              status: 'active',   vendor_count: 0, created_at: '2025-05-20' },
+  { id: 93, name: 'Other',                  description: 'Miscellaneous vendor category',                                 status: 'inactive', vendor_count: 0, created_at: '2025-05-20' },
+]
