@@ -8,6 +8,12 @@ import Pagination from '../../components/Pagination'
 
 const PER_PAGE = 10
 
+function AudienceIcon({ type }) {
+  if (type === 'individual') return <Users size={13} />
+  if (type === 'department') return <Building2 size={13} />
+  return <Globe size={13} />
+}
+
 const INITIAL_FORM = {
   subject: '', body: '',
   audience: 'general', recipients: [], departments: [],
@@ -97,12 +103,6 @@ export default function SendEmail() {
     if (item.audience === 'general') return 'All Staff'
     if (item.audience === 'department') return item.departments.join(', ')
     return item.recipients.map((r) => r.name).join(', ')
-  }
-
-  const AudienceIcon = ({ type }) => {
-    if (type === 'individual') return <Users size={13} />
-    if (type === 'department') return <Building2 size={13} />
-    return <Globe size={13} />
   }
 
   return (

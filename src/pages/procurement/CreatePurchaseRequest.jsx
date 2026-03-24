@@ -123,20 +123,22 @@ export default function CreatePurchaseRequest() {
     navigate('/procurement/purchase-requests')
   }
 
-  /* ─── Signoff block ─── */
-  const SignoffBlock = ({ label, section }) => (
-    <div className="pr-signoff-block">
-      <h4 className="pr-signoff-title">{label}</h4>
-      <div className="hr-form-row">
-        <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} /></div>
-        <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} /></div>
+  /* ─── Signoff block (render function, not component) ─── */
+  function renderSignoff(label, section) {
+    return (
+      <div className="pr-signoff-block" key={section}>
+        <h4 className="pr-signoff-title">{label}</h4>
+        <div className="hr-form-row">
+          <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} /></div>
+          <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} /></div>
+        </div>
+        <div className="hr-form-row">
+          <div className="hr-form-field"><label>Date</label><input type="date" value={form[section].date} onChange={(e) => updateSignoff(section, 'date', e.target.value)} /></div>
+          <div className="hr-form-field"><label>Signature</label><input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" /></div>
+        </div>
       </div>
-      <div className="hr-form-row">
-        <div className="hr-form-field"><label>Date</label><input type="date" value={form[section].date} onChange={(e) => updateSignoff(section, 'date', e.target.value)} /></div>
-        <div className="hr-form-field"><label>Signature</label><input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" /></div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="animate-in">
@@ -316,11 +318,11 @@ export default function CreatePurchaseRequest() {
           <p className="hr-form-section-title">Validation & Approvals</p>
 
           <div className="pr-signoffs-grid">
-            <SignoffBlock label="Validation" section="validation" />
-            <SignoffBlock label="Requester" section="requester" />
-            <SignoffBlock label="Budget Holder" section="budget_holder" />
-            <SignoffBlock label="Finance" section="finance" />
-            <SignoffBlock label="Logistics" section="logistics" />
+            {renderSignoff('Validation', 'validation')}
+            {renderSignoff('Requester', 'requester')}
+            {renderSignoff('Budget Holder', 'budget_holder')}
+            {renderSignoff('Finance', 'finance')}
+            {renderSignoff('Logistics', 'logistics')}
           </div>
 
           {/* ── Actions ── */}

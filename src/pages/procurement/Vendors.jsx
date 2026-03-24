@@ -15,6 +15,16 @@ const CATEGORIES = [
 ]
 const PER_PAGE = 15
 
+function RatingStars({ value }) {
+  return (
+    <span className="vendor-rating">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star key={s} size={13} className={s <= value ? 'star-filled' : 'star-empty'} />
+      ))}
+    </span>
+  )
+}
+
 const INITIAL_FORM = {
   name: '', category: '', contact_person: '', email: '', phone: '',
   address: '', tin: '', bank_name: '', account_no: '',
@@ -89,15 +99,6 @@ export default function Vendors() {
     setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
     setDeleteTarget(null)
   }
-
-  /* Rating stars display */
-  const RatingStars = ({ value }) => (
-    <span className="vendor-rating">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <Star key={s} size={13} className={s <= value ? 'star-filled' : 'star-empty'} />
-      ))}
-    </span>
-  )
 
   return (
     <>

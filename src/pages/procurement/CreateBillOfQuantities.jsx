@@ -97,20 +97,22 @@ export default function CreateBillOfQuantities() {
     navigate('/procurement/boq')
   }
 
-  /* ─── Surveyor block ─── */
-  const SurveyorBlock = ({ label, which }) => (
-    <div className="pr-signoff-block">
-      <h4 className="pr-signoff-title">{label}</h4>
-      <div className="hr-form-row">
-        <div className="hr-form-field"><label>Staff Name</label><input type="text" value={form[which].name} onChange={(e) => updateSurveyor(which, 'name', e.target.value)} placeholder="Full name" /></div>
-        <div className="hr-form-field"><label>Staff Position</label><input type="text" value={form[which].position} onChange={(e) => updateSurveyor(which, 'position', e.target.value)} placeholder="Position / title" /></div>
+  /* ─── Surveyor block (render function, not component) ─── */
+  function renderSurveyor(label, which) {
+    return (
+      <div className="pr-signoff-block" key={which}>
+        <h4 className="pr-signoff-title">{label}</h4>
+        <div className="hr-form-row">
+          <div className="hr-form-field"><label>Staff Name</label><input type="text" value={form[which].name} onChange={(e) => updateSurveyor(which, 'name', e.target.value)} placeholder="Full name" /></div>
+          <div className="hr-form-field"><label>Staff Position</label><input type="text" value={form[which].position} onChange={(e) => updateSurveyor(which, 'position', e.target.value)} placeholder="Position / title" /></div>
+        </div>
+        <div className="hr-form-row">
+          <div className="hr-form-field"><label>Staff Email</label><input type="email" value={form[which].email} onChange={(e) => updateSurveyor(which, 'email', e.target.value)} placeholder="email@example.com" /></div>
+          <div className="hr-form-field"><label>Sign</label><input type="text" value={form[which].signature} onChange={(e) => updateSurveyor(which, 'signature', e.target.value)} placeholder="Type name as signature" /></div>
+        </div>
       </div>
-      <div className="hr-form-row">
-        <div className="hr-form-field"><label>Staff Email</label><input type="email" value={form[which].email} onChange={(e) => updateSurveyor(which, 'email', e.target.value)} placeholder="email@example.com" /></div>
-        <div className="hr-form-field"><label>Sign</label><input type="text" value={form[which].signature} onChange={(e) => updateSurveyor(which, 'signature', e.target.value)} placeholder="Type name as signature" /></div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="animate-in">
@@ -165,8 +167,8 @@ export default function CreateBillOfQuantities() {
           <p className="hr-form-section-title">Market Survey By</p>
 
           <div className="pr-signoffs-grid">
-            <SurveyorBlock label="Staff 1" which="surveyor_1" />
-            <SurveyorBlock label="Staff 2" which="surveyor_2" />
+            {renderSurveyor('Staff 1', 'surveyor_1')}
+            {renderSurveyor('Staff 2', 'surveyor_2')}
           </div>
 
           {/* ── Budget Holder Check ── */}

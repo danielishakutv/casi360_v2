@@ -140,20 +140,22 @@ export default function CreateRequestForPayment() {
     navigate('/procurement/rfp')
   }
 
-  /* ─── Signoff block ─── */
-  const SignoffBlock = ({ label, section }) => (
-    <div className="pr-signoff-block">
-      <h4 className="pr-signoff-title">{label}</h4>
-      <div className="hr-form-row">
-        <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} placeholder="Full name" /></div>
-        <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} placeholder="Position / title" /></div>
+  /* ─── Signoff block (render function, not component) ─── */
+  function renderSignoff(label, section) {
+    return (
+      <div className="pr-signoff-block" key={section}>
+        <h4 className="pr-signoff-title">{label}</h4>
+        <div className="hr-form-row">
+          <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} placeholder="Full name" /></div>
+          <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} placeholder="Position / title" /></div>
+        </div>
+        <div className="hr-form-field" style={{ maxWidth: 400 }}>
+          <label>Signature</label>
+          <input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" />
+        </div>
       </div>
-      <div className="hr-form-field" style={{ maxWidth: 400 }}>
-        <label>Signature</label>
-        <input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" />
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="animate-in">
@@ -364,9 +366,9 @@ export default function CreateRequestForPayment() {
           <p className="hr-form-section-title">Approval</p>
 
           <div className="pr-signoffs-grid">
-            <SignoffBlock label="Requester" section="requester" />
-            <SignoffBlock label="Finance" section="finance" />
-            <SignoffBlock label="Authorizing Person" section="authorizing_person" />
+            {renderSignoff('Requester', 'requester')}
+            {renderSignoff('Finance', 'finance')}
+            {renderSignoff('Authorizing Person', 'authorizing_person')}
           </div>
 
           {/* ── Actions ── */}
