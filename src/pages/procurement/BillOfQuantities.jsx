@@ -5,6 +5,7 @@ import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { demoBOQ } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -13,6 +14,7 @@ const PER_PAGE = 15
 
 export default function BillOfQuantities() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [items, setItems] = useState(demoBOQ)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -50,7 +52,9 @@ export default function BillOfQuantities() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={() => navigate('/procurement/boq/create')}><Plus size={16} /> New BOQ</button>
+            {can('procurement.boq.create') && (
+              <button className="hr-btn-primary" onClick={() => navigate('/procurement/boq/create')}><Plus size={16} /> New BOQ</button>
+            )}
           </div>
         </div>
 
@@ -72,7 +76,9 @@ export default function BillOfQuantities() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      {can('procurement.boq.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

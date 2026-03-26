@@ -4,6 +4,7 @@ import {
   CalendarDays, Umbrella, ChevronRight,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 
 /* ================================================================== */
@@ -60,6 +61,7 @@ const HOLIDAY_INITIAL = {
 /* Component                                                          */
 /* ================================================================== */
 export default function HRSettings() {
+  const { can } = useAuth()
   const [tab, setTab] = useState('leave')
 
   /* ── Leave Types state ── */
@@ -222,7 +224,9 @@ export default function HRSettings() {
                 <h3>Leave Types</h3>
                 <p>Define leave categories, entitlements, and carry-over rules</p>
               </div>
-              <button className="hr-btn-primary" onClick={openLeaveCreate}><Plus size={16} /> Add Leave Type</button>
+              {can('hr.settings.edit') && (
+                <button className="hr-btn-primary" onClick={openLeaveCreate}><Plus size={16} /> Add Leave Type</button>
+              )}
             </div>
 
             <div className="hr-toolbar" style={{ borderTop: 'none', paddingTop: 0 }}>
@@ -276,8 +280,12 @@ export default function HRSettings() {
                       </td>
                       <td>
                         <div className="hr-actions">
-                          <button className="hr-action-btn" onClick={() => openLeaveEdit(lt)} title="Edit"><Pencil size={15} /></button>
-                          <button className="hr-action-btn danger" onClick={() => setLeaveDelete(lt)} title="Delete"><Trash2 size={15} /></button>
+                          {can('hr.settings.edit') && (
+                            <button className="hr-action-btn" onClick={() => openLeaveEdit(lt)} title="Edit"><Pencil size={15} /></button>
+                          )}
+                          {can('hr.settings.delete') && (
+                            <button className="hr-action-btn danger" onClick={() => setLeaveDelete(lt)} title="Delete"><Trash2 size={15} /></button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -304,7 +312,9 @@ export default function HRSettings() {
                 <h3>Public Holidays</h3>
                 <p>Manage officially observed holidays for the current year</p>
               </div>
-              <button className="hr-btn-primary" onClick={openHolCreate}><Plus size={16} /> Add Holiday</button>
+              {can('hr.settings.edit') && (
+                <button className="hr-btn-primary" onClick={openHolCreate}><Plus size={16} /> Add Holiday</button>
+              )}
             </div>
 
             <div className="hr-toolbar" style={{ borderTop: 'none', paddingTop: 0 }}>
@@ -357,8 +367,12 @@ export default function HRSettings() {
                         </td>
                         <td>
                           <div className="hr-actions">
-                            <button className="hr-action-btn" onClick={() => openHolEdit(h)} title="Edit"><Pencil size={15} /></button>
-                            <button className="hr-action-btn danger" onClick={() => setHolDelete(h)} title="Delete"><Trash2 size={15} /></button>
+                            {can('hr.settings.edit') && (
+                              <button className="hr-action-btn" onClick={() => openHolEdit(h)} title="Edit"><Pencil size={15} /></button>
+                            )}
+                            {can('hr.settings.delete') && (
+                              <button className="hr-action-btn danger" onClick={() => setHolDelete(h)} title="Delete"><Trash2 size={15} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -115,7 +115,7 @@ function Toggle({ checked, onChange, label, description }) {
 /* Main component                                                     */
 /* ================================================================== */
 export default function Settings() {
-  const { user } = useAuth()
+  const { user, can } = useAuth()
   const [activeTab, setActiveTab] = useState('general')
   const [toast, setToast] = useState(null)
 

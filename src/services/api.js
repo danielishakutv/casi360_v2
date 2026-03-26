@@ -60,11 +60,11 @@ async function request(method, path, { body, params } = {}) {
     // Expired session — notify listener so app redirects to login
     if (res.status === 401 && _onUnauthorized) {
       _onUnauthorized()
-      // Still throw so the calling code stops, but no error banner needed
     }
     const err = new Error(json?.message || `Request failed (${res.status})`)
     err.status = res.status
     err.errors = json?.errors || null // Laravel 422 validation bag
+    err.forbidden = res.status === 403
     throw err
   }
 
@@ -117,6 +117,9 @@ export const authApi = {
 
   deactivateAccount: () =>
     api.delete('/auth/account'),
+
+  getPermissions: () =>
+    api.get('/auth/permissions'),
 }
 
 /* ------------------------------------------------------------------ */
@@ -144,4 +147,19 @@ export const usersApi = {
 
   changeStatus: (id, status) =>
     api.patch(`/auth/users/${id}/status`, { status }),
+}
+
+/* ------------------------------------------------------------------ */
+/* Settings / Permissions management (super_admin)                    */
+/* ------------------------------------------------------------------ */
+
+export const settingsApi = {
+  getPermissions: (params) =>
+    api.get('/settings/permissions', params),
+
+  updatePermission: (id, data) =>
+    api.patch(`/settings/permissions/${id}`, data),
+
+  bulkUpdatePermissions: (permissions) =>
+    api.patch('/settings/permissions/bulk', { permissions }),
 }

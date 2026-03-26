@@ -49,11 +49,11 @@ const navItems = [
     icon: Users,
     children: [
       { label: 'Overview',     icon: Eye,          path: '/hr' },
-      { label: 'Staff List',   icon: UserCheck,    path: '/hr/staff' },
-      { label: 'Departments',  icon: Building2,    path: '/hr/departments' },
-      { label: 'Designations', icon: Award,        path: '/hr/designations' },
-      { label: 'Notes',        icon: StickyNote,   path: '/hr/notes' },
-      { label: 'Settings',     icon: Cog,          path: '/hr/settings' },
+      { label: 'Staff List',   icon: UserCheck,    path: '/hr/staff',        permission: 'hr.employees.view' },
+      { label: 'Departments',  icon: Building2,    path: '/hr/departments',  permission: 'hr.departments.view' },
+      { label: 'Designations', icon: Award,        path: '/hr/designations', permission: 'hr.designations.view' },
+      { label: 'Notes',        icon: StickyNote,   path: '/hr/notes',        permission: 'hr.notes.view' },
+      { label: 'Settings',     icon: Cog,          path: '/hr/settings',     permission: 'hr.settings.view' },
     ],
   },
   {
@@ -61,15 +61,15 @@ const navItems = [
     label: 'Procurement',
     icon: ShoppingCart,
     children: [
-      { label: 'Overview',             icon: Eye,           path: '/procurement' },
-      { label: 'Purchase Requests',    icon: ClipboardList, path: '/procurement/purchase-requests' },
-      { label: 'Bill of Quantities',   icon: ListOrdered,   path: '/procurement/boq' },
-      { label: 'Request for Quotation', icon: FileText,     path: '/procurement/rfq' },
-      { label: 'Purchase Orders',      icon: Store,         path: '/procurement/purchase-orders' },
-      { label: 'Goods Received',       icon: Truck,         path: '/procurement/grn' },
-      { label: 'Request for Payment',  icon: CreditCard,    path: '/procurement/rfp' },
-      { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors' },
-      { label: 'Vendor Categories',      icon: Tag,           path: '/procurement/vendor-categories' },
+      { label: 'Overview',              icon: Eye,           path: '/procurement' },
+      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.purchase_requests.view' },
+      { label: 'Bill of Quantities',    icon: ListOrdered,   path: '/procurement/boq',              permission: 'procurement.boq.view' },
+      { label: 'Request for Quotation', icon: FileText,      path: '/procurement/rfq',              permission: 'procurement.rfq.view' },
+      { label: 'Purchase Orders',       icon: Store,         path: '/procurement/purchase-orders',  permission: 'procurement.purchase_orders.view' },
+      { label: 'Goods Received',        icon: Truck,         path: '/procurement/grn',              permission: 'procurement.grn.view' },
+      { label: 'Request for Payment',   icon: CreditCard,    path: '/procurement/rfp',              permission: 'procurement.rfp.view' },
+      { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors',          permission: 'procurement.vendors.view' },
+      { label: 'Vendor Categories',     icon: Tag,           path: '/procurement/vendor-categories', permission: 'procurement.vendor_categories.view' },
     ],
   },
   {
@@ -78,9 +78,9 @@ const navItems = [
     icon: FolderKanban,
     children: [
       { label: 'Overview',      icon: Eye,       path: '/programs' },
-      { label: 'Projects',      icon: Briefcase, path: '/programs/projects' },
-      { label: 'Beneficiaries', icon: Heart,     path: '/programs/beneficiaries' },
-      { label: 'Reports',       icon: PieChart,  path: '/programs/reports' },
+      { label: 'Projects',      icon: Briefcase, path: '/programs/projects',      permission: 'programs.projects.view' },
+      { label: 'Beneficiaries', icon: Heart,     path: '/programs/beneficiaries', permission: 'programs.beneficiaries.view' },
+      { label: 'Reports',       icon: PieChart,  path: '/programs/reports',       permission: 'programs.reports.view' },
     ],
   },
   {
@@ -89,9 +89,9 @@ const navItems = [
     icon: MessageSquare,
     children: [
       { label: 'Overview',     icon: Eye,        path: '/communication' },
-      { label: 'Send Email',   icon: Mail,       path: '/communication/email' },
-      { label: 'Send SMS',     icon: Smartphone, path: '/communication/sms' },
-      { label: 'Send Notice',  icon: Bell,       path: '/communication/notice' },
+      { label: 'Send Email',   icon: Mail,       path: '/communication/email',  permission: 'communication.email.view' },
+      { label: 'Send SMS',     icon: Smartphone, path: '/communication/sms',    permission: 'communication.sms.view' },
+      { label: 'Send Notice',  icon: Bell,       path: '/communication/notice', permission: 'communication.notice.view' },
     ],
   },
   {
@@ -99,12 +99,14 @@ const navItems = [
     label: 'Reports',
     icon: BarChart3,
     path: '/reports',
+    permission: 'reports.view',
   },
   {
     id: 'settings',
     label: 'Settings',
     icon: Settings,
     path: '/settings',
+    permission: 'settings.view',
   },
   {
     id: 'help',
@@ -117,8 +119,27 @@ const navItems = [
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, can } = useAuth()
   const [openMenus, setOpenMenus] = useState({})
+
+  // Filter nav items based on user permissions
+  const visibleItems = navItems.reduce((acc, item) => {
+    // Top-level item with a direct path — check its permission
+    if (item.path) {
+      if (!item.permission || can(item.permission)) acc.push(item)
+      return acc
+    }
+    // Section with children — filter children, keep section if any children remain
+    if (item.children) {
+      const visibleChildren = item.children.filter(
+        (child) => !child.permission || can(child.permission)
+      )
+      if (visibleChildren.length > 0) {
+        acc.push({ ...item, children: visibleChildren })
+      }
+    }
+    return acc
+  }, [])
 
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
@@ -181,7 +202,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
       <nav className="sidebar-nav">
         <div className="nav-label">Main Menu</div>
 
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon
           const hasChildren = !!item.children
           // Show as open if explicitly toggled, or if it's the active parent and nothing else is explicitly open

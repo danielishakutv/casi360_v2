@@ -38,8 +38,7 @@ const INITIAL_FORM = {
 }
 
 export default function Notes() {
-  const { user } = useAuth()
-  const canManage = ['super_admin', 'admin', 'manager'].includes(user?.role)
+  const { can } = useAuth()
 
   /* -------- List state -------- */
   const [notes, setNotes] = useState([])
@@ -248,7 +247,7 @@ export default function Notes() {
                 <option key={p} value={p}>{capitalize(p)}</option>
               ))}
             </select>
-            {canManage && (
+            {can('hr.notes.create') && (
               <button className="hr-btn-primary" onClick={openCreate}>
                 <Plus size={16} /> Add Note
               </button>
@@ -295,14 +294,18 @@ export default function Notes() {
                       {formatDate(note.created_at)}
                     </span>
                   </div>
-                  {canManage && (
+                  {(can('hr.notes.edit') || can('hr.notes.delete')) && (
                     <div className="note-card-actions" onClick={(e) => e.stopPropagation()}>
-                      <button className="hr-action-btn" onClick={() => openEdit(note)} title="Edit">
-                        <Pencil size={14} />
-                      </button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(note)} title="Delete">
-                        <Trash2 size={14} />
-                      </button>
+                      {can('hr.notes.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(note)} title="Edit">
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {can('hr.notes.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(note)} title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -344,7 +347,7 @@ export default function Notes() {
             </div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewNote(null)}>Close</button>
-              {canManage && (
+              {can('hr.notes.edit') && (
                 <button className="hr-btn-primary" onClick={() => { setViewNote(null); openEdit(viewNote) }}>
                   <Pencil size={14} /> Edit
                 </button>

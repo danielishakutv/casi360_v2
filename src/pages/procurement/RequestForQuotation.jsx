@@ -4,6 +4,7 @@ import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoRFQ, nextId } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -17,6 +18,7 @@ const INITIAL_FORM = {
 
 export default function RequestForQuotation() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [items, setItems] = useState(demoRFQ)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -77,7 +79,9 @@ export default function RequestForQuotation() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={() => navigate('/procurement/rfq/create')}><Plus size={16} /> New RFQ</button>
+            {can('procurement.rfq.create') && (
+              <button className="hr-btn-primary" onClick={() => navigate('/procurement/rfq/create')}><Plus size={16} /> New RFQ</button>
+            )}
           </div>
         </div>
 
@@ -99,8 +103,12 @@ export default function RequestForQuotation() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      {can('procurement.rfq.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.rfq.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -125,7 +133,9 @@ export default function RequestForQuotation() {
             <div className="note-detail-content">{viewItem.description || 'No description'}</div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              <button className="hr-btn-primary" onClick={() => { setViewItem(null); openEdit(viewItem) }}><Pencil size={14} /> Edit</button>
+              {can('procurement.rfq.edit') && (
+                <button className="hr-btn-primary" onClick={() => { setViewItem(null); openEdit(viewItem) }}><Pencil size={14} /> Edit</button>
+              )}
             </div>
           </div>
         )}

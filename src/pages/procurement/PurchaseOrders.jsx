@@ -5,6 +5,7 @@ import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { demoPurchaseOrders, nextId } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -20,6 +21,7 @@ const INITIAL_FORM = {
 
 export default function PurchaseOrders() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [items, setItems] = useState(demoPurchaseOrders)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -80,7 +82,9 @@ export default function PurchaseOrders() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={() => navigate('/procurement/purchase-orders/create')}><Plus size={16} /> New PO</button>
+            {can('procurement.purchase_orders.create') && (
+              <button className="hr-btn-primary" onClick={() => navigate('/procurement/purchase-orders/create')}><Plus size={16} /> New PO</button>
+            )}
           </div>
         </div>
 
@@ -102,8 +106,12 @@ export default function PurchaseOrders() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      {can('procurement.purchase_orders.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.purchase_orders.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -130,7 +138,9 @@ export default function PurchaseOrders() {
             <div className="note-detail-content">{viewItem.description || viewItem.notes || 'No description'}</div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              <button className="hr-btn-primary" onClick={() => { setViewItem(null); openEdit(viewItem) }}><Pencil size={14} /> Edit</button>
+              {can('procurement.purchase_orders.edit') && (
+                <button className="hr-btn-primary" onClick={() => { setViewItem(null); openEdit(viewItem) }}><Pencil size={14} /> Edit</button>
+              )}
             </div>
           </div>
         )}

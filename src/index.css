@@ -3317,6 +3317,201 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   color: var(--text-secondary);
 }
 
+/* ================================================================== */
+/* Permissions Settings                                               */
+/* ================================================================== */
+.permissions-settings { max-width: 1200px; }
+
+.permissions-matrix {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  margin: 16px 20px 20px;
+}
+
+.perm-header-row {
+  display: flex;
+  align-items: center;
+  background: var(--sidebar-bg);
+  border-bottom: 2px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 0;
+  min-width: 600px;
+}
+
+.perm-label-col {
+  flex: 1 1 260px;
+  min-width: 200px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.perm-role-col {
+  flex: 0 0 100px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.perm-module { border-bottom: 1px solid var(--border); }
+.perm-module:last-child { border-bottom: none; }
+
+.perm-module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--sidebar-bg);
+  cursor: pointer;
+  user-select: none;
+  min-width: 600px;
+}
+.perm-module-header:hover { background: var(--hover-bg); }
+
+.perm-module-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.perm-chevron {
+  transition: transform .2s;
+  color: var(--text-muted);
+}
+.perm-chevron.open { transform: rotate(90deg); }
+
+.perm-module-toggles {
+  display: flex;
+  gap: 0;
+}
+.perm-module-toggles .perm-toggle-all {
+  width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+.perm-toggle-all::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  display: block;
+  transition: all .15s;
+}
+.perm-toggle-all.active::before {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.perm-toggle-all.active { color: #fff; position: relative; }
+.perm-toggle-all.active svg {
+  position: absolute;
+  color: #fff;
+}
+
+.perm-feature-group { padding-left: 24px; }
+
+.perm-feature-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  min-width: 600px;
+  transition: background .1s;
+}
+.perm-row:hover { background: var(--hover-bg); }
+
+.perm-row .perm-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.perm-action-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.perm-key-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Consolas', monospace;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.perm-row .perm-role-col { display: flex; justify-content: center; }
+
+.perm-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  background: var(--card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .15s;
+  padding: 0;
+}
+.perm-checkbox:hover { border-color: var(--primary); }
+.perm-checkbox.checked {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.perm-checkbox.changed { box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 79, 70, 229), .25); }
+
+.perm-save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--sidebar-bg);
+  border-top: 2px solid var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  z-index: 5;
+}
+
+@media (max-width: 768px) {
+  .perm-role-col { flex: 0 0 70px; font-size: 10px; }
+  .perm-label-col { flex: 1 1 160px; min-width: 140px; }
+  .perm-module-toggles .perm-toggle-all { width: 70px; }
+}
+
 .hr-form-field input,
 .hr-form-field select,
 .hr-form-field textarea {

@@ -3,6 +3,7 @@ import { Search, Plus, Eye, Trash2, X, Smartphone, Users, Building2, Globe } fro
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoSmsMessages, demoStaffList, demoDepartments, nextCommId } from '../../data/communicationDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -20,6 +21,7 @@ const INITIAL_FORM = {
 }
 
 export default function SendSMS() {
+  const { can } = useAuth()
   const [items, setItems] = useState(demoSmsMessages)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -122,7 +124,9 @@ export default function SendSMS() {
             </div>
           </div>
           <div className="hr-toolbar-right">
-            <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> New SMS</button>
+            {can('communication.sms.create') && (
+              <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> New SMS</button>
+            )}
           </div>
         </div>
 
@@ -156,7 +160,9 @@ export default function SendSMS() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(m)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(m)} title="Delete"><Trash2 size={15} /></button>
+                      {can('communication.sms.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(m)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

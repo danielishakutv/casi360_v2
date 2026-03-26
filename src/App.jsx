@@ -57,11 +57,12 @@ const SendSMS      = lazy(() => import('./pages/communication/SendSMS'))
 const SendNotice   = lazy(() => import('./pages/communication/SendNotice'))
 
 // Other
-const Reports    = lazy(() => import('./pages/Reports'))
-const Settings   = lazy(() => import('./pages/Settings'))
-const HelpCenter = lazy(() => import('./pages/HelpCenter'))
-const Profile    = lazy(() => import('./pages/Profile'))
-const NotFound   = lazy(() => import('./pages/NotFound'))
+const Reports              = lazy(() => import('./pages/Reports'))
+const Settings             = lazy(() => import('./pages/Settings'))
+const PermissionsSettings  = lazy(() => import('./pages/PermissionsSettings'))
+const HelpCenter           = lazy(() => import('./pages/HelpCenter'))
+const Profile              = lazy(() => import('./pages/Profile'))
+const NotFound             = lazy(() => import('./pages/NotFound'))
 
 /* ─── Suspense fallback ─── */
 function PageSpinner() {
@@ -163,6 +164,7 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/settings/permissions" element={<PermissionsSettings />} />
                 <Route path="/help" element={<HelpCenter />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

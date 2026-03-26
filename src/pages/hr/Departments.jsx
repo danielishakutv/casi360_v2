@@ -4,12 +4,14 @@ import { departmentsApi, employeesApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
 import { useDebounce } from '../../hooks/useDebounce'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
 const INITIAL_FORM = { name: '', head: '', description: '', color: '#4361ee', status: 'active' }
 
 export default function Departments() {
+  const { can } = useAuth()
   /* -------- List state -------- */
   const [departments, setDepartments] = useState([])
   const [meta, setMeta] = useState(null)
@@ -189,9 +191,11 @@ export default function Departments() {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Department
-            </button>
+            {can('hr.departments.create') && (
+              <button className="hr-btn-primary" onClick={openCreate}>
+                <Plus size={16} /> Add Department
+              </button>
+            )}
           </div>
         </div>
 
@@ -237,12 +241,16 @@ export default function Departments() {
                     </td>
                     <td>
                       <div className="hr-actions">
-                        <button className="hr-action-btn" onClick={() => openEdit(d)} title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(d)} title="Delete">
-                          <Trash2 size={15} />
-                        </button>
+                        {can('hr.departments.edit') && (
+                          <button className="hr-action-btn" onClick={() => openEdit(d)} title="Edit">
+                            <Pencil size={15} />
+                          </button>
+                        )}
+                        {can('hr.departments.delete') && (
+                          <button className="hr-action-btn danger" onClick={() => setDeleteTarget(d)} title="Delete">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

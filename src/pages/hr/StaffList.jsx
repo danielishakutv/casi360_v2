@@ -4,6 +4,7 @@ import { employeesApi, departmentsApi, designationsApi } from '../../services/hr
 import { capitalize } from '../../utils/capitalize'
 import { useDebounce } from '../../hooks/useDebounce'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -23,6 +24,7 @@ function formatStatus(s) {
 }
 
 export default function StaffList() {
+  const { can } = useAuth()
   /* -------- List state -------- */
   const [employees, setEmployees] = useState([])
   const [meta, setMeta] = useState(null)
@@ -233,9 +235,11 @@ export default function StaffList() {
                 <option key={s} value={s}>{formatStatus(s)}</option>
               ))}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}>
-              <Plus size={16} /> Add Employee
-            </button>
+            {can('hr.employees.create') && (
+              <button className="hr-btn-primary" onClick={openCreate}>
+                <Plus size={16} /> Add Employee
+              </button>
+            )}
           </div>
         </div>
 
@@ -287,12 +291,16 @@ export default function StaffList() {
                     </td>
                     <td>
                       <div className="hr-actions">
-                        <button className="hr-action-btn" onClick={() => openEdit(emp)} title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button className="hr-action-btn danger" onClick={() => setTerminateTarget(emp)} title="Terminate">
-                          <UserX size={15} />
-                        </button>
+                        {can('hr.employees.edit') && (
+                          <button className="hr-action-btn" onClick={() => openEdit(emp)} title="Edit">
+                            <Pencil size={15} />
+                          </button>
+                        )}
+                        {can('hr.employees.delete') && (
+                          <button className="hr-action-btn danger" onClick={() => setTerminateTarget(emp)} title="Terminate">
+                            <UserX size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

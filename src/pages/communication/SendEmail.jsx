@@ -3,6 +3,7 @@ import { Search, Plus, Eye, Trash2, X, Mail, Users, Building2, Globe } from 'luc
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoEmails, demoStaffList, demoDepartments, nextCommId } from '../../data/communicationDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -20,6 +21,7 @@ const INITIAL_FORM = {
 }
 
 export default function SendEmail() {
+  const { can } = useAuth()
   const [items, setItems] = useState(demoEmails)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -116,7 +118,9 @@ export default function SendEmail() {
             </div>
           </div>
           <div className="hr-toolbar-right">
-            <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> Compose Email</button>
+            {can('communication.email.create') && (
+              <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> Compose Email</button>
+            )}
           </div>
         </div>
 
@@ -148,7 +152,9 @@ export default function SendEmail() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(em)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(em)} title="Delete"><Trash2 size={15} /></button>
+                      {can('communication.email.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(em)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -3,6 +3,7 @@ import { Search, Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoVendorCategories, nextId } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -12,6 +13,7 @@ const PER_PAGE = 15
 const INITIAL_FORM = { name: '', description: '', status: 'active' }
 
 export default function VendorCategories() {
+  const { can } = useAuth()
   const [items, setItems] = useState(demoVendorCategories)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -93,7 +95,9 @@ export default function VendorCategories() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> Add Category</button>
+            {can('procurement.vendor_categories.create') && (
+              <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> Add Category</button>
+            )}
           </div>
         </div>
 
@@ -135,15 +139,19 @@ export default function VendorCategories() {
                   <td style={{ fontSize: 12 }}>{fmtDate(cat.created_at)}</td>
                   <td>
                     <div className="hr-actions">
-                      <button className="hr-action-btn" onClick={() => openEdit(cat)} title="Edit"><Pencil size={15} /></button>
-                      <button
-                        className="hr-action-btn danger"
-                        onClick={() => setDeleteTarget(cat)}
-                        title={cat.vendor_count > 0 ? 'Cannot delete — has vendors' : 'Delete'}
-                        disabled={cat.vendor_count > 0}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {can('procurement.vendor_categories.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(cat)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.vendor_categories.delete') && (
+                        <button
+                          className="hr-action-btn danger"
+                          onClick={() => setDeleteTarget(cat)}
+                          title={cat.vendor_count > 0 ? 'Cannot delete — has vendors' : 'Delete'}
+                          disabled={cat.vendor_count > 0}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

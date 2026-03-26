@@ -3,6 +3,7 @@ import { Search, Plus, Eye, Trash2, X, Bell, Users, Building2, Globe } from 'luc
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoNotices, demoStaffList, demoDepartments, nextCommId } from '../../data/communicationDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -21,6 +22,7 @@ const INITIAL_FORM = {
 }
 
 export default function SendNotice() {
+  const { can } = useAuth()
   const [items, setItems] = useState(demoNotices)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -118,7 +120,9 @@ export default function SendNotice() {
             </div>
           </div>
           <div className="hr-toolbar-right">
-            <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> New Notice</button>
+            {can('communication.notice.create') && (
+              <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> New Notice</button>
+            )}
           </div>
         </div>
 
@@ -152,7 +156,9 @@ export default function SendNotice() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(n)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(n)} title="Delete"><Trash2 size={15} /></button>
+                      {can('communication.notice.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(n)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>

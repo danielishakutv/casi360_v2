@@ -5,6 +5,7 @@ import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { demoPurchaseRequests } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -14,6 +15,7 @@ const PER_PAGE = 15
 
 export default function PurchaseRequests() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [items, setItems] = useState(demoPurchaseRequests)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -58,7 +60,9 @@ export default function PurchaseRequests() {
               <option value="">All Priorities</option>
               {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={() => navigate('/procurement/purchase-requests/create')}><Plus size={16} /> New PR</button>
+            {can('procurement.purchase_requests.create') && (
+              <button className="hr-btn-primary" onClick={() => navigate('/procurement/purchase-requests/create')}><Plus size={16} /> New PR</button>
+            )}
           </div>
         </div>
 
@@ -83,8 +87,12 @@ export default function PurchaseRequests() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      {can('procurement.purchase_requests.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.purchase_requests.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -116,7 +124,9 @@ export default function PurchaseRequests() {
             <div className="note-detail-content">{viewItem.description || 'No description'}</div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/procurement/purchase-requests/${viewItem.id}/edit`) }}><Pencil size={14} /> Edit</button>
+              {can('procurement.purchase_requests.edit') && (
+                <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/procurement/purchase-requests/${viewItem.id}/edit`) }}><Pencil size={14} /> Edit</button>
+              )}
             </div>
           </div>
         )}

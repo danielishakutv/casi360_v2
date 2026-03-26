@@ -3,6 +3,7 @@ import { Search, Plus, Pencil, Trash2, Eye, Star } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { demoVendors, nextId } from '../../data/procurementDemo'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -32,6 +33,7 @@ const INITIAL_FORM = {
 }
 
 export default function Vendors() {
+  const { can } = useAuth()
   const [items, setItems] = useState(demoVendors)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -119,7 +121,9 @@ export default function Vendors() {
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
-            <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> Add Vendor</button>
+            {can('procurement.vendors.create') && (
+              <button className="hr-btn-primary" onClick={openCreate}><Plus size={16} /> Add Vendor</button>
+            )}
           </div>
         </div>
 
@@ -152,8 +156,12 @@ export default function Vendors() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(v)} title="View"><Eye size={15} /></button>
-                      <button className="hr-action-btn" onClick={() => openEdit(v)} title="Edit"><Pencil size={15} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(v)} title="Delete"><Trash2 size={15} /></button>
+                      {can('procurement.vendors.edit') && (
+                        <button className="hr-action-btn" onClick={() => openEdit(v)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.vendors.delete') && (
+                        <button className="hr-action-btn danger" onClick={() => setDeleteTarget(v)} title="Delete"><Trash2 size={15} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
