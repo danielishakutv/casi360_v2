@@ -79,23 +79,23 @@ export default function ProjectDetail() {
     <>
       {/* Header */}
       <div className="card animate-in" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="project-detail-header">
+          <div className="project-detail-header-left">
             <button className="hr-action-btn" onClick={() => navigate('/projects/list')} title="Back to list"><ArrowLeft size={18} /></button>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0, fontSize: 20 }}>{project.name}</h2>
                 <span className={`status-badge ${project.status}`}><span className="status-dot" />{fmtStatus(project.status)}</span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              <div className="project-detail-meta">
                 {project.project_code} &middot; {project.department || '—'} &middot; {project.project_manager || 'No manager'} &middot; {project.location || '—'}
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(project.start_date)} — {fmtDate(project.end_date)}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>{naira(project.total_budget)}</div>
+          <div className="project-detail-header-right">
+            <div className="project-detail-budget-info">
+              <div className="date-range">{fmtDate(project.start_date)} — {fmtDate(project.end_date)}</div>
+              <div className="budget-amount">{naira(project.total_budget)}</div>
             </div>
             {can('projects.projects.edit') && (
               <button className="hr-btn-primary" onClick={() => navigate('/projects/list', { state: { editId: project.id } })} style={{ padding: '6px 12px' }}>
@@ -108,29 +108,19 @@ export default function ProjectDetail() {
 
       {/* Tab navigation */}
       <div className="card animate-in" style={{ padding: 0 }}>
-        <div className="hr-toolbar" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 0, flexWrap: 'wrap', gap: 0, margin: 0, padding: '0 16px' }}>
+        <div className="project-tab-nav">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`hr-action-btn${tab === t.key ? ' primary' : ''}`}
-              style={{
-                borderBottom: tab === t.key ? '2px solid var(--primary)' : '2px solid transparent',
-                borderRadius: 0,
-                fontWeight: tab === t.key ? 600 : 400,
-                padding: '10px 16px',
-                fontSize: 13,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
+              className={`project-tab-btn${tab === t.key ? ' active' : ''}`}
             >
               <t.icon size={14} />{t.label}
             </button>
           ))}
         </div>
 
-        <div style={{ padding: 20 }}>
+        <div className="project-tab-body">
           {tab === 'overview' && <OverviewTab project={project} />}
           {tab === 'team' && <TeamTab projectId={id} canEdit={can('projects.projects.edit')} />}
           {tab === 'activities' && <ActivitiesTab projectId={id} canCreate={can('projects.activities.create')} canEdit={can('projects.activities.edit')} canDelete={can('projects.activities.delete')} />}
@@ -151,7 +141,7 @@ function OverviewTab({ project }) {
   const p = project
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div className="project-mini-stats">
         <MiniStat label="Team Members" value={p.team_member_count ?? 0} />
         <MiniStat label="Activities" value={p.activity_count ?? 0} />
         <MiniStat label="Budget Lines" value={p.budget_line_count ?? 0} />
@@ -173,23 +163,23 @@ function OverviewTab({ project }) {
       )}
 
       {p.description && (
-        <div style={{ marginBottom: 16 }}>
-          <h4 style={{ marginBottom: 4 }}>Description</h4>
-          <p style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6 }}>{p.description}</p>
+        <div className="project-section-text" style={{ marginBottom: 16 }}>
+          <h4>Description</h4>
+          <p>{p.description}</p>
         </div>
       )}
 
       {p.objectives && (
-        <div style={{ marginBottom: 16 }}>
-          <h4 style={{ marginBottom: 4 }}>Objectives</h4>
-          <p style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6 }}>{p.objectives}</p>
+        <div className="project-section-text" style={{ marginBottom: 16 }}>
+          <h4>Objectives</h4>
+          <p>{p.objectives}</p>
         </div>
       )}
 
       {p.notes && (
-        <div>
-          <h4 style={{ marginBottom: 4 }}>Notes</h4>
-          <p style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6 }}>{p.notes}</p>
+        <div className="project-section-text">
+          <h4>Notes</h4>
+          <p>{p.notes}</p>
         </div>
       )}
     </div>
@@ -198,9 +188,9 @@ function OverviewTab({ project }) {
 
 function MiniStat({ label, value }) {
   return (
-    <div style={{ padding: '12px 16px', borderRadius: 8, background: 'var(--bg-muted)', textAlign: 'center' }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)' }}>{value}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div>
+    <div className="project-mini-stat">
+      <div className="value">{value}</div>
+      <div className="label">{label}</div>
     </div>
   )
 }
@@ -256,7 +246,7 @@ function TeamTab({ projectId, canEdit }) {
   return (
     <div>
       {error && <ErrorBanner msg={error} onDismiss={() => setError('')} />}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div className="project-tab-toolbar">
         <strong>{items.length} Member{items.length !== 1 ? 's' : ''}</strong>
         {canEdit && <button className="hr-btn-primary" onClick={openAdd} style={{ padding: '6px 12px', fontSize: 12 }}><Plus size={14} /> Add Member</button>}
       </div>
@@ -391,16 +381,16 @@ function ActivitiesTab({ projectId, canCreate, canEdit, canDelete }) {
 
       {/* Summary bar */}
       {summary && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div className="project-summary-bar">
           {['total', 'not_started', 'in_progress', 'completed', 'delayed'].map((k) => (
-            <div key={k} style={{ padding: '4px 12px', borderRadius: 6, background: 'var(--bg-muted)', fontSize: 12 }}>
+            <div key={k} className="project-summary-chip">
               <strong>{summary[k] ?? 0}</strong> {fmtStatus(k === 'total' ? 'total' : k)}
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+      <div className="project-tab-toolbar">
         <select className="hr-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ minWidth: 140 }}>
           <option value="">All Status</option>
           {ACTIVITY_STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
@@ -418,16 +408,15 @@ function ActivitiesTab({ projectId, canCreate, canEdit, canDelete }) {
                   <td style={{ fontWeight: 600 }}>{a.title}</td>
                   <td style={{ fontSize: 12 }}>{fmtDate(a.start_date)} — {fmtDate(a.end_date)}</td>
                   <td><span className={`status-badge ${a.status}`}><span className="status-dot" />{fmtStatus(a.status)}</span></td>
-                  <td style={{ width: 160 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <td>
+                    <div className="activity-progress-cell">
                       <input
                         type="range" min={0} max={100} value={a.completion_percentage ?? 0}
                         onChange={(e) => handleProgressUpdate(a, Number(e.target.value))}
                         disabled={!canEdit}
-                        style={{ flex: 1, height: 4 }}
                         title={`${a.completion_percentage ?? 0}%`}
                       />
-                      <span style={{ fontSize: 11, minWidth: 30, textAlign: 'right' }}>{a.completion_percentage ?? 0}%</span>
+                      <span className="pct">{a.completion_percentage ?? 0}%</span>
                     </div>
                   </td>
                   {(canEdit || canDelete) && (
@@ -539,13 +528,13 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
 
       {/* Budget summary */}
       {summary?.total != null && (
-        <div style={{ marginBottom: 16, padding: 16, borderRadius: 8, background: 'var(--bg-muted)' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total Budget</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)' }}>{naira(summary.total)}</div>
+        <div className="project-budget-summary">
+          <div className="total-label">Total Budget</div>
+          <div className="total-amount">{naira(summary.total)}</div>
           {summary.by_category?.length > 0 && (
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+            <div className="categories">
               {summary.by_category.map((c) => (
-                <div key={c.category_id} style={{ fontSize: 12 }}>
+                <div key={c.category_id}>
                   <strong>{c.category}</strong>: {naira(c.subtotal)} ({c.line_count} line{c.line_count !== 1 ? 's' : ''})
                 </div>
               ))}
@@ -554,7 +543,7 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div className="project-tab-toolbar">
         <strong>{items.length} Budget Line{items.length !== 1 ? 's' : ''}</strong>
         {canCreate && <button className="hr-btn-primary" onClick={openAdd} style={{ padding: '6px 12px', fontSize: 12 }}><Plus size={14} /> Add Budget Line</button>}
       </div>
@@ -676,13 +665,13 @@ function DonorsTab({ projectId, canEdit }) {
       {error && <ErrorBanner msg={error} onDismiss={() => setError('')} />}
 
       {totalContributions > 0 && (
-        <div style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: 'var(--bg-muted)' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total Contributions</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--primary)' }}>{naira(totalContributions)}</div>
+        <div className="project-contributions-summary">
+          <div className="total-label">Total Contributions</div>
+          <div className="total-amount">{naira(totalContributions)}</div>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div className="project-tab-toolbar">
         <strong>{items.length} Donor{items.length !== 1 ? 's' : ''}</strong>
         {canEdit && <button className="hr-btn-primary" onClick={openAdd} style={{ padding: '6px 12px', fontSize: 12 }}><Plus size={14} /> Add Donor</button>}
       </div>
@@ -798,7 +787,7 @@ function PartnersTab({ projectId, canEdit }) {
   return (
     <div>
       {error && <ErrorBanner msg={error} onDismiss={() => setError('')} />}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div className="project-tab-toolbar">
         <strong>{items.length} Partner{items.length !== 1 ? 's' : ''}</strong>
         {canEdit && <button className="hr-btn-primary" onClick={openAdd} style={{ padding: '6px 12px', fontSize: 12 }}><Plus size={14} /> Add Partner</button>}
       </div>
@@ -915,7 +904,7 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
     <div>
       {error && <ErrorBanner msg={error} onDismiss={() => setError('')} />}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+      <div className="project-tab-toolbar" style={{ marginBottom: 16 }}>
         <div className="search-box" style={{ maxWidth: 260 }}>
           <Search size={16} className="search-icon" />
           <input type="text" placeholder="Search notes…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -924,9 +913,9 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
       </div>
 
       {items.length ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+        <div className="project-notes-grid">
           {items.map((note) => (
-            <div key={note.id} style={{ padding: 16, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+            <div key={note.id} className="project-note-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <h4 style={{ margin: 0, fontSize: 14 }}>{note.title}</h4>
                 {(canEdit || canDelete) && (
@@ -936,13 +925,11 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
                   </div>
                 )}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+              <div className="note-meta">
                 {note.creator_name || 'Unknown'} &middot; {fmtDate(note.created_at)}
               </div>
               {note.content && (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                  {note.content}
-                </p>
+                <p className="note-content">{note.content}</p>
               )}
               {note.link_url && (
                 <a href={note.link_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>

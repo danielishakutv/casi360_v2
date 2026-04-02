@@ -1,23 +1,16 @@
 import { useEffect, useRef, useId } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 /**
- * Reusable modal dialog.
- *
- * Props:
- *  - open      {boolean}   Whether the modal is visible
- *  - onClose   {function}  Called when the user requests to close
- *  - title     {string}    Header text
- *  - size      {'sm'|'md'|'lg'}  Width preset (default 'md')
- *  - children  {ReactNode} Modal body content
+ * Reusable modal dialog — rendered via Portal to avoid clipping
+ * by parent overflow / transform containing blocks.
  */
 export default function Modal({ open, onClose, title, size = 'md', children }) {
   const overlayRef = useRef(null)
   const dialogRef = useRef(null)
   const titleId = useId()
 
-  // Keep a stable ref to onClose so effects don't re-run when the
-  // parent re-renders (which would steal focus from inputs).
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose })
 
@@ -31,7 +24,6 @@ export default function Modal({ open, onClose, title, size = 'md', children }) {
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
 
-    // Focus the dialog container only when the modal first opens
     dialogRef.current?.focus()
 
     return () => {
@@ -40,7 +32,6 @@ export default function Modal({ open, onClose, title, size = 'md', children }) {
     }
   }, [open])
 
-  // Focus trap — keep Tab cycling inside the modal
   useEffect(() => {
     if (!open) return
 
@@ -73,7 +64,7 @@ export default function Modal({ open, onClose, title, size = 'md', children }) {
     if (e.target === overlayRef.current) onCloseRef.current()
   }
 
-  return (
+  return createPortal(
     <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
       <div
         className={`modal-content modal-${size}`}
@@ -91,6 +82,7 @@ export default function Modal({ open, onClose, title, size = 'md', children }) {
         </div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

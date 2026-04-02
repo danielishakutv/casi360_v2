@@ -3974,3 +3974,368 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
     display: none;
   }
 }
+
+
+/* ================================================================== */
+/* Project Detail — layout & responsive                               */
+/* ================================================================== */
+
+/* Header card */
+.project-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+}
+
+.project-detail-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.project-detail-header-left h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.project-detail-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+.project-detail-header-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.project-detail-budget-info {
+  text-align: right;
+}
+
+.project-detail-budget-info .date-range {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.project-detail-budget-info .budget-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* Tab navigation — scrollable in a row */
+.project-tab-nav {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 16px;
+  gap: 0;
+}
+
+.project-tab-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.project-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.project-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.project-tab-btn.active {
+  color: var(--primary);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+
+/* Tab body */
+.project-tab-body {
+  padding: 20px;
+}
+
+/* Overview mini-stats */
+.project-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.project-mini-stat {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  text-align: center;
+}
+
+.project-mini-stat .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.project-mini-stat .label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Section within a tab */
+.project-section-text h4 {
+  margin: 0 0 4px;
+}
+
+.project-section-text p {
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Tab toolbar — space between count and action button */
+.project-tab-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Budget summary */
+.project-budget-summary {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  margin-bottom: 16px;
+}
+
+.project-budget-summary .total-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.project-budget-summary .total-amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.project-budget-summary .categories {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+/* Contributions summary */
+.project-contributions-summary {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  margin-bottom: 16px;
+}
+
+.project-contributions-summary .total-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.project-contributions-summary .total-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* Notes card grid */
+.project-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.project-note-card {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+}
+
+.project-note-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.project-note-card .note-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.project-note-card .note-content {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Activity progress slider */
+.activity-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.activity-progress-cell input[type="range"] {
+  flex: 1;
+  height: 4px;
+  min-width: 60px;
+}
+
+.activity-progress-cell .pct {
+  font-size: 11px;
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Summary bar (activities) */
+.project-summary-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.project-summary-chip {
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  font-size: 12px;
+}
+
+.project-summary-chip strong {
+  margin-right: 3px;
+}
+
+/* ---- Project Detail Responsive ---- */
+@media (max-width: 768px) {
+  .project-detail-header {
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .project-detail-header-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .project-detail-header-left h2 {
+    font-size: 17px;
+  }
+
+  .project-detail-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .project-detail-budget-info {
+    text-align: left;
+  }
+
+  .project-tab-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .project-tab-body {
+    padding: 16px;
+  }
+
+  .project-mini-stats {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+
+  .project-mini-stat .value {
+    font-size: 18px;
+  }
+
+  .project-notes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .project-detail-header {
+    padding: 12px;
+  }
+
+  .project-detail-header-left h2 {
+    font-size: 15px;
+  }
+
+  .project-detail-budget-info .budget-amount {
+    font-size: 15px;
+  }
+
+  .project-tab-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .project-tab-btn svg {
+    display: none;
+  }
+
+  .project-tab-body {
+    padding: 12px;
+  }
+
+  .project-mini-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .project-mini-stat {
+    padding: 10px 8px;
+  }
+
+  .project-mini-stat .value {
+    font-size: 16px;
+  }
+}
