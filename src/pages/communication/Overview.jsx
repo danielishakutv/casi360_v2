@@ -1,24 +1,54 @@
+import { useState, useEffect } from 'react'
 import {
-  MessageSquare, Mail, Smartphone, Bell, TrendingUp, TrendingDown
+  MessageSquare, Mail, Smartphone, Bell, AlertCircle
 } from 'lucide-react'
-
-const stats = [
-  { label: 'Emails Sent', value: '1,248', change: '+124', up: true, icon: Mail, color: 'blue' },
-  { label: 'SMS Sent', value: '3,560', change: '+302', up: true, icon: Smartphone, color: 'green' },
-  { label: 'Notices', value: '45', change: '+8', up: true, icon: Bell, color: 'orange' },
-  { label: 'Delivery Rate', value: '98.2%', change: '+0.5%', up: true, icon: MessageSquare, color: 'purple' },
-]
-
-const recent = [
-  { type: 'Email', subject: 'Monthly Report - February 2026', to: 'All Staff', date: 'Mar 3, 2026', status: 'active' },
-  { type: 'SMS', subject: 'Meeting Reminder', to: 'Program Managers', date: 'Mar 2, 2026', status: 'active' },
-  { type: 'Notice', subject: 'Office Closure - Public Holiday', to: 'All Staff', date: 'Feb 28, 2026', status: 'active' },
-  { type: 'Email', subject: 'Q1 Donor Report Submission', to: 'Finance Team', date: 'Feb 25, 2026', status: 'pending' },
-]
+import { capitalize } from '../../utils/capitalize'
+import { fmtDate } from '../../utils/formatDate'
+import { noticesApi } from '../../services/communication'
+import { extractItems } from '../../utils/apiHelpers'
 
 export default function CommOverview() {
+  const [noticeStats, setNoticeStats] = useState(null)
+  const [recentNotices, setRecentNotices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const [statsRes, listRes] = await Promise.all([
+          noticesApi.stats().catch(() => null),
+          noticesApi.list({ per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
+        ])
+        setNoticeStats(statsRes?.data?.stats || statsRes?.data || null)
+        setRecentNotices(extractItems(listRes))
+      } catch (err) {
+        setError(err.message || 'Failed to load overview')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const stats = [
+    { label: 'Total Notices', value: loading ? '…' : String(noticeStats?.total ?? 0), icon: Bell, color: 'orange' },
+    { label: 'Published', value: loading ? '…' : String(noticeStats?.published ?? 0), icon: MessageSquare, color: 'blue' },
+    { label: 'Drafts', value: loading ? '…' : String(noticeStats?.draft ?? 0), icon: Mail, color: 'green' },
+    { label: 'Archived', value: loading ? '…' : String(noticeStats?.archived ?? 0), icon: Smartphone, color: 'purple' },
+  ]
+
   return (
     <>
+      {error && (
+        <div className="hr-error-banner">
+          <AlertCircle size={16} /><span>{error}</span>
+          <button onClick={() => setError('')} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+
       <div className="stats-grid">
         {stats.map((stat) => {
           const Icon = stat.icon
@@ -26,9 +56,6 @@ export default function CommOverview() {
             <div className={`stat-card ${stat.color} animate-in`} key={stat.label}>
               <div className="stat-top">
                 <div className={`stat-icon ${stat.color}`}><Icon size={22} /></div>
-                <div className={`stat-change ${stat.up ? 'up' : 'down'}`}>
-                  {stat.up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}{stat.change}
-                </div>
               </div>
               <div className="stat-value">{stat.value}</div>
               <div className="stat-label">{stat.label}</div>
@@ -39,24 +66,28 @@ export default function CommOverview() {
 
       <div className="card animate-in">
         <div className="card-header">
-          <h3>Recent Communications</h3>
+          <h3>Recent Notices</h3>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
-                <tr><th>Type</th><th>Subject</th><th>To</th><th>Date</th><th>Status</th></tr>
+                <tr><th>Title</th><th>Priority</th><th>Read</th><th>Date</th><th>Status</th></tr>
               </thead>
               <tbody>
-                {recent.map((r) => (
-                  <tr key={r.subject}>
-                    <td><span className="card-badge blue">{r.type}</span></td>
-                    <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.subject}</td>
-                    <td>{r.to}</td>
-                    <td>{r.date}</td>
+                {loading ? (
+                  <tr><td colSpan={5} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '16px auto' }} /></td></tr>
+                ) : recentNotices.length === 0 ? (
+                  <tr><td colSpan={5} className="hr-empty-cell">No notices yet</td></tr>
+                ) : recentNotices.map((n) => (
+                  <tr key={n.id}>
+                    <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{n.title}</td>
+                    <td><span className={`card-badge ${n.priority === 'critical' ? 'red' : n.priority === 'important' ? 'orange' : 'green'}`}>{capitalize(n.priority)}</span></td>
+                    <td>{n.read_count ?? 0}</td>
+                    <td style={{ fontSize: 12 }}>{fmtDate(n.publish_date || n.created_at)}</td>
                     <td>
-                      <span className={`status-badge ${r.status}`}>
-                        <span className="status-dot" />{r.status === 'active' ? 'Sent' : 'Draft'}
+                      <span className={`status-badge ${n.status === 'published' ? 'active' : 'pending'}`}>
+                        <span className="status-dot" />{capitalize(n.status)}
                       </span>
                     </td>
                   </tr>

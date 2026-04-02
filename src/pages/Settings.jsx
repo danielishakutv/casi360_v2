@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Building2, Globe, Mail, Phone, MapPin,
   Bell, Shield, Key, Lock,
@@ -9,51 +9,23 @@ import {
   Save, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { settingsApi } from '../services/api'
 
 /* ================================================================== */
-/* Demo data — replace with live API calls later                      */
+/* Fallback defaults (used until API settings load)                   */
 /* ================================================================== */
 
-const DEMO_ORG = {
-  name: 'Care Aid Support Initiative',
-  acronym: 'CASI',
-  email: 'info@casi.org.ng',
-  phone: '+234 803 456 7890',
-  website: 'https://www.casi.org.ng',
-  address: '14 Maitama Crescent, Abuja',
-  state: 'FCT — Abuja',
-  country: 'Nigeria',
-  registrationNumber: 'RC-12345678',
-  taxId: 'TIN-98765432',
-  founded: '2018',
-}
-
-const DEMO_NOTIFICATIONS = {
-  emailAlerts: true,
-  smsAlerts: false,
-  pushNotifications: true,
-  weeklyDigest: true,
-  mentionAlerts: true,
-  approvalAlerts: true,
-  systemUpdates: false,
-  securityAlerts: true,
-}
-
-const DEMO_SECURITY = {
-  twoFactorEnabled: false,
-  sessionTimeout: '60',
-  passwordExpiry: '90',
-  maxLoginAttempts: '5',
-  ipWhitelist: '',
-  enforceStrongPasswords: true,
-}
-
-const DEMO_DISPLAY = {
-  language: 'en',
-  timezone: 'Africa/Lagos',
-  dateFormat: 'DD/MM/YYYY',
-  currency: 'NGN',
-  itemsPerPage: '15',
+const DEFAULTS = {
+  organization_name: '', organization_acronym: '', organization_email: '', organization_phone: '',
+  organization_website: '', organization_address: '', organization_state: '', organization_country: '',
+  organization_registration_number: '', organization_tax_id: '', organization_founded: '',
+  notifications_email_alerts: true, notifications_sms_alerts: false, notifications_push: true,
+  notifications_weekly_digest: true, notifications_mention_alerts: true, notifications_approval_alerts: true,
+  notifications_system_updates: false, notifications_security_alerts: true,
+  security_two_factor: false, security_session_timeout: '60', security_password_expiry: '90',
+  security_max_login_attempts: '5', security_ip_whitelist: '', security_strong_passwords: true,
+  display_language: 'en', display_timezone: 'Africa/Lagos', display_date_format: 'DD/MM/YYYY',
+  display_currency: 'NGN', display_items_per_page: '15',
 }
 
 const DEMO_ROLES = [
@@ -118,18 +90,30 @@ export default function Settings() {
   const { user, can } = useAuth()
   const [activeTab, setActiveTab] = useState('general')
   const [toast, setToast] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  /* ---- Organization ---- */
-  const [org, setOrg] = useState(DEMO_ORG)
+  /* Flat key-value map of all settings */
+  const [settings, setSettings] = useState({ ...DEFAULTS })
 
-  /* ---- Notifications ---- */
-  const [notif, setNotif] = useState(DEMO_NOTIFICATIONS)
+  /* ---- Load settings from API ---- */
+  useEffect(() => {
+    settingsApi.getAll()
+      .then((res) => {
+        const groups = res?.data?.settings || {}
+        const flat = {}
+        Object.values(groups).forEach((arr) => {
+          if (Array.isArray(arr)) {
+            arr.forEach((s) => { flat[s.key] = s.type === 'boolean' ? (s.value === true || s.value === 1 || s.value === '1') : s.value })
+          }
+        })
+        setSettings((prev) => ({ ...prev, ...flat }))
+      })
+      .catch(() => { /* non-super_admin will get 403 — keep defaults */ })
+      .finally(() => setLoading(false))
+  }, [])
 
-  /* ---- Security ---- */
-  const [security, setSecurity] = useState(DEMO_SECURITY)
-
-  /* ---- Display ---- */
-  const [display, setDisplay] = useState(DEMO_DISPLAY)
+  function s(key) { return settings[key] ?? DEFAULTS[key] ?? '' }
+  function set(key, val) { setSettings((p) => ({ ...p, [key]: val })) }
 
   /* ---- Roles ---- */
   const [roles] = useState(DEMO_ROLES)
@@ -143,9 +127,16 @@ export default function Settings() {
     setTimeout(() => setToast(null), 3000)
   }, [])
 
-  /* ---- Save handler (demo) ---- */
-  function handleSave(section) {
-    showToast('success', `${section} settings saved successfully.`)
+  /* ---- Save handler — bulk update to API ---- */
+  async function handleSave(section, keys) {
+    try {
+      const payload = {}
+      keys.forEach((k) => { payload[k] = settings[k] })
+      await settingsApi.bulkUpdate(payload)
+      showToast('success', `${section} settings saved successfully.`)
+    } catch (err) {
+      showToast('error', err.message || 'Failed to save settings.')
+    }
   }
 
   /* ================================================================ */
@@ -165,66 +156,66 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label>Organization Name</label>
-              <input type="text" value={org.name} onChange={(e) => setOrg({ ...org, name: e.target.value })} />
+              <input type="text" value={s('organization_name')} onChange={(e) => set('organization_name', e.target.value)} />
             </div>
             <div className="hr-form-field">
               <label>Acronym</label>
-              <input type="text" value={org.acronym} onChange={(e) => setOrg({ ...org, acronym: e.target.value })} />
+              <input type="text" value={s('organization_acronym')} onChange={(e) => set('organization_acronym', e.target.value)} />
             </div>
           </div>
 
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Mail size={14} /> Email Address</label>
-              <input type="email" value={org.email} onChange={(e) => setOrg({ ...org, email: e.target.value })} />
+              <input type="email" value={s('organization_email')} onChange={(e) => set('organization_email', e.target.value)} />
             </div>
             <div className="hr-form-field">
               <label><Phone size={14} /> Phone Number</label>
-              <input type="tel" value={org.phone} onChange={(e) => setOrg({ ...org, phone: e.target.value })} />
+              <input type="tel" value={s('organization_phone')} onChange={(e) => set('organization_phone', e.target.value)} />
             </div>
           </div>
 
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Globe size={14} /> Website</label>
-              <input type="url" value={org.website} onChange={(e) => setOrg({ ...org, website: e.target.value })} />
+              <input type="url" value={s('organization_website')} onChange={(e) => set('organization_website', e.target.value)} />
             </div>
             <div className="hr-form-field">
               <label>Year Founded</label>
-              <input type="text" value={org.founded} onChange={(e) => setOrg({ ...org, founded: e.target.value })} />
+              <input type="text" value={s('organization_founded')} onChange={(e) => set('organization_founded', e.target.value)} />
             </div>
           </div>
 
           <div className="hr-form-field">
             <label><MapPin size={14} /> Address</label>
-            <input type="text" value={org.address} onChange={(e) => setOrg({ ...org, address: e.target.value })} />
+            <input type="text" value={s('organization_address')} onChange={(e) => set('organization_address', e.target.value)} />
           </div>
 
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label>State</label>
-              <input type="text" value={org.state} onChange={(e) => setOrg({ ...org, state: e.target.value })} />
+              <input type="text" value={s('organization_state')} onChange={(e) => set('organization_state', e.target.value)} />
             </div>
             <div className="hr-form-field">
               <label>Country</label>
-              <input type="text" value={org.country} onChange={(e) => setOrg({ ...org, country: e.target.value })} />
+              <input type="text" value={s('organization_country')} onChange={(e) => set('organization_country', e.target.value)} />
             </div>
           </div>
 
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label>Registration Number</label>
-              <input type="text" value={org.registrationNumber} onChange={(e) => setOrg({ ...org, registrationNumber: e.target.value })} />
+              <input type="text" value={s('organization_registration_number')} onChange={(e) => set('organization_registration_number', e.target.value)} />
             </div>
             <div className="hr-form-field">
               <label>Tax ID (TIN)</label>
-              <input type="text" value={org.taxId} onChange={(e) => setOrg({ ...org, taxId: e.target.value })} />
+              <input type="text" value={s('organization_tax_id')} onChange={(e) => set('organization_tax_id', e.target.value)} />
             </div>
           </div>
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Organization')}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Organization', ['organization_name','organization_acronym','organization_email','organization_phone','organization_website','organization_address','organization_state','organization_country','organization_registration_number','organization_tax_id','organization_founded'])}>
             <Save size={15} /> Save Changes
           </button>
         </div>
@@ -236,7 +227,6 @@ export default function Settings() {
   /* Tab: Notifications                                               */
   /* ================================================================ */
   function renderNotifications() {
-    function setN(key, val) { setNotif((prev) => ({ ...prev, [key]: val })) }
     return (
       <div className="settings-section animate-in">
         <div className="settings-section-header">
@@ -248,26 +238,26 @@ export default function Settings() {
 
         <div className="settings-toggle-group">
           <div className="settings-toggle-group-title">Channels</div>
-          <Toggle checked={notif.emailAlerts} onChange={(v) => setN('emailAlerts', v)} label="Email Alerts" description="Receive notifications via email" />
-          <Toggle checked={notif.smsAlerts} onChange={(v) => setN('smsAlerts', v)} label="SMS Alerts" description="Receive notifications via SMS" />
-          <Toggle checked={notif.pushNotifications} onChange={(v) => setN('pushNotifications', v)} label="Push Notifications" description="Browser push notifications" />
+          <Toggle checked={!!s('notifications_email_alerts')} onChange={(v) => set('notifications_email_alerts', v)} label="Email Alerts" description="Receive notifications via email" />
+          <Toggle checked={!!s('notifications_sms_alerts')} onChange={(v) => set('notifications_sms_alerts', v)} label="SMS Alerts" description="Receive notifications via SMS" />
+          <Toggle checked={!!s('notifications_push')} onChange={(v) => set('notifications_push', v)} label="Push Notifications" description="Browser push notifications" />
         </div>
 
         <div className="settings-toggle-group">
           <div className="settings-toggle-group-title">Activity</div>
-          <Toggle checked={notif.weeklyDigest} onChange={(v) => setN('weeklyDigest', v)} label="Weekly Digest" description="A summary email every Monday" />
-          <Toggle checked={notif.mentionAlerts} onChange={(v) => setN('mentionAlerts', v)} label="Mention Alerts" description="When someone mentions you" />
-          <Toggle checked={notif.approvalAlerts} onChange={(v) => setN('approvalAlerts', v)} label="Approval Requests" description="Pending approvals that need your attention" />
+          <Toggle checked={!!s('notifications_weekly_digest')} onChange={(v) => set('notifications_weekly_digest', v)} label="Weekly Digest" description="A summary email every Monday" />
+          <Toggle checked={!!s('notifications_mention_alerts')} onChange={(v) => set('notifications_mention_alerts', v)} label="Mention Alerts" description="When someone mentions you" />
+          <Toggle checked={!!s('notifications_approval_alerts')} onChange={(v) => set('notifications_approval_alerts', v)} label="Approval Requests" description="Pending approvals that need your attention" />
         </div>
 
         <div className="settings-toggle-group">
           <div className="settings-toggle-group-title">System</div>
-          <Toggle checked={notif.systemUpdates} onChange={(v) => setN('systemUpdates', v)} label="System Updates" description="Platform updates and maintenance notices" />
-          <Toggle checked={notif.securityAlerts} onChange={(v) => setN('securityAlerts', v)} label="Security Alerts" description="Suspicious activity and login alerts" />
+          <Toggle checked={!!s('notifications_system_updates')} onChange={(v) => set('notifications_system_updates', v)} label="System Updates" description="Platform updates and maintenance notices" />
+          <Toggle checked={!!s('notifications_security_alerts')} onChange={(v) => set('notifications_security_alerts', v)} label="Security Alerts" description="Suspicious activity and login alerts" />
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Notification')}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Notification', ['notifications_email_alerts','notifications_sms_alerts','notifications_push','notifications_weekly_digest','notifications_mention_alerts','notifications_approval_alerts','notifications_system_updates','notifications_security_alerts'])}>
             <Save size={15} /> Save Preferences
           </button>
         </div>
@@ -279,7 +269,6 @@ export default function Settings() {
   /* Tab: Security                                                    */
   /* ================================================================ */
   function renderSecurity() {
-    function setS(key, val) { setSecurity((prev) => ({ ...prev, [key]: val })) }
     return (
       <div className="settings-section animate-in">
         <div className="settings-section-header">
@@ -290,15 +279,15 @@ export default function Settings() {
         </div>
 
         <div className="settings-toggle-group">
-          <Toggle checked={security.twoFactorEnabled} onChange={(v) => setS('twoFactorEnabled', v)} label="Two-Factor Authentication" description="Require a second verification step on login" />
-          <Toggle checked={security.enforceStrongPasswords} onChange={(v) => setS('enforceStrongPasswords', v)} label="Enforce Strong Passwords" description="Min 8 chars, uppercase, number, and special character" />
+          <Toggle checked={!!s('security_two_factor')} onChange={(v) => set('security_two_factor', v)} label="Two-Factor Authentication" description="Require a second verification step on login" />
+          <Toggle checked={!!s('security_strong_passwords')} onChange={(v) => set('security_strong_passwords', v)} label="Enforce Strong Passwords" description="Min 8 chars, uppercase, number, and special character" />
         </div>
 
         <div className="settings-form">
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Clock size={14} /> Session Timeout (minutes)</label>
-              <select value={security.sessionTimeout} onChange={(e) => setS('sessionTimeout', e.target.value)}>
+              <select value={s('security_session_timeout')} onChange={(e) => set('security_session_timeout', e.target.value)}>
                 <option value="15">15 minutes</option>
                 <option value="30">30 minutes</option>
                 <option value="60">1 hour</option>
@@ -308,7 +297,7 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label><Key size={14} /> Password Expiry (days)</label>
-              <select value={security.passwordExpiry} onChange={(e) => setS('passwordExpiry', e.target.value)}>
+              <select value={s('security_password_expiry')} onChange={(e) => set('security_password_expiry', e.target.value)}>
                 <option value="30">30 days</option>
                 <option value="60">60 days</option>
                 <option value="90">90 days</option>
@@ -321,7 +310,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Lock size={14} /> Max Login Attempts</label>
-              <select value={security.maxLoginAttempts} onChange={(e) => setS('maxLoginAttempts', e.target.value)}>
+              <select value={s('security_max_login_attempts')} onChange={(e) => set('security_max_login_attempts', e.target.value)}>
                 <option value="3">3 attempts</option>
                 <option value="5">5 attempts</option>
                 <option value="10">10 attempts</option>
@@ -329,13 +318,13 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label><Shield size={14} /> IP Whitelist</label>
-              <input type="text" value={security.ipWhitelist} onChange={(e) => setS('ipWhitelist', e.target.value)} placeholder="e.g. 192.168.1.0/24 (comma separated)" />
+              <input type="text" value={s('security_ip_whitelist')} onChange={(e) => set('security_ip_whitelist', e.target.value)} placeholder="e.g. 192.168.1.0/24 (comma separated)" />
             </div>
           </div>
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Security')}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Security', ['security_two_factor','security_session_timeout','security_password_expiry','security_max_login_attempts','security_ip_whitelist','security_strong_passwords'])}>
             <Save size={15} /> Save Security Settings
           </button>
         </div>
@@ -347,7 +336,6 @@ export default function Settings() {
   /* Tab: Display                                                     */
   /* ================================================================ */
   function renderDisplay() {
-    function setD(key, val) { setDisplay((prev) => ({ ...prev, [key]: val })) }
     return (
       <div className="settings-section animate-in">
         <div className="settings-section-header">
@@ -361,7 +349,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Languages size={14} /> Language</label>
-              <select value={display.language} onChange={(e) => setD('language', e.target.value)}>
+              <select value={s('display_language')} onChange={(e) => set('display_language', e.target.value)}>
                 <option value="en">English</option>
                 <option value="fr">French</option>
                 <option value="ha">Hausa</option>
@@ -371,7 +359,7 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label><Clock size={14} /> Timezone</label>
-              <select value={display.timezone} onChange={(e) => setD('timezone', e.target.value)}>
+              <select value={s('display_timezone')} onChange={(e) => set('display_timezone', e.target.value)}>
                 <option value="Africa/Lagos">Africa/Lagos (WAT, UTC+1)</option>
                 <option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option>
                 <option value="Europe/London">Europe/London (GMT, UTC+0)</option>
@@ -383,7 +371,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><CalendarDays size={14} /> Date Format</label>
-              <select value={display.dateFormat} onChange={(e) => setD('dateFormat', e.target.value)}>
+              <select value={s('display_date_format')} onChange={(e) => set('display_date_format', e.target.value)}>
                 <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                 <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD</option>
@@ -391,7 +379,7 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label>Currency</label>
-              <select value={display.currency} onChange={(e) => setD('currency', e.target.value)}>
+              <select value={s('display_currency')} onChange={(e) => set('display_currency', e.target.value)}>
                 <option value="NGN">Nigerian Naira (₦)</option>
                 <option value="USD">US Dollar ($)</option>
                 <option value="GBP">British Pound (£)</option>
@@ -404,7 +392,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label>Items Per Page</label>
-              <select value={display.itemsPerPage} onChange={(e) => setD('itemsPerPage', e.target.value)}>
+              <select value={s('display_items_per_page')} onChange={(e) => set('display_items_per_page', e.target.value)}>
                 <option value="10">10</option>
                 <option value="15">15</option>
                 <option value="25">25</option>
@@ -417,7 +405,7 @@ export default function Settings() {
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Display')}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Display', ['display_language','display_timezone','display_date_format','display_currency','display_items_per_page'])}>
             <Save size={15} /> Save Display Settings
           </button>
         </div>

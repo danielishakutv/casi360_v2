@@ -1,28 +1,93 @@
 /**
  * CASI360 — Procurement Module API service
  *
- * Purchase Requests, BOQ, RFQ, Purchase Orders, GRN, RFP endpoints.
- * All requests go through the shared `api` client (cookie auth, XSRF).
+ * Endpoints backed by the Laravel API are marked ✅ LIVE.
+ * Endpoints pending backend implementation are marked ⏳ STUB (use demo data).
  *
- * Currency: NGN (Naira) primary. USD / EUR optional (coming in Settings).
+ * All requests go through the shared `api` client (cookie auth, XSRF).
+ * Currency: NGN (Naira) primary. USD / EUR optional.
  */
 
 import { api } from './api'
 
 /* ------------------------------------------------------------------ */
-/* Purchase Requests (PR)                                             */
+/* Vendors  ✅ LIVE                                                    */
 /* ------------------------------------------------------------------ */
 
-export const purchaseRequestsApi = {
-  list:   (params)     => api.get('/procurement/purchase-requests', params),
-  get:    (id)         => api.get(`/procurement/purchase-requests/${id}`),
-  create: (data)       => api.post('/procurement/purchase-requests', data),
-  update: (id, data)   => api.patch(`/procurement/purchase-requests/${id}`, data),
-  delete: (id)         => api.delete(`/procurement/purchase-requests/${id}`),
+export const vendorsApi = {
+  list:   (params)     => api.get('/procurement/vendors', params),
+  get:    (id)         => api.get(`/procurement/vendors/${id}`),
+  create: (data)       => api.post('/procurement/vendors', data),
+  update: (id, data)   => api.patch(`/procurement/vendors/${id}`, data),
+  delete: (id)         => api.delete(`/procurement/vendors/${id}`),
 }
 
 /* ------------------------------------------------------------------ */
-/* Bill of Quantities (BOQ)                                           */
+/* Vendor Categories  ⏳ STUB — awaiting backend                       */
+/* ------------------------------------------------------------------ */
+
+export const vendorCategoriesApi = {
+  list:   (params)     => api.get('/procurement/vendor-categories', params),
+  get:    (id)         => api.get(`/procurement/vendor-categories/${id}`),
+  create: (data)       => api.post('/procurement/vendor-categories', data),
+  update: (id, data)   => api.patch(`/procurement/vendor-categories/${id}`, data),
+  delete: (id)         => api.delete(`/procurement/vendor-categories/${id}`),
+}
+
+/* ------------------------------------------------------------------ */
+/* Inventory Items  ✅ LIVE                                            */
+/* ------------------------------------------------------------------ */
+
+export const inventoryApi = {
+  list:   (params)     => api.get('/procurement/inventory', params),
+  get:    (id)         => api.get(`/procurement/inventory/${id}`),
+  create: (data)       => api.post('/procurement/inventory', data),
+  update: (id, data)   => api.patch(`/procurement/inventory/${id}`, data),
+  delete: (id)         => api.delete(`/procurement/inventory/${id}`),
+}
+
+/* ------------------------------------------------------------------ */
+/* Purchase Orders (PO)  ✅ LIVE                                       */
+/* ------------------------------------------------------------------ */
+
+export const purchaseOrdersApi = {
+  list:           (params)     => api.get('/procurement/purchase-orders', params),
+  get:            (id)         => api.get(`/procurement/purchase-orders/${id}`),
+  create:         (data)       => api.post('/procurement/purchase-orders', data),
+  update:         (id, data)   => api.patch(`/procurement/purchase-orders/${id}`, data),
+  delete:         (id)         => api.delete(`/procurement/purchase-orders/${id}`),
+  submit:         (id)         => api.post(`/procurement/purchase-orders/${id}/submit`),
+  approvalStatus: (id)         => api.get(`/procurement/purchase-orders/${id}/approval-status`),
+  processApproval:(id, data)   => api.patch(`/procurement/purchase-orders/${id}/approval`, data),
+  disbursements:  (id)         => api.get(`/procurement/purchase-orders/${id}/disbursements`),
+  createDisbursement: (id, data) => api.post(`/procurement/purchase-orders/${id}/disbursements`, data),
+}
+
+/* ------------------------------------------------------------------ */
+/* Requisitions (mapped to Purchase Requests in UI)  ✅ LIVE           */
+/* ------------------------------------------------------------------ */
+
+export const purchaseRequestsApi = {
+  list:           (params)     => api.get('/procurement/requisitions', params),
+  get:            (id)         => api.get(`/procurement/requisitions/${id}`),
+  create:         (data)       => api.post('/procurement/requisitions', data),
+  update:         (id, data)   => api.patch(`/procurement/requisitions/${id}`, data),
+  delete:         (id)         => api.delete(`/procurement/requisitions/${id}`),
+  submit:         (id)         => api.post(`/procurement/requisitions/${id}/submit`),
+  approvalStatus: (id)         => api.get(`/procurement/requisitions/${id}/approval-status`),
+  processApproval:(id, data)   => api.patch(`/procurement/requisitions/${id}/approval`, data),
+}
+
+/* ------------------------------------------------------------------ */
+/* Pending Approvals  ✅ LIVE                                          */
+/* ------------------------------------------------------------------ */
+
+export const approvalsApi = {
+  pending: () => api.get('/procurement/pending-approvals'),
+}
+
+/* ------------------------------------------------------------------ */
+/* Bill of Quantities (BOQ)  ⏳ STUB — awaiting backend                */
 /* ------------------------------------------------------------------ */
 
 export const boqApi = {
@@ -34,7 +99,7 @@ export const boqApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Request for Quotation (RFQ)                                        */
+/* Request for Quotation (RFQ)  ⏳ STUB — awaiting backend             */
 /* ------------------------------------------------------------------ */
 
 export const rfqApi = {
@@ -46,19 +111,7 @@ export const rfqApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Purchase Orders (PO)                                               */
-/* ------------------------------------------------------------------ */
-
-export const purchaseOrdersApi = {
-  list:   (params)     => api.get('/procurement/purchase-orders', params),
-  get:    (id)         => api.get(`/procurement/purchase-orders/${id}`),
-  create: (data)       => api.post('/procurement/purchase-orders', data),
-  update: (id, data)   => api.patch(`/procurement/purchase-orders/${id}`, data),
-  delete: (id)         => api.delete(`/procurement/purchase-orders/${id}`),
-}
-
-/* ------------------------------------------------------------------ */
-/* Goods Received Note (GRN)                                          */
+/* Goods Received Note (GRN)  ⏳ STUB — awaiting backend               */
 /* ------------------------------------------------------------------ */
 
 export const grnApi = {
@@ -70,7 +123,7 @@ export const grnApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Request for Payment (RFP)                                          */
+/* Request for Payment (RFP)  ⏳ STUB — awaiting backend               */
 /* ------------------------------------------------------------------ */
 
 export const rfpApi = {

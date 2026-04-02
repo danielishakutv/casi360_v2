@@ -43,6 +43,8 @@ const RequestForPayment  = lazy(() => import('./pages/procurement/RequestForPaym
 const CreateRequestForPayment = lazy(() => import('./pages/procurement/CreateRequestForPayment'))
 const Vendors            = lazy(() => import('./pages/procurement/Vendors'))
 const VendorCategories   = lazy(() => import('./pages/procurement/VendorCategories'))
+const InventoryItems     = lazy(() => import('./pages/procurement/InventoryItems'))
+const PendingApprovals   = lazy(() => import('./pages/procurement/PendingApprovals'))
 
 // Programs
 const ProgOverview  = lazy(() => import('./pages/programs/Overview'))
@@ -52,6 +54,8 @@ const ProgReports   = lazy(() => import('./pages/programs/Reports'))
 
 // Communication
 const CommOverview = lazy(() => import('./pages/communication/Overview'))
+const Messages     = lazy(() => import('./pages/communication/Messages'))
+const Forums       = lazy(() => import('./pages/communication/Forums'))
 const SendEmail    = lazy(() => import('./pages/communication/SendEmail'))
 const SendSMS      = lazy(() => import('./pages/communication/SendSMS'))
 const SendNotice   = lazy(() => import('./pages/communication/SendNotice'))
@@ -147,6 +151,8 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/rfp/create" element={<CreateRequestForPayment />} />
                 <Route path="/procurement/vendors" element={<Vendors />} />
                 <Route path="/procurement/vendor-categories" element={<VendorCategories />} />
+                <Route path="/procurement/inventory" element={<InventoryItems />} />
+                <Route path="/procurement/pending-approvals" element={<PendingApprovals />} />
 
                 {/* Programs */}
                 <Route path="/programs" element={<ProgOverview />} />
@@ -156,6 +162,8 @@ function AppLayout({ theme, toggleTheme }) {
 
                 {/* Communication */}
                 <Route path="/communication" element={<CommOverview />} />
+                <Route path="/communication/messages" element={<Messages />} />
+                <Route path="/communication/forums" element={<Forums />} />
                 <Route path="/communication/email" element={<SendEmail />} />
                 <Route path="/communication/sms" element={<SendSMS />} />
                 <Route path="/communication/notice" element={<SendNotice />} />

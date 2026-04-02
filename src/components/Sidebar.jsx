@@ -32,6 +32,10 @@ import {
   Smartphone,
   Bell,
   Tag,
+  PackageCheck,
+  ClipboardCheck,
+  Inbox,
+  MessagesSquare,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
@@ -70,6 +74,8 @@ const navItems = [
       { label: 'Request for Payment',   icon: CreditCard,    path: '/procurement/rfp',              permission: 'procurement.rfp.view' },
       { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors',          permission: 'procurement.vendors.view' },
       { label: 'Vendor Categories',     icon: Tag,           path: '/procurement/vendor-categories', permission: 'procurement.vendor_categories.view' },
+      { label: 'Inventory',             icon: PackageCheck,  path: '/procurement/inventory',        permission: 'procurement.inventory.view' },
+      { label: 'Pending Approvals',      icon: ClipboardCheck,path: '/procurement/pending-approvals' },
     ],
   },
   {
@@ -88,10 +94,12 @@ const navItems = [
     label: 'Communication',
     icon: MessageSquare,
     children: [
-      { label: 'Overview',     icon: Eye,        path: '/communication' },
-      { label: 'Send Email',   icon: Mail,       path: '/communication/email',  permission: 'communication.email.view' },
-      { label: 'Send SMS',     icon: Smartphone, path: '/communication/sms',    permission: 'communication.sms.view' },
-      { label: 'Send Notice',  icon: Bell,       path: '/communication/notice', permission: 'communication.notice.view' },
+      { label: 'Overview',     icon: Eye,            path: '/communication' },
+      { label: 'Messages',     icon: Inbox,          path: '/communication/messages', permission: 'communication.messages.view' },
+      { label: 'Forums',       icon: MessagesSquare, path: '/communication/forums',   permission: 'communication.forums.view' },
+      { label: 'Send Email',   icon: Mail,           path: '/communication/email',    permission: 'communication.email.view' },
+      { label: 'Send SMS',     icon: Smartphone,     path: '/communication/sms',      permission: 'communication.sms.view' },
+      { label: 'Send Notice',  icon: Bell,           path: '/communication/notice',   permission: 'communication.notice.view' },
     ],
   },
   {

@@ -27,7 +27,7 @@ function getCookie(name) {
   return match ? decodeURIComponent(match[2]) : null
 }
 
-async function request(method, path, { body, params } = {}) {
+async function request(method, path, { body, params, _retried } = {}) {
   const url = new URL(API_BASE + path, window.location.origin)
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -53,6 +53,12 @@ async function request(method, path, { body, params } = {}) {
 
   // 204 No Content — nothing to parse
   if (res.status === 204) return { success: true, data: null }
+
+  // 419 CSRF token mismatch — refresh token and retry once
+  if (res.status === 419 && !_retried) {
+    await fetch(API_ORIGIN + '/sanctum/csrf-cookie', { credentials: 'include' })
+    return request(method, path, { body, params, _retried: true })
+  }
 
   const json = await res.json().catch(() => null)
 
@@ -162,4 +168,10 @@ export const settingsApi = {
 
   bulkUpdatePermissions: (permissions) =>
     api.patch('/settings/permissions/bulk', { permissions }),
+
+  /** General system settings (super_admin only) */
+  getAll: () => api.get('/settings/general'),
+  get: (key) => api.get(`/settings/general/${key}`),
+  update: (key, value) => api.patch(`/settings/general/${key}`, { value }),
+  bulkUpdate: (settings) => api.patch('/settings/general/bulk', { settings }),
 }

@@ -1,0 +1,461 @@
+HR Notes Feature — Frontend Integration Guide
+Base URL
+https://api.casi360.com/api/v1
+
+Endpoints
+Method	Endpoint	Auth	Description
+GET	/hr/notes	Any authenticated	List notes (paginated)
+GET	/hr/notes/{id}	Any authenticated	Get single note
+POST	/hr/notes	Admin/Manager only	Create note
+PATCH	/hr/notes/{id}	Admin/Manager only	Update note
+DELETE	/hr/notes/{id}	Admin/Manager only	Delete note
+GET /hr/notes — Query Parameters
+Param	Type	Default	Description
+search	string	—	Searches title and content
+employee_id	string (UUID)	—	Filter by employee
+type	string	—	general, performance, disciplinary, commendation, medical, training
+priority	string	—	low, medium, high
+sort_by	string	created_at	Options: title, type, priority, created_at, updated_at
+sort_dir	string	desc	asc or desc
+per_page	int	15	Max 100
+page	int	1	Page number
+List Response Shape (GET /hr/notes)
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "notes": [
+      {
+        "id": "uuid",
+        "employee_id": "uuid",
+        "employee": {
+          "id": "uuid",
+          "name": "Adaeze Obi"
+        },
+        "title": "Performance Review Q1",
+        "content": "Full note body text...",
+        "type": "performance",
+        "priority": "high",
+        "created_by": "uuid",
+        "created_by_name": "Daniel Okonkwo",
+        "created_at": "2026-01-15T10:00:00.000000Z",
+        "updated_at": "2026-01-15T10:00:00.000000Z"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "last_page": 3,
+      "per_page": 15,
+      "total": 42,
+      "from": 1,
+      "to": 15
+    }
+  }
+}
+
+Single Note Response (GET /hr/notes/{id})
+Same note object, wrapped as:
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "note": { ... }
+  }
+}
+
+
+Create Note (POST /hr/notes)
+Request body:{
+  "employee_id": "uuid",
+  "title": "Performance Review Q1",
+  "content": "Full note body text",
+  "type": "performance",
+  "priority": "high"
+}
+
+Field	Type	Required	Notes
+employee_id	UUID string	yes	Must be a valid employee UUID
+title	string	yes	Max 255 chars
+content	string	yes	Max 10,000 chars
+type	string	no	Default: general. Options: general, performance, disciplinary, commendation, medical, training
+priority	string	no	Default: medium. Options: low, medium, high
+created_by is set automatically from the authenticated user — do not send it.
+
+Success response (201):
+{
+  "success": true,
+  "message": "Note created successfully",
+  "data": {
+    "note": { ... }
+  }
+}
+
+
+
+Update Note (PATCH /hr/notes/{id})
+Send only the fields you want to change. All fields are optional.
+{
+  "title": "Updated title",
+  "priority": "low"
+}
+
+Success response (200):
+{
+  "success": true,
+  "message": "Note updated successfully",
+  "data": {
+    "note": { ... }
+  }
+}
+
+
+Delete Note (DELETE /hr/notes/{id})
+No request body needed. This is a hard delete (note is permanently removed).
+
+Success response (200):
+{
+  "success": true,
+  "message": "Note deleted successfully",
+  "data": null
+}
+
+
+Validation Errors (422)
+
+{
+  "success": false,
+  "message": "The employee id field is required.",
+  "errors": {
+    "employee_id": ["The employee id field is required."],
+    "title": ["The title field is required."]
+  }
+}
+
+
+Employee Dropdown
+To populate the employee selector in the create/edit modal, use the existing endpoint:
+GET /hr/employees?per_page=0
+This returns all employees (no pagination). Use id as the value and name as the label.
+
+Enums for Dropdowns
+Type options:
+const NOTE_TYPES = ['general', 'performance', 'disciplinary', 'commendation', 'medical', 'training'] as const;
+
+Priority options:
+const NOTE_PRIORITIES = ['low', 'medium', 'high'] as const;
+
+Role-Based UI
+Role	Can view	Can create/edit/delete
+super_admin	Yes	Yes
+admin	Yes	Yes
+manager	Yes	Yes
+staff	Yes	No — hide create/edit/delete buttons
+Key Notes for Frontend
+The data key in list responses uses notes (not data or items)
+employee is a nested object { id, name }, not a flat string
+created_by_name is a resolved string (display-only), created_by is the UUID
+Pagination meta includes from and to for showing "Showing 1–15 of 42"
+Default sort is created_at descending (newest first)
+The API follows the same auth pattern as all other HR endpoints (Sanctum cookie-based)
+
+
+================================================================================
+Dynamic Permissions System — Frontend Integration Guide
+================================================================================
+
+Overview
+--------
+The backend now has a dynamic permissions system. Instead of hardcoded role checks,
+every feature/action is controlled by a database-driven permission that the super admin
+can toggle on/off per role from a settings page.
+
+Super admin always has full access (hardcoded bypass — cannot be locked out).
+
+
+How It Works
+------------
+1. User logs in
+2. Frontend calls GET /api/v1/auth/permissions
+3. Backend returns a flat map of permission keys → true/false
+4. Frontend stores this map (e.g. in context/store)
+5. Use the map to show/hide UI elements across the entire app
+
+
+GET /api/v1/auth/permissions — User's Permission Map
+-----------------------------------------------------
+Any authenticated user can call this. Returns their resolved permissions.
+
+Response (200):
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "permissions": {
+      "auth.users.view": true,
+      "auth.users.create": true,
+      "auth.users.edit": true,
+      "auth.users.delete": true,
+      "auth.users.manage_roles": true,
+      "auth.users.manage_status": true,
+      "hr.departments.view": true,
+      "hr.departments.create": true,
+      "hr.departments.edit": true,
+      "hr.departments.delete": true,
+      "hr.designations.view": true,
+      "hr.designations.create": true,
+      "hr.designations.edit": true,
+      "hr.designations.delete": true,
+      "hr.employees.view": true,
+      "hr.employees.create": true,
+      "hr.employees.edit": true,
+      "hr.employees.delete": true,
+      "hr.employees.manage_status": true,
+      "hr.notes.view": true,
+      "hr.notes.create": true,
+      "hr.notes.edit": true,
+      "hr.notes.delete": true
+    }
+  }
+}
+
+For super_admin: all permissions are always true.
+For other roles: values reflect what the super admin has configured.
+
+
+Permission Key Format
+---------------------
+Pattern: module.feature.action
+
+Examples:
+  hr.notes.view         → Can see the notes list and details
+  hr.notes.create       → Can create new notes
+  hr.notes.edit         → Can edit existing notes
+  hr.notes.delete       → Can delete notes
+  hr.departments.view   → Can see departments
+  hr.employees.create   → Can create employees
+  auth.users.view       → Can see user management
+
+
+Frontend Usage Pattern
+----------------------
+1. Fetch permissions once after login (or from session):
+
+   const res = await api.get('/auth/permissions');
+   const permissions = res.data.data.permissions;
+
+2. Store in your auth context/store alongside the user object.
+
+3. Use throughout the app:
+
+   // Show/hide a button
+   {permissions['hr.notes.create'] && <Button>Add Note</Button>}
+
+   // Show/hide a menu item
+   {permissions['auth.users.view'] && <MenuItem>User Management</MenuItem>}
+
+   // Show/hide edit/delete actions in a table row
+   {permissions['hr.notes.edit'] && <EditButton />}
+   {permissions['hr.notes.delete'] && <DeleteButton />}
+
+   // Hide entire page/section
+   {permissions['hr.departments.view'] && <DepartmentsPage />}
+
+4. Helper function (recommended):
+
+   function can(permission: string): boolean {
+     // Super admin check (if you store user role locally)
+     if (user.role === 'super_admin') return true;
+     return permissions[permission] === true;
+   }
+
+   // Usage:
+   {can('hr.notes.create') && <Button>Add Note</Button>}
+
+
+When to Refresh Permissions
+---------------------------
+- After login (initial fetch)
+- After the user's session is restored (page reload)
+- You do NOT need to poll — permissions rarely change during a session
+- If the super admin changes permissions, affected users will see changes on next login/refresh
+
+
+403 Error Handling
+------------------
+If a user somehow calls an endpoint they don't have permission for (e.g. button shown
+due to stale permissions), the backend returns:
+
+{
+  "success": false,
+  "message": "You do not have permission to perform this action."
+}
+
+Status: 403
+
+Handle this gracefully — show a toast/alert and optionally re-fetch permissions.
+
+
+Default Permissions by Role
+---------------------------
+These are the initial defaults. Super admin can change any of them.
+
+Role        | auth.users.* | hr.*.view | hr.*.create/edit/delete
+------------|-------------|-----------|------------------------
+super_admin | Always all  | Always all| Always all (hardcoded)
+admin       | All true    | All true  | All true
+manager     | All false   | All true  | All true
+staff       | All false   | All true  | All false
+
+
+================================================================================
+Super Admin Settings Page — Permissions Management
+================================================================================
+
+This section is for building the permissions settings page (super_admin only).
+
+
+GET /api/v1/settings/permissions — Full Permission Matrix
+----------------------------------------------------------
+Super admin only. Returns all permissions with role mappings.
+
+Response (200):
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "permissions": [
+      {
+        "id": "uuid",
+        "module": "hr",
+        "feature": "notes",
+        "action": "create",
+        "key": "hr.notes.create",
+        "description": "Create employee notes",
+        "roles": {
+          "admin": true,
+          "manager": true,
+          "staff": false
+        }
+      },
+      {
+        "id": "uuid",
+        "module": "hr",
+        "feature": "notes",
+        "action": "view",
+        "key": "hr.notes.view",
+        "description": "View employee notes",
+        "roles": {
+          "admin": true,
+          "manager": true,
+          "staff": true
+        }
+      }
+    ],
+    "roles": ["admin", "manager", "staff"]
+  }
+}
+
+Note: super_admin is NOT in the roles list — they always have full access.
+
+
+PATCH /api/v1/settings/permissions/{id} — Toggle Single Permission
+------------------------------------------------------------------
+Super admin only. Toggle one role's access to one permission.
+
+Request body:
+{
+  "role": "staff",
+  "allowed": true
+}
+
+Fields:
+  role      string   required   One of: admin, manager, staff
+  allowed   boolean  required   true = grant, false = revoke
+
+Response (200):
+{
+  "success": true,
+  "message": "Permission updated successfully",
+  "data": {
+    "role_permission": {
+      "id": "uuid",
+      "role": "staff",
+      "permission_key": "hr.notes.create",
+      "allowed": true
+    }
+  }
+}
+
+
+PATCH /api/v1/settings/permissions/bulk — Bulk Update Permissions
+-----------------------------------------------------------------
+Super admin only. Update multiple permissions at once (e.g. "Save All" button).
+
+Request body:
+{
+  "permissions": [
+    { "permission_id": "uuid-1", "role": "staff", "allowed": true },
+    { "permission_id": "uuid-2", "role": "staff", "allowed": false },
+    { "permission_id": "uuid-3", "role": "manager", "allowed": false }
+  ]
+}
+
+Fields per item:
+  permission_id   string (UUID)   required   The permission's UUID
+  role            string          required   One of: admin, manager, staff
+  allowed         boolean         required   true = grant, false = revoke
+
+Response (200):
+{
+  "success": true,
+  "message": "Permissions updated successfully",
+  "data": {
+    "updated": 3
+  }
+}
+
+
+Settings Page UI Suggestion
+---------------------------
+Build a matrix/table like this:
+
+Permission              | Admin | Manager | Staff
+------------------------|-------|---------|------
+View Users              |  [x]  |  [ ]    |  [ ]
+Create Users            |  [x]  |  [ ]    |  [ ]
+View Departments        |  [x]  |  [x]    |  [x]
+Create Departments      |  [x]  |  [x]    |  [ ]
+Edit Departments        |  [x]  |  [x]    |  [ ]
+Delete Departments      |  [x]  |  [x]    |  [ ]
+View Notes              |  [x]  |  [x]    |  [x]
+Create Notes            |  [x]  |  [x]    |  [ ]
+...
+
+Each checkbox toggles via PATCH /settings/permissions/{id}.
+Or collect all changes and send via PATCH /settings/permissions/bulk on "Save".
+
+Group rows by module (Auth, HR, Procurement, etc.) for clarity.
+The "description" field from the API can be used as the display label.
+The "module" and "feature" fields can be used for grouping/sectioning.
+
+Super admin row is NOT shown — they always have everything.
+
+
+Endpoints Summary
+-----------------
+Method  Endpoint                            Access          Description
+GET     /api/v1/auth/permissions            Any auth user   Current user's permission map
+GET     /api/v1/settings/permissions        Super admin     Full matrix for settings page
+PATCH   /api/v1/settings/permissions/{id}   Super admin     Toggle one permission
+PATCH   /api/v1/settings/permissions/bulk   Super admin     Bulk toggle permissions
+
+
+Key Notes for Frontend
+----------------------
+- Call GET /auth/permissions after every login and store the result
+- Use the permission map to show/hide ALL UI elements (buttons, menus, pages)
+- The backend also enforces permissions — frontend hiding is for UX, not security
+- New permissions are automatically added when new backend modules are deployed
+- After re-fetching permissions, the UI should reactively update
+- super_admin always gets { key: true } for every permission — no special frontend logic needed
+- The settings page is only accessible to super_admin users

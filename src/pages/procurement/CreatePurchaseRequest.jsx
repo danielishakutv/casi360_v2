@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
+import { purchaseRequestsApi } from '../../services/procurement'
 
 /* ─── Constants ─── */
 const STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled']
@@ -78,6 +79,8 @@ function buildInitialForm() {
 export default function CreatePurchaseRequest() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
+  const [submitting, setSubmitting] = useState(false)
+  const [formErrors, setFormErrors] = useState({})
 
   /* ─── Derived: donors for selected project ─── */
   const donorsForProject = useMemo(() => {
@@ -118,9 +121,36 @@ export default function CreatePurchaseRequest() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    // TODO: call API to create the PR
-    // For now, navigate back to the list
-    navigate('/procurement/purchase-requests')
+    setSubmitting(true)
+    setFormErrors({})
+
+    /* Map frontend form → backend-accepted payload.
+       Extra fields (delivery_location, purchase_scenario, signoffs, etc.)
+       are documented in BACKEND_PROCUREMENT_GAPS.md for future backend support. */
+    const payload = {
+      title: form.pr_number + (form.delivery_location ? ` — ${form.delivery_location}` : ''),
+      justification: form.comment || undefined,
+      priority: form.priority,
+      needed_by: form.delivery_date || undefined,
+      notes: form.comment || undefined,
+      status: 'draft',
+      items: form.line_items
+        .filter((li) => li.description)
+        .map((li) => ({
+          description: li.description,
+          quantity: Number(li.quantity) || 1,
+          unit: li.unit || undefined,
+          estimated_unit_cost: Number(li.unit_cost) || 0,
+        })),
+    }
+
+    purchaseRequestsApi.create(payload)
+      .then(() => navigate('/procurement/purchase-requests'))
+      .catch((err) => {
+        if (err.errors) setFormErrors(err.errors)
+        else setFormErrors({ _general: err.message || 'Failed to create purchase request' })
+      })
+      .finally(() => setSubmitting(false))
   }
 
   /* ─── Signoff block (render function, not component) ─── */
@@ -152,6 +182,13 @@ export default function CreatePurchaseRequest() {
 
       <div className="card">
         <form onSubmit={handleSubmit} className="hr-form pr-form">
+          {formErrors._general && (
+            <div className="hr-error-banner" style={{ margin: '0 0 16px' }}>
+              <AlertCircle size={16} />
+              <span>{formErrors._general}</span>
+              <button onClick={() => setFormErrors({})} className="hr-error-dismiss">&times;</button>
+            </div>
+          )}
 
           {/* ── Header fields ── */}
           <p className="hr-form-section-title">Purchase Request</p>
@@ -328,7 +365,7 @@ export default function CreatePurchaseRequest() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-requests')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">Submit PR</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit PR'}</button>
           </div>
         </form>
       </div>
