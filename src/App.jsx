@@ -56,8 +56,6 @@ const ProgReports   = lazy(() => import('./pages/programs/Reports'))
 const CommOverview = lazy(() => import('./pages/communication/Overview'))
 const Messages     = lazy(() => import('./pages/communication/Messages'))
 const Forums       = lazy(() => import('./pages/communication/Forums'))
-const SendEmail    = lazy(() => import('./pages/communication/SendEmail'))
-const SendSMS      = lazy(() => import('./pages/communication/SendSMS'))
 const SendNotice   = lazy(() => import('./pages/communication/SendNotice'))
 
 // Other
@@ -164,8 +162,6 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/communication" element={<CommOverview />} />
                 <Route path="/communication/messages" element={<Messages />} />
                 <Route path="/communication/forums" element={<Forums />} />
-                <Route path="/communication/email" element={<SendEmail />} />
-                <Route path="/communication/sms" element={<SendSMS />} />
                 <Route path="/communication/notice" element={<SendNotice />} />
 
                 {/* Other */}

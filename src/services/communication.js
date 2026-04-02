@@ -50,22 +50,4 @@ export const noticesApi = {
   reads:  (id)         => api.get(`/communication/notices/${id}/reads`),
 }
 
-/* ------------------------------------------------------------------ */
-/* Emails                                                              */
-/* ------------------------------------------------------------------ */
 
-export const emailsApi = {
-  list:   (params)     => api.get('/communication/emails', params),
-  create: (data)       => api.post('/communication/emails', data),
-  delete: (id)         => api.delete(`/communication/emails/${id}`),
-}
-
-/* ------------------------------------------------------------------ */
-/* SMS                                                                 */
-/* ------------------------------------------------------------------ */
-
-export const smsApi = {
-  list:   (params)     => api.get('/communication/sms', params),
-  create: (data)       => api.post('/communication/sms', data),
-  delete: (id)         => api.delete(`/communication/sms/${id}`),
-}

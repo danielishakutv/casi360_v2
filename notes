@@ -459,3 +459,6 @@ Key Notes for Frontend
 - After re-fetching permissions, the UI should reactively update
 - super_admin always gets { key: true } for every permission — no special frontend logic needed
 - The settings page is only accessible to super_admin users
+
+
+cd /home/casi360/public_html && git pull origin main && npm install && npm run build && pm2 restart casi360
