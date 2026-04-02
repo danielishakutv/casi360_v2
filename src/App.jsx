@@ -46,11 +46,12 @@ const VendorCategories   = lazy(() => import('./pages/procurement/VendorCategori
 const InventoryItems     = lazy(() => import('./pages/procurement/InventoryItems'))
 const PendingApprovals   = lazy(() => import('./pages/procurement/PendingApprovals'))
 
-// Programs
-const ProgOverview  = lazy(() => import('./pages/programs/Overview'))
-const Projects      = lazy(() => import('./pages/programs/Projects'))
-const Beneficiaries = lazy(() => import('./pages/programs/Beneficiaries'))
-const ProgReports   = lazy(() => import('./pages/programs/Reports'))
+// Projects
+const ProjectsOverview = lazy(() => import('./pages/projects/ProjectsOverview'))
+const ProjectsList     = lazy(() => import('./pages/projects/ProjectsList'))
+const ProjectDetail    = lazy(() => import('./pages/projects/ProjectDetail'))
+const BudgetCategories = lazy(() => import('./pages/projects/BudgetCategories'))
+const ProjectReports   = lazy(() => import('./pages/projects/ProjectReports'))
 
 // Communication
 const CommOverview = lazy(() => import('./pages/communication/Overview'))
@@ -152,11 +153,12 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/inventory" element={<InventoryItems />} />
                 <Route path="/procurement/pending-approvals" element={<PendingApprovals />} />
 
-                {/* Programs */}
-                <Route path="/programs" element={<ProgOverview />} />
-                <Route path="/programs/projects" element={<Projects />} />
-                <Route path="/programs/beneficiaries" element={<Beneficiaries />} />
-                <Route path="/programs/reports" element={<ProgReports />} />
+                {/* Projects */}
+                <Route path="/projects" element={<ProjectsOverview />} />
+                <Route path="/projects/list" element={<ProjectsList />} />
+                <Route path="/projects/list/:id" element={<ProjectDetail />} />
+                <Route path="/projects/budget-categories" element={<BudgetCategories />} />
+                <Route path="/projects/reports" element={<ProjectReports />} />
 
                 {/* Communication */}
                 <Route path="/communication" element={<CommOverview />} />

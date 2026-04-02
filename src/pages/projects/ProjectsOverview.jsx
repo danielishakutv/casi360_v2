@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  FolderKanban, Briefcase, Heart, PieChart, TrendingUp, TrendingDown, AlertCircle
+  FolderKanban, Briefcase, CheckCircle, PieChart, Plus, ArrowRight, AlertCircle,
 } from 'lucide-react'
 import { naira } from '../../utils/currency'
+import { fmtDate } from '../../utils/formatDate'
+import { capitalize } from '../../utils/capitalize'
 import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
 
-export default function ProgOverview() {
+const STATUS_COLORS = { draft: 'gray', active: 'green', on_hold: 'orange', completed: 'blue', closed: 'red' }
+
+function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
+
+export default function ProjectsOverview() {
+  const navigate = useNavigate()
+  const { can } = useAuth()
   const [stats, setStats] = useState(null)
-  const [projects, setProjects] = useState([])
+  const [recent, setRecent] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -17,12 +27,12 @@ export default function ProgOverview() {
       setLoading(true)
       setError('')
       try {
-        const [statsRes, projRes] = await Promise.all([
+        const [statsRes, recentRes] = await Promise.all([
           projectsApi.stats(),
-          projectsApi.list({ per_page: 6, sort_by: 'created_at', sort_dir: 'desc' }),
+          projectsApi.list({ per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
         ])
         setStats(statsRes?.data || statsRes)
-        setProjects(extractItems(projRes))
+        setRecent(extractItems(recentRes))
       } catch (err) {
         setError(err.message || 'Failed to load overview')
       } finally {
@@ -35,7 +45,7 @@ export default function ProgOverview() {
   const statCards = stats ? [
     { label: 'Total Projects', value: stats.total ?? 0, icon: FolderKanban, color: 'blue' },
     { label: 'Active Projects', value: stats.active ?? 0, icon: Briefcase, color: 'green' },
-    { label: 'Draft Projects', value: stats.draft ?? 0, icon: Heart, color: 'purple' },
+    { label: 'Completed', value: stats.completed ?? 0, icon: CheckCircle, color: 'purple' },
     { label: 'Total Budget', value: naira(stats.total_budget ?? 0), icon: PieChart, color: 'orange' },
   ] : []
 
@@ -48,6 +58,7 @@ export default function ProgOverview() {
         </div>
       )}
 
+      {/* Stat cards */}
       <div className="stats-grid">
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -57,9 +68,7 @@ export default function ProgOverview() {
           const Icon = stat.icon
           return (
             <div className={`stat-card ${stat.color} animate-in`} key={stat.label}>
-              <div className="stat-top">
-                <div className={`stat-icon ${stat.color}`}><Icon size={22} /></div>
-              </div>
+              <div className="stat-top"><div className={`stat-icon ${stat.color}`}><Icon size={22} /></div></div>
               <div className="stat-value">{stat.value}</div>
               <div className="stat-label">{stat.label}</div>
             </div>
@@ -67,7 +76,37 @@ export default function ProgOverview() {
         })}
       </div>
 
+      {/* Quick action buttons */}
+      <div className="hr-toolbar" style={{ marginBottom: 16, justifyContent: 'flex-end', gap: 8 }}>
+        {can('projects.projects.create') && (
+          <button className="hr-btn-primary" onClick={() => navigate('/projects/list', { state: { openCreate: true } })}>
+            <Plus size={16} /> Create New Project
+          </button>
+        )}
+        <button className="hr-btn-secondary" onClick={() => navigate('/projects/list')}>
+          <ArrowRight size={16} /> View All Projects
+        </button>
+      </div>
+
+      {/* Status breakdown */}
+      {stats && (
+        <div className="card animate-in" style={{ marginBottom: 16 }}>
+          <div className="card-header"><h3>Status Breakdown</h3></div>
+          <div className="card-body">
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {['draft', 'active', 'on_hold', 'completed', 'closed'].map((s) => (
+                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: 'var(--bg-muted)', fontSize: 13 }}>
+                  <span className={`status-badge ${s}`} style={{ margin: 0 }}><span className="status-dot" />{fmtStatus(s)}</span>
+                  <strong>{stats[s] ?? 0}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-grid animate-in">
+        {/* Recent projects */}
         <div className="card">
           <div className="card-header">
             <h3>Recent Projects</h3>
@@ -76,20 +115,18 @@ export default function ProgOverview() {
           <div className="card-body" style={{ padding: 0 }}>
             <div className="table-wrapper">
               <table className="data-table">
-                <thead>
-                  <tr><th>Project</th><th>Department</th><th>Budget</th><th>Progress</th></tr>
-                </thead>
+                <thead><tr><th>Project</th><th>Status</th><th>Budget</th><th>Progress</th></tr></thead>
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={4} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '16px auto' }} /></td></tr>
-                  ) : projects.length === 0 ? (
-                    <tr><td colSpan={4} className="hr-empty-cell">No projects yet</td></tr>
-                  ) : projects.map((p) => (
-                    <tr key={p.id}>
+                  ) : recent.length === 0 ? (
+                    <tr><td colSpan={4} className="hr-empty-cell">No projects yet. Create your first project to get started.</td></tr>
+                  ) : recent.map((p) => (
+                    <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/projects/list/${p.id}`)}>
                       <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{p.name}</td>
-                      <td>{p.department || '—'}</td>
+                      <td><span className={`status-badge ${p.status}`}><span className="status-dot" />{fmtStatus(p.status)}</span></td>
                       <td style={{ fontWeight: 600 }}>{naira(p.total_budget)}</td>
-                      <td style={{ width: 180 }}>
+                      <td style={{ width: 140 }}>
                         {p.activity_progress ? (
                           <div className="progress-track" style={{ height: 6 }} role="progressbar" aria-valuenow={p.activity_progress.percentage} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.name} progress`}>
                             <div className="progress-fill blue" style={{ width: `${p.activity_progress.percentage}%` }} />
@@ -104,14 +141,15 @@ export default function ProgOverview() {
           </div>
         </div>
 
+        {/* Project progress chart */}
         <div className="card">
           <div className="card-header"><h3>Project Progress</h3></div>
           <div className="card-body">
             {loading ? (
               <div className="auth-spinner" style={{ margin: '20px auto' }} />
-            ) : projects.filter((p) => p.activity_progress).length === 0 ? (
+            ) : recent.filter((p) => p.activity_progress).length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>No activity data yet</p>
-            ) : projects.filter((p) => p.activity_progress).slice(0, 6).map((p, i) => (
+            ) : recent.filter((p) => p.activity_progress).map((p, i) => (
               <div className="progress-bar-wrapper" key={p.id}>
                 <div className="progress-label">
                   <span>{p.name}</span>

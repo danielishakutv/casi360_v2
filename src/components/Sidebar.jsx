@@ -26,7 +26,6 @@ import {
   Receipt,
   Truck,
   CreditCard,
-  Heart,
   PieChart,
   Bell,
   Tag,
@@ -77,14 +76,14 @@ const navItems = [
     ],
   },
   {
-    id: 'programs',
-    label: 'Programs',
+    id: 'projects',
+    label: 'Projects',
     icon: FolderKanban,
     children: [
-      { label: 'Overview',      icon: Eye,       path: '/programs' },
-      { label: 'Projects',      icon: Briefcase, path: '/programs/projects',      permission: 'programs.projects.view' },
-      { label: 'Beneficiaries', icon: Heart,     path: '/programs/beneficiaries', permission: 'programs.beneficiaries.view' },
-      { label: 'Reports',       icon: PieChart,  path: '/programs/reports',       permission: 'programs.reports.view' },
+      { label: 'Overview',          icon: Eye,          path: '/projects',                  permission: 'projects.projects.view' },
+      { label: 'All Projects',      icon: Briefcase,    path: '/projects/list',             permission: 'projects.projects.view' },
+      { label: 'Budget Categories', icon: Tag,          path: '/projects/budget-categories', permission: 'projects.budget_categories.view' },
+      { label: 'Reports',           icon: PieChart,     path: '/projects/reports',          permission: 'reports.reports.view' },
     ],
   },
   {

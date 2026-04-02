@@ -78,6 +78,17 @@ export const projectNotesApi = {
 }
 
 /* ------------------------------------------------------------------ */
+/* Project Reports                                                     */
+/* ------------------------------------------------------------------ */
+
+export const projectReportsApi = {
+  summary:           ()   => api.get('/reports/projects/summary'),
+  detail:            (id) => api.get(`/reports/projects/${id}/detail`),
+  budgetUtilization: ()   => api.get('/reports/projects/budget-utilization'),
+  activityProgress:  ()   => api.get('/reports/projects/activity-progress'),
+}
+
+/* ------------------------------------------------------------------ */
 /* Beneficiaries                                                       */
 /* ------------------------------------------------------------------ */
 
