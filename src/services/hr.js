@@ -57,3 +57,27 @@ export const notesApi = {
   update: (id, data)       => api.patch(`/hr/notes/${id}`, data),
   delete: (id)             => api.delete(`/hr/notes/${id}`),
 }
+
+/* ------------------------------------------------------------------ */
+/* Leave Types                                                         */
+/* ------------------------------------------------------------------ */
+
+export const leaveTypesApi = {
+  list:   (params)         => api.get('/hr/leave-types', params),
+  get:    (id)             => api.get(`/hr/leave-types/${id}`),
+  create: (data)           => api.post('/hr/leave-types', data),
+  update: (id, data)       => api.patch(`/hr/leave-types/${id}`, data),
+  delete: (id)             => api.delete(`/hr/leave-types/${id}`),
+}
+
+/* ------------------------------------------------------------------ */
+/* Holidays                                                            */
+/* ------------------------------------------------------------------ */
+
+export const holidaysApi = {
+  list:   (params)         => api.get('/hr/holidays', params),
+  get:    (id)             => api.get(`/hr/holidays/${id}`),
+  create: (data)           => api.post('/hr/holidays', data),
+  update: (id, data)       => api.patch(`/hr/holidays/${id}`, data),
+  delete: (id)             => api.delete(`/hr/holidays/${id}`),
+}

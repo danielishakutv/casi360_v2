@@ -76,3 +76,34 @@ export const projectNotesApi = {
   update: (projectId, noteId, data) => api.patch(`/projects/${projectId}/notes/${noteId}`, data),
   delete: (projectId, noteId)       => api.delete(`/projects/${projectId}/notes/${noteId}`),
 }
+
+/* ------------------------------------------------------------------ */
+/* Beneficiaries                                                       */
+/* ------------------------------------------------------------------ */
+
+export const beneficiariesApi = {
+  list:   (params)     => api.get('/programs/beneficiaries', params),
+  get:    (id)         => api.get(`/programs/beneficiaries/${id}`),
+  create: (data)       => api.post('/programs/beneficiaries', data),
+  update: (id, data)   => api.patch(`/programs/beneficiaries/${id}`, data),
+  delete: (id)         => api.delete(`/programs/beneficiaries/${id}`),
+}
+
+/* ------------------------------------------------------------------ */
+/* Program Reports                                                     */
+/* ------------------------------------------------------------------ */
+
+export const programReportsApi = {
+  summary: ()       => api.get('/programs/reports/summary'),
+  export:  (params) => api.get('/programs/reports/export', params),
+}
+
+/* ------------------------------------------------------------------ */
+/* Help Center                                                         */
+/* ------------------------------------------------------------------ */
+
+export const helpApi = {
+  listArticles: (params)  => api.get('/help/articles', params),
+  getArticle:   (id)      => api.get(`/help/articles/${id}`),
+  submitTicket: (data)    => api.post('/help/tickets', data),
+}

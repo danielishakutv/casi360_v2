@@ -1,16 +1,11 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
+import { boqApi } from '../../services/procurement'
+import { projectsApi } from '../../services/projects'
+import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
-const DEMO_PROJECTS = [
-  { id: 'PRJ-001', name: 'HQ Renovation Phase 2', code: 'PRJ-001' },
-  { id: 'PRJ-002', name: 'Warehouse Security Upgrade', code: 'PRJ-002' },
-  { id: 'PRJ-003', name: 'Power Infrastructure', code: 'PRJ-003' },
-  { id: 'PRJ-004', name: 'Community Health Programme', code: 'PRJ-004' },
-  { id: 'PRJ-005', name: 'Education Support Initiative', code: 'PRJ-005' },
-]
-
 const DEPARTMENTS = [
   'Procurement', 'Finance', 'Administration', 'Operations',
   'Programs', 'Logistics', 'Human Resources', 'IT',
@@ -57,6 +52,13 @@ function buildInitialForm() {
 export default function CreateBillOfQuantities() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
+  const [projects, setProjects] = useState([])
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+  }, [])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -93,8 +95,38 @@ export default function CreateBillOfQuantities() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    // TODO: call API to create the BOQ
-    navigate('/procurement/boq')
+    setSubmitting(true)
+    setFormError('')
+
+    const signoffs = [
+      { type: 'Quantity Surveyor 1', name: form.surveyor_1.name, position: form.surveyor_1.position, date: todayStr(), signature: form.surveyor_1.signature },
+      { type: 'Quantity Surveyor 2', name: form.surveyor_2.name, position: form.surveyor_2.position, date: todayStr(), signature: form.surveyor_2.signature },
+      { type: 'Budget Holder', name: form.budget_holder.name, position: form.budget_holder.position, date: todayStr(), signature: form.budget_holder.signature },
+    ].filter((s) => s.name)
+
+    const payload = {
+      title: form.delivery_location || 'BOQ',
+      date: form.date,
+      department: form.department || undefined,
+      project_code: form.project || undefined,
+      delivery_location: form.delivery_location || undefined,
+      signoffs: signoffs.length ? signoffs : undefined,
+      items: form.line_items
+        .filter((li) => li.description)
+        .map((li) => ({
+          category: li.category || undefined,
+          unit: li.unit || undefined,
+          quantity: Number(li.quantity) || 1,
+          description: li.description,
+          rate: Number(li.rate) || 0,
+          comment: li.comment || undefined,
+        })),
+    }
+
+    boqApi.create(payload)
+      .then(() => navigate('/procurement/boq'))
+      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message))
+      .finally(() => setSubmitting(false))
   }
 
   /* ─── Surveyor block (render function, not component) ─── */
@@ -127,6 +159,14 @@ export default function CreateBillOfQuantities() {
       <div className="card">
         <form onSubmit={handleSubmit} className="hr-form pr-form">
 
+          {formError && (
+            <div className="hr-error-banner" style={{ margin: '0 0 16px' }}>
+              <AlertCircle size={16} />
+              <span>{formError}</span>
+              <button onClick={() => setFormError('')} className="hr-error-dismiss">&times;</button>
+            </div>
+          )}
+
           {/* ── Header fields ── */}
           <p className="hr-form-section-title">BOQ Information</p>
 
@@ -153,7 +193,7 @@ export default function CreateBillOfQuantities() {
               <label>Project *</label>
               <select value={form.project} onChange={(e) => updateField('project', e.target.value)} required>
                 <option value="">Select project…</option>
-                {DEMO_PROJECTS.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}
+                {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id} — {p.name}</option>)}
               </select>
             </div>
           </div>
@@ -259,7 +299,7 @@ export default function CreateBillOfQuantities() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/boq')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">Submit BOQ</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit BOQ'}</button>
           </div>
         </form>
       </div>

@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
+import { grnApi } from '../../services/procurement'
 
 /* ─── Constants ─── */
 const QUALITY_OPTIONS = ['Pass', 'Fail', 'Pending Inspection']
@@ -52,6 +53,8 @@ function buildInitialForm() {
 export default function CreateGoodsReceivedNote() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -98,8 +101,37 @@ export default function CreateGoodsReceivedNote() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    // TODO: call API to create the GRN
-    navigate('/procurement/grn')
+    setSubmitting(true)
+    setFormError('')
+
+    const signoffs = []
+    if (form.checked_name) signoffs.push({ type: 'Checked By', name: form.checked_name, position: form.checked_position, date: todayStr(), signature: form.checked_signature })
+    if (form.approved_name) signoffs.push({ type: 'Approved By', name: form.approved_name, position: form.approved_position, date: todayStr(), signature: form.approved_signature })
+
+    const payload = {
+      received_from: form.received_from,
+      date_received: form.date_received,
+      office: form.receiving_office || undefined,
+      received_by: form.received_by,
+      po_reference: form.original_po_pr_no || undefined,
+      waybill_no: form.waybill_no || undefined,
+      remark: form.remark || undefined,
+      signoffs: signoffs.length ? signoffs : undefined,
+      items: form.line_items
+        .filter((li) => li.description)
+        .map((li) => ({
+          description: li.description,
+          ordered_qty: Number(li.qty_ordered) || 0,
+          received_qty: Number(li.qty_received) || 0,
+          quality_status: li.quality_check ? li.quality_check.toLowerCase().replace(/ /g, '_') : 'good',
+          comment: li.comment || undefined,
+        })),
+    }
+
+    grnApi.create(payload)
+      .then(() => navigate('/procurement/grn'))
+      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message))
+      .finally(() => setSubmitting(false))
   }
 
   return (
@@ -114,6 +146,14 @@ export default function CreateGoodsReceivedNote() {
 
       <div className="card">
         <form onSubmit={handleSubmit} className="hr-form pr-form">
+
+          {formError && (
+            <div className="hr-error-banner" style={{ margin: '0 0 16px' }}>
+              <AlertCircle size={16} />
+              <span>{formError}</span>
+              <button onClick={() => setFormError('')} className="hr-error-dismiss">&times;</button>
+            </div>
+          )}
 
           {/* ── Header ── */}
           <p className="hr-form-section-title">Goods Received Note</p>
@@ -265,7 +305,7 @@ export default function CreateGoodsReceivedNote() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/grn')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">Submit GRN</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit GRN'}</button>
           </div>
         </form>
       </div>

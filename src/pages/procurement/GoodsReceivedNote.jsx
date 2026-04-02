@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { demoGRN, nextId } from '../../data/procurementDemo'
+import { grnApi } from '../../services/procurement'
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -16,58 +18,72 @@ function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 const INITIAL_FORM = {
   po_reference: '', vendor: '', received_by: '',
   received_date: '', total_amount: '', status: 'draft',
-  description: '', notes: '',
+  description: '', notes: '', office: '',
 }
 
 export default function GoodsReceivedNote() {
   const navigate = useNavigate()
   const { can } = useAuth()
-  const [items, setItems] = useState(demoGRN)
+  const [items, setItems] = useState([])
+  const [meta, setMeta] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [submitting, setSubmitting] = useState(false)
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const filtered = useMemo(() => {
-    let r = items
-    if (search) { const q = search.toLowerCase(); r = r.filter((i) => (i.grn_number + i.po_reference + i.vendor + i.received_by).toLowerCase().includes(q)) }
-    if (statusFilter) r = r.filter((i) => i.status === statusFilter)
-    return r
-  }, [items, search, statusFilter])
+  const fetchList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await grnApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE })
+      setItems(extractItems(res))
+      setMeta(extractMeta(res))
+    } catch { /* keep current */ }
+    finally { setLoading(false) }
+  }, [debouncedSearch, statusFilter, page])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const meta = { current_page: page, last_page: totalPages, per_page: PER_PAGE, total: filtered.length, from: filtered.length ? (page - 1) * PER_PAGE + 1 : 0, to: Math.min(page * PER_PAGE, filtered.length) }
+  useEffect(() => { fetchList() }, [fetchList])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
 
   function openCreate() { setEditing(null); setForm(INITIAL_FORM); setModalOpen(true) }
   function openEdit(item) {
     setEditing(item)
-    setForm({ po_reference: item.po_reference || '', vendor: item.vendor || '', received_by: item.received_by || '', received_date: item.received_date || '', total_amount: item.total_amount, status: item.status, description: item.description || '', notes: item.notes || '' })
+    setForm({ po_reference: item.po_reference || '', vendor: item.vendor || '', received_by: item.received_by || '', received_date: item.received_date || '', total_amount: item.total_amount, status: item.status, description: item.description || '', notes: item.notes || '', office: item.office || '' })
     setModalOpen(true)
   }
   function closeModal() { setModalOpen(false); setEditing(null) }
   function updateField(f, v) { setForm((p) => ({ ...p, [f]: v })) }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (editing) {
-      setItems((prev) => prev.map((i) => i.id === editing.id ? { ...i, ...form, total_amount: Number(form.total_amount) || 0 } : i))
-    } else {
-      const id = nextId()
-      setItems((prev) => [{ id, grn_number: `GRN-2026-${String(id).padStart(3, '0')}`, ...form, total_amount: Number(form.total_amount) || 0, created_at: new Date().toISOString().slice(0, 10) }, ...prev])
-    }
-    closeModal()
+    setSubmitting(true)
+    try {
+      const payload = { ...form, total_amount: Number(form.total_amount) || 0 }
+      if (editing) {
+        await grnApi.update(editing.id, payload)
+      } else {
+        await grnApi.create(payload)
+      }
+      closeModal()
+      fetchList()
+    } catch { /* ignore */ }
+    finally { setSubmitting(false) }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return
-    setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
-    setDeleteTarget(null)
+    try {
+      await grnApi.delete(deleteTarget.id)
+      setDeleteTarget(null)
+      fetchList()
+    } catch { setDeleteTarget(null) }
   }
 
   return (
@@ -92,9 +108,11 @@ export default function GoodsReceivedNote() {
           <table className="data-table">
             <thead><tr><th>GRN #</th><th>PO Ref</th><th>Vendor</th><th>Received By</th><th>Amount</th><th>Received</th><th>Status</th><th style={{ width: 120 }}>Actions</th></tr></thead>
             <tbody>
-              {paged.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={8} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
+              ) : items.length === 0 ? (
                 <tr><td colSpan={8} className="hr-empty-cell">No GRNs found</td></tr>
-              ) : paged.map((r) => (
+              ) : items.map((r) => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{r.grn_number}</td>
                   <td>{r.po_reference || '—'}</td>
@@ -119,7 +137,7 @@ export default function GoodsReceivedNote() {
             </tbody>
           </table>
         </div>
-        <Pagination meta={meta} onPageChange={setPage} />
+        {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="GRN Details" size="md">
@@ -163,7 +181,7 @@ export default function GoodsReceivedNote() {
           <div className="hr-form-field"><label>Notes</label><textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} placeholder="Additional notes…" /></div>
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={closeModal}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">{editing ? 'Update' : 'Create GRN'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : editing ? 'Update' : 'Create GRN'}</button>
           </div>
         </form>
       </Modal>

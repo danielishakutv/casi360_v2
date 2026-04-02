@@ -1,41 +1,14 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Search,
   CalendarDays, Umbrella, ChevronRight,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { useAuth } from '../../contexts/AuthContext'
+import { leaveTypesApi, holidaysApi } from '../../services/hr'
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import Modal from '../../components/Modal'
-
-/* ================================================================== */
-/* Demo data — replace with live API calls later                      */
-/* ================================================================== */
-
-let _nextId = 200
-
-const DEMO_LEAVE_TYPES = [
-  { id: 1, name: 'Annual Leave',        days_allowed: 21, carry_over_max: 5,  paid: true,  requires_approval: true,  status: 'active', description: 'Standard annual leave for all confirmed staff' },
-  { id: 2, name: 'Sick Leave',          days_allowed: 12, carry_over_max: 0,  paid: true,  requires_approval: true,  status: 'active', description: 'Medical leave with doctor certificate required for 3+ days' },
-  { id: 3, name: 'Maternity Leave',     days_allowed: 90, carry_over_max: 0,  paid: true,  requires_approval: true,  status: 'active', description: 'Maternity leave for female employees' },
-  { id: 4, name: 'Paternity Leave',     days_allowed: 14, carry_over_max: 0,  paid: true,  requires_approval: true,  status: 'active', description: 'Paternity leave for male employees' },
-  { id: 5, name: 'Compassionate Leave', days_allowed: 5,  carry_over_max: 0,  paid: true,  requires_approval: true,  status: 'active', description: 'Bereavement or family emergency leave' },
-  { id: 6, name: 'Study Leave',         days_allowed: 10, carry_over_max: 0,  paid: false, requires_approval: true,  status: 'active', description: 'Leave for exams or professional development' },
-  { id: 7, name: 'Unpaid Leave',        days_allowed: 30, carry_over_max: 0,  paid: false, requires_approval: true,  status: 'active', description: 'Extended leave without pay' },
-  { id: 8, name: 'TOIL',               days_allowed: 5,  carry_over_max: 0,  paid: true,  requires_approval: true,  status: 'inactive', description: 'Time off in lieu of overtime worked' },
-]
-
-const DEMO_HOLIDAYS = [
-  { id: 101, name: "New Year's Day",        date: '2026-01-01', recurring: true,  status: 'active' },
-  { id: 102, name: 'Workers\' Day',         date: '2026-05-01', recurring: true,  status: 'active' },
-  { id: 103, name: 'Democracy Day',         date: '2026-06-12', recurring: true,  status: 'active' },
-  { id: 104, name: 'Independence Day',      date: '2026-10-01', recurring: true,  status: 'active' },
-  { id: 105, name: 'Christmas Day',         date: '2026-12-25', recurring: true,  status: 'active' },
-  { id: 106, name: 'Boxing Day',            date: '2026-12-26', recurring: true,  status: 'active' },
-  { id: 107, name: 'Eid al-Fitr',           date: '2026-03-30', recurring: false, status: 'active' },
-  { id: 108, name: 'Eid al-Adha',           date: '2026-06-07', recurring: false, status: 'active' },
-  { id: 109, name: 'Good Friday',           date: '2026-04-03', recurring: false, status: 'active' },
-  { id: 110, name: 'Easter Monday',         date: '2026-04-06', recurring: false, status: 'active' },
-]
+import Pagination from '../../components/Pagination'
 
 /* ================================================================== */
 /* Tabs                                                               */
@@ -54,7 +27,7 @@ const LEAVE_INITIAL = {
 }
 
 const HOLIDAY_INITIAL = {
-  name: '', date: '', recurring: false, status: 'active',
+  name: '', date: '', type: 'public', status: 'active',
 }
 
 /* ================================================================== */
@@ -63,31 +36,61 @@ const HOLIDAY_INITIAL = {
 export default function HRSettings() {
   const { can } = useAuth()
   const [tab, setTab] = useState('leave')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   /* ── Leave Types state ── */
-  const [leaveTypes, setLeaveTypes] = useState(DEMO_LEAVE_TYPES)
+  const [leaveTypes, setLeaveTypes] = useState([])
+  const [leaveMeta, setLeaveMeta] = useState(null)
   const [leaveSearch, setLeaveSearch] = useState('')
+  const [leavePage, setLeavePage] = useState(1)
   const [leaveModal, setLeaveModal] = useState(false)
   const [leaveEditing, setLeaveEditing] = useState(null)
   const [leaveForm, setLeaveForm] = useState(LEAVE_INITIAL)
   const [leaveDelete, setLeaveDelete] = useState(null)
+  const [leaveSaving, setLeaveSaving] = useState(false)
 
   /* ── Holidays state ── */
-  const [holidays, setHolidays] = useState(DEMO_HOLIDAYS)
+  const [holidays, setHolidays] = useState([])
+  const [holMeta, setHolMeta] = useState(null)
   const [holSearch, setHolSearch] = useState('')
+  const [holPage, setHolPage] = useState(1)
   const [holModal, setHolModal] = useState(false)
   const [holEditing, setHolEditing] = useState(null)
   const [holForm, setHolForm] = useState(HOLIDAY_INITIAL)
   const [holDelete, setHolDelete] = useState(null)
+  const [holSaving, setHolSaving] = useState(false)
+
+  /* ================================================================ */
+  /* Data loading                                                     */
+  /* ================================================================ */
+  const fetchLeaveTypes = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await leaveTypesApi.list({ search: leaveSearch || undefined, page: leavePage, per_page: 25 })
+      setLeaveTypes(extractItems(res))
+      setLeaveMeta(extractMeta(res))
+    } catch { /* keep current */ }
+    finally { setLoading(false) }
+  }, [leaveSearch, leavePage])
+
+  const fetchHolidays = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await holidaysApi.list({ search: holSearch || undefined, page: holPage, per_page: 25, sort_by: 'date', sort_dir: 'asc' })
+      setHolidays(extractItems(res))
+      setHolMeta(extractMeta(res))
+    } catch { /* keep current */ }
+    finally { setLoading(false) }
+  }, [holSearch, holPage])
+
+  useEffect(() => { fetchLeaveTypes() }, [fetchLeaveTypes])
+  useEffect(() => { fetchHolidays() }, [fetchHolidays])
 
   /* ================================================================ */
   /* Leave Types CRUD                                                 */
   /* ================================================================ */
-  const filteredLeave = useMemo(() => {
-    if (!leaveSearch) return leaveTypes
-    const q = leaveSearch.toLowerCase()
-    return leaveTypes.filter((l) => (l.name + l.description).toLowerCase().includes(q))
-  }, [leaveTypes, leaveSearch])
+  const filteredLeave = leaveTypes
 
   function openLeaveCreate() {
     setLeaveEditing(null); setLeaveForm(LEAVE_INITIAL); setLeaveModal(true)
@@ -96,7 +99,7 @@ export default function HRSettings() {
     setLeaveEditing(item)
     setLeaveForm({
       name: item.name, days_allowed: String(item.days_allowed),
-      carry_over_max: String(item.carry_over_max),
+      carry_over_max: String(item.carry_over_max || 0),
       paid: item.paid, requires_approval: item.requires_approval,
       status: item.status, description: item.description || '',
     })
@@ -105,42 +108,52 @@ export default function HRSettings() {
   function closeLeaveModal() { setLeaveModal(false); setLeaveEditing(null) }
   function updateLeaveField(f, v) { setLeaveForm((p) => ({ ...p, [f]: v })) }
 
-  function handleLeaveSubmit(e) {
+  async function handleLeaveSubmit(e) {
     e.preventDefault()
+    setLeaveSaving(true)
+    setError('')
     const payload = {
       ...leaveForm,
       days_allowed: Number(leaveForm.days_allowed),
       carry_over_max: Number(leaveForm.carry_over_max),
     }
-    if (leaveEditing) {
-      setLeaveTypes((prev) => prev.map((l) => l.id === leaveEditing.id ? { ...l, ...payload } : l))
-    } else {
-      setLeaveTypes((prev) => [{ id: ++_nextId, ...payload }, ...prev])
-    }
-    closeLeaveModal()
+    try {
+      if (leaveEditing) {
+        await leaveTypesApi.update(leaveEditing.id, payload)
+      } else {
+        await leaveTypesApi.create(payload)
+      }
+      closeLeaveModal()
+      fetchLeaveTypes()
+    } catch (err) {
+      setError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message)
+    } finally { setLeaveSaving(false) }
   }
 
-  function toggleLeaveStatus(item) {
-    setLeaveTypes((prev) => prev.map((l) =>
-      l.id === item.id ? { ...l, status: l.status === 'active' ? 'inactive' : 'active' } : l
-    ))
+  async function toggleLeaveStatus(item) {
+    const newStatus = item.status === 'active' ? 'inactive' : 'active'
+    try {
+      await leaveTypesApi.update(item.id, { ...item, status: newStatus })
+      fetchLeaveTypes()
+    } catch { /* ignore */ }
   }
 
-  function confirmLeaveDelete() {
+  async function confirmLeaveDelete() {
     if (!leaveDelete) return
-    setLeaveTypes((prev) => prev.filter((l) => l.id !== leaveDelete.id))
-    setLeaveDelete(null)
+    try {
+      await leaveTypesApi.delete(leaveDelete.id)
+      setLeaveDelete(null)
+      fetchLeaveTypes()
+    } catch (err) {
+      setError(err.message)
+      setLeaveDelete(null)
+    }
   }
 
   /* ================================================================ */
   /* Holidays CRUD                                                    */
   /* ================================================================ */
-  const filteredHolidays = useMemo(() => {
-    let h = [...holidays].sort((a, b) => a.date.localeCompare(b.date))
-    if (!holSearch) return h
-    const q = holSearch.toLowerCase()
-    return h.filter((r) => r.name.toLowerCase().includes(q))
-  }, [holidays, holSearch])
+  const filteredHolidays = holidays
 
   function openHolCreate() {
     setHolEditing(null); setHolForm(HOLIDAY_INITIAL); setHolModal(true)
@@ -149,27 +162,40 @@ export default function HRSettings() {
     setHolEditing(item)
     setHolForm({
       name: item.name, date: item.date,
-      recurring: item.recurring, status: item.status,
+      type: item.type || 'public', status: item.status,
     })
     setHolModal(true)
   }
   function closeHolModal() { setHolModal(false); setHolEditing(null) }
   function updateHolField(f, v) { setHolForm((p) => ({ ...p, [f]: v })) }
 
-  function handleHolSubmit(e) {
+  async function handleHolSubmit(e) {
     e.preventDefault()
-    if (holEditing) {
-      setHolidays((prev) => prev.map((h) => h.id === holEditing.id ? { ...h, ...holForm } : h))
-    } else {
-      setHolidays((prev) => [{ id: ++_nextId, ...holForm }, ...prev])
-    }
-    closeHolModal()
+    setHolSaving(true)
+    setError('')
+    try {
+      if (holEditing) {
+        await holidaysApi.update(holEditing.id, holForm)
+      } else {
+        await holidaysApi.create(holForm)
+      }
+      closeHolModal()
+      fetchHolidays()
+    } catch (err) {
+      setError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message)
+    } finally { setHolSaving(false) }
   }
 
-  function confirmHolDelete() {
+  async function confirmHolDelete() {
     if (!holDelete) return
-    setHolidays((prev) => prev.filter((h) => h.id !== holDelete.id))
-    setHolDelete(null)
+    try {
+      await holidaysApi.delete(holDelete.id)
+      setHolDelete(null)
+      fetchHolidays()
+    } catch (err) {
+      setError(err.message)
+      setHolDelete(null)
+    }
   }
 
   /* ================================================================ */
@@ -214,6 +240,12 @@ export default function HRSettings() {
       {/* ── Main content ── */}
       <section className="hr-settings-main">
 
+        {error && (
+          <div className="card" style={{ background: 'var(--danger-light, #fef2f2)', borderColor: 'var(--danger, #ef4444)', padding: '12px 16px', marginBottom: 16, color: 'var(--danger, #ef4444)', fontSize: 13 }}>
+            {error}
+          </div>
+        )}
+
         {/* ============================================================ */}
         {/* LEAVE TYPES                                                  */}
         {/* ============================================================ */}
@@ -233,7 +265,7 @@ export default function HRSettings() {
               <div className="hr-toolbar-left">
                 <div className="search-box">
                   <Search size={16} className="search-icon" />
-                  <input type="text" placeholder="Search leave types…" value={leaveSearch} onChange={(e) => setLeaveSearch(e.target.value)} />
+                  <input type="text" placeholder="Search leave types…" value={leaveSearch} onChange={(e) => { setLeaveSearch(e.target.value); setLeavePage(1) }} />
                 </div>
               </div>
             </div>
@@ -296,9 +328,11 @@ export default function HRSettings() {
 
             {/* Summary bar */}
             <div className="hr-settings-summary">
-              <span>{filteredLeave.length} leave type{filteredLeave.length !== 1 ? 's' : ''}</span>
+              <span>{leaveMeta?.total ?? filteredLeave.length} leave type{(leaveMeta?.total ?? filteredLeave.length) !== 1 ? 's' : ''}</span>
               <span>Active: {filteredLeave.filter((l) => l.status === 'active').length}</span>
             </div>
+
+            {leaveMeta && <Pagination meta={leaveMeta} page={leavePage} setPage={setLeavePage} />}
           </div>
         )}
 
@@ -321,7 +355,7 @@ export default function HRSettings() {
               <div className="hr-toolbar-left">
                 <div className="search-box">
                   <Search size={16} className="search-icon" />
-                  <input type="text" placeholder="Search holidays…" value={holSearch} onChange={(e) => setHolSearch(e.target.value)} />
+                  <input type="text" placeholder="Search holidays…" value={holSearch} onChange={(e) => { setHolSearch(e.target.value); setHolPage(1) }} />
                 </div>
               </div>
             </div>
@@ -333,7 +367,7 @@ export default function HRSettings() {
                     <th>Holiday</th>
                     <th style={{ width: 140 }}>Date</th>
                     <th style={{ width: 100 }}>Day</th>
-                    <th style={{ width: 110 }}>Recurring</th>
+                    <th style={{ width: 110 }}>Type</th>
                     <th style={{ width: 100 }}>Status</th>
                     <th style={{ width: 120 }}>Actions</th>
                   </tr>
@@ -356,8 +390,8 @@ export default function HRSettings() {
                         <td style={{ fontSize: 13 }}>{fmtDate(h.date)}</td>
                         <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{dayName}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`card-badge ${h.recurring ? 'blue' : 'gray'}`}>
-                            {h.recurring ? 'Every Year' : 'One-time'}
+                          <span className={`card-badge ${h.type === 'public' ? 'blue' : 'gray'}`}>
+                            {capitalize(h.type || 'public')}
                           </span>
                         </td>
                         <td>
@@ -383,9 +417,11 @@ export default function HRSettings() {
             </div>
 
             <div className="hr-settings-summary">
-              <span>{filteredHolidays.length} holiday{filteredHolidays.length !== 1 ? 's' : ''}</span>
-              <span>Recurring: {filteredHolidays.filter((h) => h.recurring).length}</span>
+              <span>{holMeta?.total ?? filteredHolidays.length} holiday{(holMeta?.total ?? filteredHolidays.length) !== 1 ? 's' : ''}</span>
+              <span>Public: {filteredHolidays.filter((h) => h.type === 'public').length}</span>
             </div>
+
+            {holMeta && <Pagination meta={holMeta} page={holPage} setPage={setHolPage} />}
           </div>
         )}
       </section>
@@ -440,7 +476,7 @@ export default function HRSettings() {
           </div>
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={closeLeaveModal}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">{leaveEditing ? 'Update' : 'Add Leave Type'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={leaveSaving}>{leaveSaving ? 'Saving…' : leaveEditing ? 'Update' : 'Add Leave Type'}</button>
           </div>
         </form>
       </Modal>
@@ -469,10 +505,10 @@ export default function HRSettings() {
           </div>
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>Recurring?</label>
-              <select value={holForm.recurring ? 'yes' : 'no'} onChange={(e) => updateHolField('recurring', e.target.value === 'yes')}>
-                <option value="yes">Yes — Every year</option>
-                <option value="no">No — One-time</option>
+              <label>Type</label>
+              <select value={holForm.type} onChange={(e) => updateHolField('type', e.target.value)}>
+                <option value="public">Public Holiday</option>
+                <option value="company">Company Holiday</option>
               </select>
             </div>
             <div className="hr-form-field">
@@ -485,7 +521,7 @@ export default function HRSettings() {
           </div>
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={closeHolModal}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">{holEditing ? 'Update' : 'Add Holiday'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={holSaving}>{holSaving ? 'Saving…' : holEditing ? 'Update' : 'Add Holiday'}</button>
           </div>
         </form>
       </Modal>

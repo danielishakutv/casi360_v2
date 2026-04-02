@@ -1,14 +1,20 @@
 /**
  * CASI360 — Procurement Module API service
  *
- * Endpoints backed by the Laravel API are marked ✅ LIVE.
- * Endpoints pending backend implementation are marked ⏳ STUB (use demo data).
- *
+ * All endpoints are now ✅ LIVE.
  * All requests go through the shared `api` client (cookie auth, XSRF).
  * Currency: NGN (Naira) primary. USD / EUR optional.
  */
 
 import { api } from './api'
+
+/* ------------------------------------------------------------------ */
+/* Aggregate Stats                                                     */
+/* ------------------------------------------------------------------ */
+
+export const procurementStatsApi = {
+  get: () => api.get('/procurement/stats'),
+}
 
 /* ------------------------------------------------------------------ */
 /* Vendors  ✅ LIVE                                                    */

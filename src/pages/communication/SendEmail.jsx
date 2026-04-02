@@ -1,8 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Search, Plus, Eye, Trash2, X, Mail, Users, Building2, Globe } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
-import { demoEmails, demoStaffList, demoDepartments, nextCommId } from '../../data/communicationDemo'
+import { emailsApi } from '../../services/communication'
+import { departmentsApi } from '../../services/hr'
+import { usersApi } from '../../services/api'
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -22,32 +26,53 @@ const INITIAL_FORM = {
 
 export default function SendEmail() {
   const { can } = useAuth()
-  const [items, setItems] = useState(demoEmails)
+  const [items, setItems] = useState([])
+  const [meta, setMeta] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
   const [page, setPage] = useState(1)
 
   const [composeOpen, setComposeOpen] = useState(false)
   const [form, setForm] = useState(INITIAL_FORM)
   const [staffSearch, setStaffSearch] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const [deptList, setDeptList] = useState([])
+  const [staffResults, setStaffResults] = useState([])
 
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  /* ─── Filter & page ─── */
-  const filtered = useMemo(() => {
-    if (!search) return items
-    const q = search.toLowerCase()
-    return items.filter((e) => (e.subject + e.body).toLowerCase().includes(q))
-  }, [items, search])
+  const fetchList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await emailsApi.list({ search: debouncedSearch || undefined, page, per_page: PER_PAGE })
+      setItems(extractItems(res))
+      setMeta(extractMeta(res))
+    } catch { /* keep */ }
+    finally { setLoading(false) }
+  }, [debouncedSearch, page])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const meta = {
-    current_page: page, last_page: totalPages, per_page: PER_PAGE,
-    total: filtered.length,
-    from: filtered.length ? (page - 1) * PER_PAGE + 1 : 0,
-    to: Math.min(page * PER_PAGE, filtered.length),
-  }
+  useEffect(() => { fetchList() }, [fetchList])
+  useEffect(() => { setPage(1) }, [debouncedSearch])
+
+  useEffect(() => {
+    departmentsApi.list({ per_page: 0 }).then((res) => {
+      const depts = extractItems(res)
+      setDeptList(depts.map((d) => d.name))
+    }).catch(() => {})
+  }, [])
+
+  /* Staff search for individual recipients */
+  const debouncedStaff = useDebounce(staffSearch)
+  useEffect(() => {
+    if (!debouncedStaff || debouncedStaff.length < 2) { setStaffResults([]); return }
+    usersApi.list({ search: debouncedStaff, per_page: 6 }).then((res) => {
+      const users = extractItems(res)
+      setStaffResults(users.filter((u) => !form.recipients.find((r) => r.id === u.id)))
+    }).catch(() => {})
+  }, [debouncedStaff, form.recipients])
 
   function openCompose() { setForm(INITIAL_FORM); setStaffSearch(''); setComposeOpen(true) }
   function closeCompose() { setComposeOpen(false) }
@@ -71,34 +96,30 @@ export default function SendEmail() {
     }))
   }
 
-  const staffResults = useMemo(() => {
-    if (!staffSearch || staffSearch.length < 2) return []
-    const q = staffSearch.toLowerCase()
-    return demoStaffList
-      .filter((s) => (s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)) && !form.recipients.find((r) => r.id === s.id))
-      .slice(0, 6)
-  }, [staffSearch, form.recipients])
-
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const email = {
-      id: nextCommId(),
-      subject: form.subject,
-      body: form.body,
-      audience: form.audience,
-      recipients: form.audience === 'individual' ? form.recipients : [],
-      departments: form.audience === 'department' ? form.departments : [],
-      created_at: new Date().toISOString().slice(0, 10),
-      status: 'sent',
-    }
-    setItems((prev) => [email, ...prev])
-    closeCompose()
+    setSubmitting(true)
+    try {
+      await emailsApi.create({
+        subject: form.subject,
+        body: form.body,
+        audience: form.audience,
+        recipient_ids: form.audience === 'individual' ? form.recipients.map((r) => r.id) : undefined,
+        department_ids: form.audience === 'department' ? form.departments : undefined,
+      })
+      closeCompose()
+      fetchList()
+    } catch { /* keep modal open */ }
+    finally { setSubmitting(false) }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return
-    setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
-    setDeleteTarget(null)
+    try {
+      await emailsApi.delete(deleteTarget.id)
+      setDeleteTarget(null)
+      fetchList()
+    } catch { setDeleteTarget(null) }
   }
 
   function audienceLabel(item) {
@@ -136,9 +157,11 @@ export default function SendEmail() {
               </tr>
             </thead>
             <tbody>
-              {paged.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={5} className="hr-empty-cell">Loading…</td></tr>
+              ) : items.length === 0 ? (
                 <tr><td colSpan={5} className="hr-empty-cell">No emails found</td></tr>
-              ) : paged.map((em) => (
+              ) : items.map((em) => (
                 <tr key={em.id}>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{em.subject}</td>
                   <td>
@@ -162,7 +185,7 @@ export default function SendEmail() {
             </tbody>
           </table>
         </div>
-        <Pagination meta={meta} onPageChange={setPage} />
+        {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
       {/* ─── View ─── */}
@@ -211,7 +234,7 @@ export default function SendEmail() {
             <div className="hr-form-field">
               <label>Select Departments *</label>
               <div className="comm-dept-grid">
-                {demoDepartments.map((d) => (
+                {deptList.map((d) => (
                   <label key={d} className="comm-dept-chip">
                     <input type="checkbox" checked={form.departments.includes(d)} onChange={() => toggleDept(d)} />
                     <span>{d}</span>
@@ -266,7 +289,7 @@ export default function SendEmail() {
                 (form.audience === 'individual' && form.recipients.length === 0)
               }
             >
-              <Mail size={14} /> Send Email
+              <Mail size={14} /> {submitting ? 'Sending…' : 'Send Email'}
             </button>
           </div>
         </form>

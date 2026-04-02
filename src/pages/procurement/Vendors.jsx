@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Pencil, Trash2, Eye, Star, AlertCircle } from 'lucide-react'
-import { vendorsApi } from '../../services/procurement'
+import { vendorsApi, vendorCategoriesApi } from '../../services/procurement'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
-const STATUSES = ['active', 'inactive']
+const STATUSES = ['active', 'inactive', 'blacklisted']
 const PER_PAGE = 15
 
 function RatingStars({ value }) {
@@ -26,6 +26,7 @@ const INITIAL_FORM = {
   name: '', contact_person: '', email: '', phone: '',
   address: '', city: '', state: '', country: 'Nigeria',
   tax_id: '', bank_name: '', bank_account_number: '',
+  category_id: '', rating: '',
   status: 'active', notes: '',
 }
 
@@ -41,6 +42,7 @@ export default function Vendors() {
   const debouncedSearch = useDebounce(search)
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [categories, setCategories] = useState([])
 
   /* -------- Modal state -------- */
   const [modalOpen, setModalOpen] = useState(false)
@@ -79,6 +81,10 @@ export default function Vendors() {
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
 
+  useEffect(() => {
+    vendorCategoriesApi.list({ per_page: 0 }).then((res) => setCategories(extractItems(res))).catch(() => {})
+  }, [])
+
   /* ================================================================ */
   /* Modal handlers                                                   */
   /* ================================================================ */
@@ -103,6 +109,8 @@ export default function Vendors() {
       tax_id: item.tax_id || '',
       bank_name: item.bank_name || '',
       bank_account_number: item.bank_account_number || '',
+      category_id: item.category_id || '',
+      rating: item.rating || '',
       status: item.status || 'active',
       notes: item.notes || '',
     })
@@ -190,27 +198,29 @@ export default function Vendors() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Code</th>
                 <th>Vendor Name</th>
                 <th>Contact Person</th>
-                <th>Email</th>
+                <th>Category</th>
+                <th>Rating</th>
                 <th>Phone</th>
-                <th>City</th>
                 <th>Status</th>
                 <th style={{ width: 120 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '20px auto' }} /></td></tr>
+                <tr><td colSpan={8} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '20px auto' }} /></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={7} className="hr-empty-cell">No vendors found</td></tr>
+                <tr><td colSpan={8} className="hr-empty-cell">No vendors found</td></tr>
               ) : items.map((v) => (
                 <tr key={v.id}>
+                  <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{v.vendor_code || '—'}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{v.name}</td>
                   <td>{v.contact_person || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{v.email || '—'}</td>
+                  <td style={{ fontSize: 12 }}>{v.category_name || '—'}</td>
+                  <td>{v.rating ? <RatingStars value={v.rating} /> : '—'}</td>
                   <td style={{ fontSize: 12 }}>{v.phone || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{v.city || '—'}</td>
                   <td><span className={`status-badge ${v.status}`}><span className="status-dot" />{capitalize(v.status)}</span></td>
                   <td>
                     <div className="hr-actions">
@@ -237,6 +247,9 @@ export default function Vendors() {
           <div className="note-detail">
             <div className="note-detail-header"><h3>{viewItem.name}</h3></div>
             <div className="note-detail-meta">
+              <span><strong>Vendor Code:</strong> {viewItem.vendor_code || '—'}</span>
+              <span><strong>Category:</strong> {viewItem.category_name || '—'}</span>
+              <span><strong>Rating:</strong> {viewItem.rating ? <RatingStars value={viewItem.rating} /> : '—'}</span>
               <span><strong>Contact:</strong> {viewItem.contact_person || '—'}</span>
               <span><strong>Email:</strong> {viewItem.email || '—'}</span>
               <span><strong>Phone:</strong> {viewItem.phone || '—'}</span>
@@ -323,6 +336,22 @@ export default function Vendors() {
             <div className="hr-form-field">
               <label>Account Number</label>
               <input type="text" value={form.bank_account_number} onChange={(e) => updateField('bank_account_number', e.target.value)} placeholder="Bank account number" />
+            </div>
+            <div className="hr-form-field">
+              <label>Category</label>
+              <select value={form.category_id} onChange={(e) => updateField('category_id', e.target.value)}>
+                <option value="">Select category</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Rating (1-5)</label>
+              <select value={form.rating} onChange={(e) => updateField('rating', e.target.value)}>
+                <option value="">No rating</option>
+                {[1,2,3,4,5].map((n) => <option key={n} value={n}>{n} star{n > 1 ? 's' : ''}</option>)}
+              </select>
             </div>
             <div className="hr-form-field">
               <label>Status</label>

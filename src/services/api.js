@@ -174,4 +174,27 @@ export const settingsApi = {
   get: (key) => api.get(`/settings/general/${key}`),
   update: (key, value) => api.patch(`/settings/general/${key}`, { value }),
   bulkUpdate: (settings) => api.patch('/settings/general/bulk', { settings }),
+
+  /** Roles (read-only) */
+  listRoles: (params) => api.get('/settings/roles', params),
+  getRole: (slug) => api.get(`/settings/roles/${slug}`),
+
+  /** Audit log */
+  auditLog: (params) => api.get('/settings/audit-log', params),
+
+  /** Data export / import / backup */
+  exportData: (params) => api.get('/settings/export', params),
+  importData: (formData) =>
+    fetch(
+      (import.meta.env.VITE_API_URL || '') + '/api/v1/settings/import',
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-XSRF-TOKEN': document.cookie.match(/XSRF-TOKEN=([^;]*)/)?.[1] ? decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]*)/)[1]) : '',
+        },
+        body: formData,
+      }
+    ).then(r => r.json()),
+  backup: () => api.post('/settings/backup'),
 }

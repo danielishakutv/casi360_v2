@@ -1,7 +1,10 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
+import { rfqApi } from '../../services/procurement'
+import { projectsApi } from '../../services/projects'
+import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
 const REQUEST_TYPES = ['Goods', 'Works', 'Services']
@@ -9,14 +12,6 @@ const REQUEST_TYPES = ['Goods', 'Works', 'Services']
 const DEMO_STRUCTURES = [
   'Head Office', 'Regional Office - North', 'Regional Office - South',
   'Field Office - Maiduguri', 'Field Office - Yola', 'Warehouse - Abuja',
-]
-
-const DEMO_PROJECTS = [
-  { id: 'PRJ-001', name: 'HQ Renovation Phase 2', code: 'PRJ-001' },
-  { id: 'PRJ-002', name: 'Warehouse Security Upgrade', code: 'PRJ-002' },
-  { id: 'PRJ-003', name: 'Power Infrastructure', code: 'PRJ-003' },
-  { id: 'PRJ-004', name: 'Community Health Programme', code: 'PRJ-004' },
-  { id: 'PRJ-005', name: 'Education Support Initiative', code: 'PRJ-005' },
 ]
 
 const CURRENCY_OPTIONS = [
@@ -69,6 +64,13 @@ function buildInitialForm() {
 export default function CreateRequestForQuotation() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
+  const [projects, setProjects] = useState([])
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+  }, [])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -107,8 +109,43 @@ export default function CreateRequestForQuotation() {
 
   function handleSubmit(e) {
     e.preventDefault()
-    // TODO: call API to create the RFQ
-    navigate('/procurement/rfq')
+    setSubmitting(true)
+    setFormError('')
+
+    const signoffs = []
+    if (form.received_by_name) {
+      signoffs.push({ type: 'Logistics Officer', name: form.received_by_name, position: 'Logistics', date: form.received_by_date || todayStr(), signature: form.received_by_signature })
+    }
+
+    const payload = {
+      title: form.supplier_name || 'RFQ',
+      date: form.date,
+      supplier_name: form.supplier_name,
+      supplier_address: form.supplier_address,
+      contact_person: form.company_rep,
+      supplier_phone: form.contact,
+      request_types: form.request_type,
+      structure: form.structure || undefined,
+      project_code: form.project || undefined,
+      currency: form.currency,
+      delivery_address: form.delivery_location || undefined,
+      delivery_terms: form.delivery_duration || undefined,
+      signoffs: signoffs.length ? signoffs : undefined,
+      items: form.line_items
+        .filter((li) => li.item || li.description)
+        .map((li) => ({
+          item_number: li.item || undefined,
+          description: li.description,
+          unit: li.unit || undefined,
+          quantity: Number(li.quantity) || 1,
+          unit_cost: Number(li.unit_cost) || 0,
+        })),
+    }
+
+    rfqApi.create(payload)
+      .then(() => navigate('/procurement/rfq'))
+      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message))
+      .finally(() => setSubmitting(false))
   }
 
   return (
@@ -123,6 +160,14 @@ export default function CreateRequestForQuotation() {
 
       <div className="card">
         <form onSubmit={handleSubmit} className="hr-form pr-form">
+
+          {formError && (
+            <div className="hr-error-banner" style={{ margin: '0 0 16px' }}>
+              <AlertCircle size={16} />
+              <span>{formError}</span>
+              <button onClick={() => setFormError('')} className="hr-error-dismiss">&times;</button>
+            </div>
+          )}
 
           {/* ── Supplier Header ── */}
           <p className="hr-form-section-title">Supplier Information</p>
@@ -191,7 +236,7 @@ export default function CreateRequestForQuotation() {
               <label>Project *</label>
               <select value={form.project} onChange={(e) => updateField('project', e.target.value)} required>
                 <option value="">Select project…</option>
-                {DEMO_PROJECTS.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}
+                {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id} — {p.name}</option>)}
               </select>
             </div>
           </div>
@@ -301,7 +346,7 @@ export default function CreateRequestForQuotation() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/rfq')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">Submit RFQ</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit RFQ'}</button>
           </div>
         </form>
       </div>

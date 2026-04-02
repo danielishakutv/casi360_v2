@@ -4,12 +4,15 @@ import {
   Bell, Shield, Key, Lock,
   Palette, Languages,
   Database, Download, Upload, Trash2,
-  Users, UserPlus,
+  Users,
   Clock, CalendarDays,
   Save, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { settingsApi } from '../services/api'
+import { extractItems, extractMeta } from '../utils/apiHelpers'
+import { fmtDate } from '../utils/formatDate'
+import Pagination from '../components/Pagination'
 
 /* ================================================================== */
 /* Fallback defaults (used until API settings load)                   */
@@ -28,24 +31,7 @@ const DEFAULTS = {
   display_currency: 'NGN', display_items_per_page: '15',
 }
 
-const DEMO_ROLES = [
-  { id: 1, name: 'Super Admin', users: 2,  color: '#e74c3c', permissions: 'Full system access' },
-  { id: 2, name: 'Admin',       users: 4,  color: '#2563eb', permissions: 'Manage users, modules, and settings' },
-  { id: 3, name: 'Manager',     users: 8,  color: '#8b5cf6', permissions: 'Manage assigned modules and staff' },
-  { id: 4, name: 'Staff',       users: 22, color: '#10b981', permissions: 'View and create records' },
-  { id: 5, name: 'Viewer',      users: 5,  color: '#64748b', permissions: 'Read-only access' },
-]
 
-const DEMO_AUDIT = [
-  { id: 1, user: 'Amina Yusuf',   action: 'Updated organization profile',        module: 'Settings',     time: '2 hours ago' },
-  { id: 2, user: 'Chidi Okafor',   action: 'Created new employee record',         module: 'HR',           time: '3 hours ago' },
-  { id: 3, user: 'Tunde Adebayo',  action: 'Approved purchase request PR-2026-002', module: 'Procurement', time: '5 hours ago' },
-  { id: 4, user: 'Fatima Bello',   action: 'Changed role for Kola Adekunle',      module: 'Settings',     time: '1 day ago' },
-  { id: 5, user: 'Admin',          action: 'Enabled two-factor authentication',   module: 'Security',     time: '1 day ago' },
-  { id: 6, user: 'Ngozi Eze',      action: 'Exported employee report (CSV)',      module: 'Reports',      time: '2 days ago' },
-  { id: 7, user: 'Emeka Nwankwo',  action: 'Deleted draft purchase order',        module: 'Procurement',  time: '2 days ago' },
-  { id: 8, user: 'Bola Fashola',   action: 'Updated notification preferences',    module: 'Settings',     time: '3 days ago' },
-]
 
 /* ================================================================== */
 /* Tabs                                                               */
@@ -116,10 +102,31 @@ export default function Settings() {
   function set(key, val) { setSettings((p) => ({ ...p, [key]: val })) }
 
   /* ---- Roles ---- */
-  const [roles] = useState(DEMO_ROLES)
+  const [roles, setRoles] = useState([])
+  const [rolesLoading, setRolesLoading] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'roles' && roles.length === 0) {
+      setRolesLoading(true)
+      settingsApi.listRoles().then((res) => setRoles(extractItems(res))).catch(() => {}).finally(() => setRolesLoading(false))
+    }
+  }, [activeTab, roles.length])
 
   /* ---- Audit ---- */
-  const [audit] = useState(DEMO_AUDIT)
+  const [audit, setAudit] = useState([])
+  const [auditMeta, setAuditMeta] = useState(null)
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditLoading, setAuditLoading] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      setAuditLoading(true)
+      settingsApi.auditLog({ page: auditPage, per_page: 15 })
+        .then((res) => { setAudit(extractItems(res)); setAuditMeta(extractMeta(res)) })
+        .catch(() => {})
+        .finally(() => setAuditLoading(false))
+    }
+  }, [activeTab, auditPage])
 
   /* ---- Toast helper ---- */
   const showToast = useCallback((type, text) => {
@@ -417,33 +424,30 @@ export default function Settings() {
   /* Tab: Roles & Access                                              */
   /* ================================================================ */
   function renderRoles() {
+    const ROLE_COLORS = { super_admin: '#e74c3c', admin: '#2563eb', manager: '#8b5cf6', staff: '#10b981' }
     return (
       <div className="settings-section animate-in">
         <div className="settings-section-header">
           <div>
             <h3>Roles & Access Control</h3>
-            <p>Manage user roles and permissions</p>
+            <p>System roles are read-only</p>
           </div>
-          <button className="hr-btn-primary" onClick={() => showToast('info', 'Role creation will be available with backend integration.')}>
-            <UserPlus size={15} /> Add Role
-          </button>
         </div>
 
         <div className="settings-roles-list">
-          {roles.map((role) => (
-            <div className="settings-role-card" key={role.id}>
+          {rolesLoading ? (
+            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>Loading roles…</div>
+          ) : roles.map((role) => (
+            <div className="settings-role-card" key={role.id || role.slug}>
               <div className="settings-role-left">
-                <span className="settings-role-dot" style={{ background: role.color }} />
+                <span className="settings-role-dot" style={{ background: ROLE_COLORS[role.slug] || '#64748b' }} />
                 <div>
                   <div className="settings-role-name">{role.name}</div>
-                  <div className="settings-role-perm">{role.permissions}</div>
+                  <div className="settings-role-perm">{role.description || role.slug}</div>
                 </div>
               </div>
               <div className="settings-role-right">
-                <span className="settings-role-count"><Users size={14} /> {role.users} users</span>
-                <button className="hr-action-btn" title="Edit role" onClick={() => showToast('info', 'Role editing will be available with backend integration.')}>
-                  <ChevronRight size={15} />
-                </button>
+                <span className="settings-role-count"><Users size={14} /> {role.user_count ?? 0} users</span>
               </div>
             </div>
           ))}
@@ -456,6 +460,34 @@ export default function Settings() {
   /* Tab: Data & Backup                                               */
   /* ================================================================ */
   function renderData() {
+    const [exportFormat, setExportFormat] = useState('csv')
+    const [importFile, setImportFile] = useState(null)
+
+    async function handleExport() {
+      try {
+        await settingsApi.exportData({ format: exportFormat })
+        showToast('success', 'Data export started. You will receive an email when ready.')
+      } catch { showToast('error', 'Export failed.') }
+    }
+
+    async function handleImport() {
+      if (!importFile) { showToast('info', 'Please select a file first.'); return }
+      try {
+        const fd = new FormData()
+        fd.append('file', importFile)
+        await settingsApi.importData(fd)
+        showToast('success', 'Data imported successfully.')
+        setImportFile(null)
+      } catch { showToast('error', 'Import failed.') }
+    }
+
+    async function handleBackup() {
+      try {
+        await settingsApi.backup()
+        showToast('success', 'Backup initiated. This may take a few minutes.')
+      } catch { showToast('error', 'Backup failed.') }
+    }
+
     return (
       <div className="settings-section animate-in">
         <div className="settings-section-header">
@@ -471,8 +503,12 @@ export default function Settings() {
             <div className="settings-data-info">
               <h4>Export Data</h4>
               <p>Download organization data as CSV or Excel files for reporting and analysis.</p>
+              <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ marginTop: 8, maxWidth: 160 }}>
+                <option value="csv">CSV</option>
+                <option value="xlsx">Excel (XLSX)</option>
+              </select>
             </div>
-            <button className="hr-btn-secondary" onClick={() => showToast('success', 'Data export started. You will receive an email when ready.')}>
+            <button className="hr-btn-secondary" onClick={handleExport}>
               <Download size={14} /> Export
             </button>
           </div>
@@ -482,8 +518,9 @@ export default function Settings() {
             <div className="settings-data-info">
               <h4>Import Data</h4>
               <p>Bulk import employees, departments, or other records from CSV files.</p>
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setImportFile(e.target.files[0] || null)} style={{ marginTop: 8 }} />
             </div>
-            <button className="hr-btn-secondary" onClick={() => showToast('info', 'Data import will be available with backend integration.')}>
+            <button className="hr-btn-secondary" onClick={handleImport}>
               <Upload size={14} /> Import
             </button>
           </div>
@@ -494,7 +531,7 @@ export default function Settings() {
               <h4>Create Backup</h4>
               <p>Generate a full backup of all data. Backups are encrypted and stored securely.</p>
             </div>
-            <button className="hr-btn-secondary" onClick={() => showToast('success', 'Backup initiated. This may take a few minutes.')}>
+            <button className="hr-btn-secondary" onClick={handleBackup}>
               <Database size={14} /> Backup Now
             </button>
           </div>
@@ -505,24 +542,9 @@ export default function Settings() {
               <h4>Purge Old Data</h4>
               <p>Permanently delete records older than a specified date. This cannot be undone.</p>
             </div>
-            <button className="hr-btn-danger" onClick={() => showToast('info', 'Data purge will be available with backend integration.')}>
+            <button className="hr-btn-danger" onClick={() => showToast('info', 'Data purge is not yet available.')}>
               <Trash2 size={14} /> Purge
             </button>
-          </div>
-        </div>
-
-        <div className="settings-storage-bar">
-          <div className="settings-storage-header">
-            <span>Storage Used</span>
-            <span>2.4 GB / 10 GB</span>
-          </div>
-          <div className="settings-storage-track">
-            <div className="settings-storage-fill" style={{ width: '24%' }} />
-          </div>
-          <div className="settings-storage-breakdown">
-            <span><span className="settings-legend-dot blue" /> Documents — 1.2 GB</span>
-            <span><span className="settings-legend-dot green" /> Database — 800 MB</span>
-            <span><span className="settings-legend-dot purple" /> Backups — 400 MB</span>
           </div>
         </div>
       </div>
@@ -540,9 +562,6 @@ export default function Settings() {
             <h3>Audit Log</h3>
             <p>Track all actions performed in the system</p>
           </div>
-          <button className="hr-btn-secondary" onClick={() => showToast('success', 'Audit log exported.')}>
-            <Download size={14} /> Export Log
-          </button>
         </div>
 
         <div className="table-wrapper">
@@ -556,22 +575,27 @@ export default function Settings() {
               </tr>
             </thead>
             <tbody>
-              {audit.map((a) => (
+              {auditLoading ? (
+                <tr><td colSpan={4} className="hr-empty-cell">Loading…</td></tr>
+              ) : audit.length === 0 ? (
+                <tr><td colSpan={4} className="hr-empty-cell">No audit entries found</td></tr>
+              ) : audit.map((a) => (
                 <tr key={a.id}>
-                  <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{a.user}</td>
-                  <td>{a.action}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{a.user || a.user_name || '—'}</td>
+                  <td>{a.action || a.description || '—'}</td>
                   <td>
                     <span className={`status-badge ${a.module === 'Settings' ? 'active' : a.module === 'Security' ? 'approved' : 'pending'}`}>
                       <span className="status-dot" />
-                      {a.module}
+                      {a.module || '—'}
                     </span>
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{a.time}</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(a.timestamp || a.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {auditMeta && <Pagination meta={auditMeta} onPageChange={setAuditPage} />}
       </div>
     )
   }

@@ -1,8 +1,10 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi } from '../../services/procurement'
+import { projectsApi } from '../../services/projects'
+import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
 const STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled']
@@ -22,14 +24,7 @@ const CURRENCY_OPTIONS = [
   { code: 'EUR', symbol: '€', label: 'EUR — Euro (₦1,700)', rate: 1700 },
 ]
 
-/* Demo project / donor data — replace with API data when ready */
-const DEMO_PROJECTS = [
-  { id: 'PRJ-001', name: 'HQ Renovation Phase 2', code: 'PRJ-001', donors: ['USAID', 'DFID'] },
-  { id: 'PRJ-002', name: 'Warehouse Security Upgrade', code: 'PRJ-002', donors: ['EU Humanitarian Aid', 'ECHO'] },
-  { id: 'PRJ-003', name: 'Power Infrastructure', code: 'PRJ-003', donors: ['World Bank', 'AfDB'] },
-  { id: 'PRJ-004', name: 'Community Health Programme', code: 'PRJ-004', donors: ['UNICEF', 'WHO', 'GAVI'] },
-  { id: 'PRJ-005', name: 'Education Support Initiative', code: 'PRJ-005', donors: ['USAID', 'Save the Children'] },
-]
+
 
 const BUDGET_LINES = [
   'Staff Costs', 'Travel & Transport', 'Equipment & Supplies',
@@ -81,12 +76,17 @@ export default function CreatePurchaseRequest() {
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  const [projects, setProjects] = useState([])
+
+  useEffect(() => {
+    projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+  }, [])
 
   /* ─── Derived: donors for selected project ─── */
   const donorsForProject = useMemo(() => {
-    const proj = DEMO_PROJECTS.find((p) => p.code === form.project_code)
-    return proj ? proj.donors : []
-  }, [form.project_code])
+    const proj = projects.find((p) => (p.project_code || p.id) === form.project_code)
+    return proj?.donors || []
+  }, [form.project_code, projects])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => {
@@ -253,7 +253,7 @@ export default function CreatePurchaseRequest() {
               <label>Project Code *</label>
               <select value={form.project_code} onChange={(e) => updateField('project_code', e.target.value)} required>
                 <option value="">Select project…</option>
-                {DEMO_PROJECTS.map((p) => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}
+                {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{(p.project_code || p.id)} \u2014 {p.name}</option>)}
               </select>
             </div>
             <div className="hr-form-field">
@@ -310,7 +310,7 @@ export default function CreatePurchaseRequest() {
                     <td>
                       <select value={li.project_code} onChange={(e) => updateLineItem(idx, 'project_code', e.target.value)}>
                         <option value="">—</option>
-                        {DEMO_PROJECTS.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}
+                        {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id}</option>)}
                       </select>
                     </td>
                     <td>

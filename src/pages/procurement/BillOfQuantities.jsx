@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Trash2, Eye } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { demoBOQ } from '../../data/procurementDemo'
+import { boqApi } from '../../services/procurement'
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -15,29 +17,37 @@ const PER_PAGE = 15
 export default function BillOfQuantities() {
   const navigate = useNavigate()
   const { can } = useAuth()
-  const [items, setItems] = useState(demoBOQ)
+  const [items, setItems] = useState([])
+  const [meta, setMeta] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
 
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const filtered = useMemo(() => {
-    let r = items
-    if (search) { const q = search.toLowerCase(); r = r.filter((i) => (i.title + i.project + i.prepared_by + i.boq_number).toLowerCase().includes(q)) }
-    if (statusFilter) r = r.filter((i) => i.status === statusFilter)
-    return r
-  }, [items, search, statusFilter])
+  const fetchList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await boqApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE })
+      setItems(extractItems(res))
+      setMeta(extractMeta(res))
+    } catch { /* keep current */ }
+    finally { setLoading(false) }
+  }, [debouncedSearch, statusFilter, page])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const meta = { current_page: page, last_page: totalPages, per_page: PER_PAGE, total: filtered.length, from: filtered.length ? (page - 1) * PER_PAGE + 1 : 0, to: Math.min(page * PER_PAGE, filtered.length) }
+  useEffect(() => { fetchList() }, [fetchList])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return
-    setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id))
-    setDeleteTarget(null)
+    try {
+      await boqApi.delete(deleteTarget.id)
+      setDeleteTarget(null)
+      fetchList()
+    } catch { setDeleteTarget(null) }
   }
 
   return (
@@ -62,15 +72,17 @@ export default function BillOfQuantities() {
           <table className="data-table">
             <thead><tr><th>BOQ #</th><th>Title</th><th>Project</th><th>Prepared By</th><th>Amount</th><th>Status</th><th>Date</th><th style={{ width: 120 }}>Actions</th></tr></thead>
             <tbody>
-              {paged.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={8} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
+              ) : items.length === 0 ? (
                 <tr><td colSpan={8} className="hr-empty-cell">No BOQs found</td></tr>
-              ) : paged.map((r) => (
+              ) : items.map((r) => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{r.boq_number}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.title}</td>
                   <td>{r.project || '—'}</td>
                   <td>{r.prepared_by || '—'}</td>
-                  <td style={{ fontWeight: 600 }}>{naira(r.total_amount)}</td>
+                  <td style={{ fontWeight: 600 }}>{naira(r.grand_total ?? r.total_amount)}</td>
                   <td><span className={`status-badge ${r.status}`}><span className="status-dot" />{capitalize(r.status)}</span></td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</td>
                   <td>
@@ -86,7 +98,7 @@ export default function BillOfQuantities() {
             </tbody>
           </table>
         </div>
-        <Pagination meta={meta} onPageChange={setPage} />
+        {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
       <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="BOQ Details" size="md">
@@ -95,8 +107,11 @@ export default function BillOfQuantities() {
             <div className="note-detail-header"><h3>{viewItem.boq_number} — {viewItem.title}</h3></div>
             <div className="note-detail-meta">
               <span><strong>Project:</strong> {viewItem.project || '—'}</span>
+              <span><strong>Department:</strong> {viewItem.department || '—'}</span>
+              <span><strong>Category:</strong> {viewItem.category || '—'}</span>
               <span><strong>Prepared by:</strong> {viewItem.prepared_by || '—'}</span>
-              <span><strong>Total:</strong> {naira(viewItem.total_amount)}</span>
+              <span><strong>Items:</strong> {viewItem.item_count ?? '—'}</span>
+              <span><strong>Total:</strong> {naira(viewItem.grand_total ?? viewItem.total_amount)}</span>
               <span><strong>Status:</strong> {capitalize(viewItem.status)}</span>
               <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
             </div>

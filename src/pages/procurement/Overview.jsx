@@ -5,11 +5,8 @@ import {
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { purchaseRequestsApi, purchaseOrdersApi } from '../../services/procurement'
+import { purchaseRequestsApi, purchaseOrdersApi, procurementStatsApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
-import {
-  demoBOQ, demoRFQ, demoGRN, demoRFP,
-} from '../../data/procurementDemo'
 
 function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
 
@@ -19,28 +16,25 @@ export default function ProcOverview() {
   const [prMeta, setPrMeta]   = useState(null)
   const [poItems, setPoItems] = useState([])
   const [poMeta, setPoMeta]   = useState(null)
+  const [stats, setStats]     = useState(null)
   const [loading, setLoading] = useState(true)
-
-  /* Demo data (stays until backend adds these entities) */
-  const [boq] = useState(demoBOQ)
-  const [rfq] = useState(demoRFQ)
-  const [grn] = useState(demoGRN)
-  const [rfp] = useState(demoRFP)
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       try {
-        const [prRes, poRes] = await Promise.all([
+        const [prRes, poRes, statsRes] = await Promise.all([
           purchaseRequestsApi.list({ per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
           purchaseOrdersApi.list({ per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
+          procurementStatsApi.get(),
         ])
         if (cancelled) return
         setPrItems(extractItems(prRes))
         setPrMeta(extractMeta(prRes))
         setPoItems(extractItems(poRes))
         setPoMeta(extractMeta(poRes))
+        setStats(statsRes?.data?.data || statsRes?.data || null)
       } catch {
         /* silently fall through — tables just show empty */
       } finally {
@@ -53,16 +47,20 @@ export default function ProcOverview() {
 
   const prTotal  = prMeta?.total ?? prItems.length
   const poTotal  = poMeta?.total ?? poItems.length
-  const openRFQ    = rfq.filter((r) => r.status === 'open' || r.status === 'pending').length
-  const pendingRFP = rfp.filter((r) => r.status === 'pending').length
+  const boqTotal = stats?.boq?.total ?? 0
+  const rfqTotal = stats?.rfq?.total ?? 0
+  const rfqOpen  = (stats?.rfq?.by_status?.open ?? 0) + (stats?.rfq?.by_status?.pending ?? 0)
+  const grnTotal = stats?.grn?.total ?? 0
+  const rfpTotal = stats?.rfp?.total ?? 0
+  const rfpPending = stats?.rfp?.by_status?.pending ?? 0
 
   const statCards = [
     { key: 'pr',  label: 'Purchase Requests', value: prTotal,    sub: '',                      icon: ClipboardList, color: 'blue' },
-    { key: 'boq', label: 'Bill of Quantities', value: boq.length, sub: '',                     icon: ListOrdered,   color: 'indigo' },
-    { key: 'rfq', label: 'RFQs',              value: rfq.length, sub: `${openRFQ} open`,       icon: FileText,      color: 'orange' },
+    { key: 'boq', label: 'Bill of Quantities', value: boqTotal,  sub: '',                      icon: ListOrdered,   color: 'indigo' },
+    { key: 'rfq', label: 'RFQs',              value: rfqTotal,   sub: rfqOpen ? `${rfqOpen} open` : '', icon: FileText, color: 'orange' },
     { key: 'po',  label: 'Purchase Orders',   value: poTotal,    sub: '',                      icon: Store,         color: 'green' },
-    { key: 'grn', label: 'Goods Received',    value: grn.length, sub: '',                      icon: Truck,         color: 'purple' },
-    { key: 'rfp', label: 'Payment Requests',  value: rfp.length, sub: `${pendingRFP} pending`, icon: CreditCard,    color: 'red' },
+    { key: 'grn', label: 'Goods Received',    value: grnTotal,   sub: '',                      icon: Truck,         color: 'purple' },
+    { key: 'rfp', label: 'Payment Requests',  value: rfpTotal,   sub: rfpPending ? `${rfpPending} pending` : '', icon: CreditCard, color: 'red' },
   ]
 
   return (
@@ -75,7 +73,7 @@ export default function ProcOverview() {
               <div className="stat-top">
                 <div className={`stat-icon ${stat.color}`}><Icon size={22} /></div>
               </div>
-              <div className="stat-value">{loading && (stat.key === 'pr' || stat.key === 'po') ? '…' : stat.value}</div>
+              <div className="stat-value">{loading ? '…' : stat.value}</div>
               <div className="stat-label">{stat.label}</div>
               {stat.sub && <div className="stat-sub">{stat.sub}</div>}
             </div>

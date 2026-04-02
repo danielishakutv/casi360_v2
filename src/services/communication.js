@@ -1,10 +1,9 @@
 /**
  * CASI360 — Communication Module API service
  *
- * Messages (1-on-1 threaded), Forums (general + department), Notices (with read tracking).
+ * Messages (1-on-1 threaded), Forums (general + department), Notices (with read tracking),
+ * Emails, and SMS.
  * All requests go through the shared `api` client (cookie auth, XSRF).
- *
- * Note: Email and SMS have NO backend endpoint — those pages remain demo-only.
  */
 
 import { api } from './api'
@@ -49,4 +48,24 @@ export const noticesApi = {
   update: (id, data)   => api.patch(`/communication/notices/${id}`, data),
   delete: (id)         => api.delete(`/communication/notices/${id}`),
   reads:  (id)         => api.get(`/communication/notices/${id}/reads`),
+}
+
+/* ------------------------------------------------------------------ */
+/* Emails                                                              */
+/* ------------------------------------------------------------------ */
+
+export const emailsApi = {
+  list:   (params)     => api.get('/communication/emails', params),
+  create: (data)       => api.post('/communication/emails', data),
+  delete: (id)         => api.delete(`/communication/emails/${id}`),
+}
+
+/* ------------------------------------------------------------------ */
+/* SMS                                                                 */
+/* ------------------------------------------------------------------ */
+
+export const smsApi = {
+  list:   (params)     => api.get('/communication/sms', params),
+  create: (data)       => api.post('/communication/sms', data),
+  delete: (id)         => api.delete(`/communication/sms/${id}`),
 }
