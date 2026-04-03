@@ -122,8 +122,8 @@ export default function ProjectDetail() {
 
         <div className="project-tab-body">
           {tab === 'overview' && <OverviewTab project={project} />}
-          {tab === 'team' && <TeamTab projectId={id} canEdit={can('projects.projects.edit')} />}
-          {tab === 'activities' && <ActivitiesTab projectId={id} canCreate={can('projects.activities.create')} canEdit={can('projects.activities.edit')} canDelete={can('projects.activities.delete')} />}
+          {tab === 'team' && <TeamTab projectId={id} project={project} canEdit={can('projects.projects.edit')} />}
+          {tab === 'activities' && <ActivitiesTab projectId={id} project={project} canCreate={can('projects.activities.create')} canEdit={can('projects.activities.edit')} canDelete={can('projects.activities.delete')} />}
           {tab === 'budget' && <BudgetTab projectId={id} canCreate={can('projects.budget.create')} canEdit={can('projects.budget.edit')} canDelete={can('projects.budget.delete')} />}
           {tab === 'donors' && <DonorsTab projectId={id} canEdit={can('projects.projects.edit')} />}
           {tab === 'partners' && <PartnersTab projectId={id} canEdit={can('projects.projects.edit')} />}
@@ -198,14 +198,16 @@ function MiniStat({ label, value }) {
 /* ================================================================== */
 /* TAB 2: TEAM MEMBERS                                                */
 /* ================================================================== */
-function TeamTab({ projectId, canEdit }) {
+function TeamTab({ projectId, project, canEdit }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const projEnd = project?.end_date || ''
   const [items, setItems] = useState([])
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  const [form, setForm] = useState({ employee_id: '', role: '', start_date: '', end_date: '', notes: '' })
+  const [form, setForm] = useState({ employee_id: '', role: '', start_date: today, end_date: projEnd, notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -234,7 +236,7 @@ function TeamTab({ projectId, canEdit }) {
 
   useEffect(() => { load() }, [load])
 
-  function openAdd() { setEditItem(null); setForm({ employee_id: '', role: '', start_date: '', end_date: '', notes: '' }); setFormOpen(true) }
+  function openAdd() { setEditItem(null); setForm({ employee_id: '', role: '', start_date: today, end_date: projEnd, notes: '' }); setFormOpen(true) }
   function openEdit(item) { setEditItem(item); setForm({ employee_id: item.employee_id || '', role: item.role || '', start_date: item.start_date || '', end_date: item.end_date || '', notes: item.notes || '' }); setFormOpen(true) }
 
   async function handleSubmit(e) {
@@ -296,8 +298,8 @@ function TeamTab({ projectId, canEdit }) {
               </select>
             </div>
             <div className="hr-form-field">
-              <label>Role</label>
-              <input type="text" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Project Lead" />
+              <label>Role *</label>
+              <input type="text" value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} placeholder="e.g. Project Lead" required />
             </div>
           </div>
           <div className="hr-form-row">
@@ -330,7 +332,9 @@ function TeamTab({ projectId, canEdit }) {
 /* ================================================================== */
 const ACTIVITY_STATUSES = ['not_started', 'in_progress', 'completed', 'delayed', 'cancelled']
 
-function ActivitiesTab({ projectId, canCreate, canEdit, canDelete }) {
+function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const projEnd = project?.end_date || ''
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -338,7 +342,7 @@ function ActivitiesTab({ projectId, canCreate, canEdit, canDelete }) {
   const [statusFilter, setStatusFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '', start_date: '', end_date: '', target_date: '', status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' })
+  const [form, setForm] = useState({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -354,7 +358,7 @@ function ActivitiesTab({ projectId, canCreate, canEdit, canDelete }) {
 
   useEffect(() => { load() }, [load])
 
-  function openAdd() { setEditItem(null); setForm({ title: '', description: '', start_date: '', end_date: '', target_date: '', status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' }); setFormOpen(true) }
+  function openAdd() { setEditItem(null); setForm({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' }); setFormOpen(true) }
   function openEdit(item) {
     setEditItem(item)
     setForm({ title: item.title || '', description: item.description || '', start_date: item.start_date || '', end_date: item.end_date || '', target_date: item.target_date || '', status: item.status || 'not_started', completion_percentage: item.completion_percentage ?? 0, sort_order: item.sort_order ?? 0, notes: item.notes || '' })
