@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
-const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejected', 'revision', 'cancelled']
+const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejected', 'revision', 'fulfilled', 'cancelled']
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
 const PER_PAGE = 15
 
@@ -98,7 +98,7 @@ export default function PurchaseRequests() {
               <option value="">All Priorities</option>
               {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
             </select>
-            {can('procurement.purchase_requests.create') && (
+            {can('procurement.requisitions.create') && (
               <button className="hr-btn-primary" onClick={() => navigate('/procurement/purchase-requests/create')}><Plus size={16} /> New PR</button>
             )}
           </div>
@@ -127,10 +127,10 @@ export default function PurchaseRequests() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      {can('procurement.purchase_requests.edit') && r.status === 'draft' && (
+                      {can('procurement.requisitions.edit') && (r.status === 'draft' || r.status === 'revision') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/procurement/purchase-requests/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
                       )}
-                      {can('procurement.purchase_requests.delete') && (
+                      {can('procurement.requisitions.delete') && (
                         <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
                       )}
                     </div>
@@ -166,7 +166,7 @@ export default function PurchaseRequests() {
             <div className="note-detail-content">{viewItem.justification || viewItem.notes || 'No description'}</div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              {can('procurement.purchase_requests.edit') && viewItem.status === 'draft' && (
+              {can('procurement.requisitions.edit') && (viewItem.status === 'draft' || viewItem.status === 'revision') && (
                 <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/procurement/purchase-requests/${viewItem.id}/edit`) }}><Pencil size={14} /> Edit</button>
               )}
             </div>

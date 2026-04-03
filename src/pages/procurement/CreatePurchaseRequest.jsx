@@ -1,13 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi } from '../../services/procurement'
 import { projectsApi, projectDonorsApi } from '../../services/projects'
+import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
-const STATUSES = ['draft', 'pending', 'approved', 'rejected', 'cancelled']
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
 
 const PURCHASE_SCENARIOS = [
@@ -19,12 +19,10 @@ const PURCHASE_SCENARIOS = [
 ]
 
 const CURRENCY_OPTIONS = [
-  { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira', rate: 1 },
-  { code: 'USD', symbol: '$', label: 'USD — US Dollar (₦1,500)', rate: 1500 },
-  { code: 'EUR', symbol: '€', label: 'EUR — Euro (₦1,700)', rate: 1700 },
+  { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira' },
+  { code: 'USD', symbol: '$', label: 'USD — US Dollar' },
+  { code: 'EUR', symbol: '€', label: 'EUR — Euro' },
 ]
-
-
 
 const BUDGET_LINES = [
   'Staff Costs', 'Travel & Transport', 'Equipment & Supplies',
@@ -33,24 +31,20 @@ const BUDGET_LINES = [
 ]
 
 const EMPTY_LINE_ITEM = {
-  description: '', unit: '', quantity: '', unit_cost: '',
-  project_code: '', budget_line: '',
+  description: '', unit: '', quantity: '', estimated_unit_cost: '',
+  project_code: '', budget_line: '', inventory_item_id: '',
 }
 
-const EMPTY_SIGNOFF = { name: '', position: '', date: '', signature: '' }
+const EMPTY_SIGNOFF = { name: '', position: '', email: '', date: '', signature: '' }
 
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
-function generatePRNumber() {
-  const yr = new Date().getFullYear()
-  const seq = String(Math.floor(Math.random() * 900) + 100)
-  return `PR-${yr}-${seq}`
-}
-
 function buildInitialForm() {
   return {
-    pr_number: generatePRNumber(),
+    title: '',
     date: todayStr(),
+    department_id: '',
+    requested_by: '',
     delivery_location: '',
     delivery_date: '',
     purchase_scenario: '',
@@ -59,31 +53,92 @@ function buildInitialForm() {
     project_code: '',
     donor: '',
     currency: 'NGN',
-    line_items: [{ ...EMPTY_LINE_ITEM }],
-    comment: '',
-    validation: { ...EMPTY_SIGNOFF },
+    exchange_rate: '',
+    items: [{ ...EMPTY_LINE_ITEM }],
+    justification: '',
+    notes: '',
     requester: { ...EMPTY_SIGNOFF },
     budget_holder: { ...EMPTY_SIGNOFF },
     finance: { ...EMPTY_SIGNOFF },
     logistics: { ...EMPTY_SIGNOFF },
-    status: 'draft',
     priority: 'medium',
   }
 }
 
 export default function CreatePurchaseRequest() {
   const navigate = useNavigate()
+  const { id } = useParams()
+  const isEdit = !!id
+
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
   const [projects, setProjects] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [employees, setEmployees] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
+  const [loadingEdit, setLoadingEdit] = useState(false)
 
+  /* Fetch dropdown data */
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+    departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
+    employeesApi.list({ per_page: 0 }).then((res) => setEmployees(extractItems(res))).catch(() => {})
   }, [])
 
-  /* ─── Fetch donors when project changes ─── */
+  /* Load existing PR for edit mode */
+  useEffect(() => {
+    if (!isEdit) return
+    setLoadingEdit(true)
+    purchaseRequestsApi.get(id)
+      .then((res) => {
+        const pr = res?.data?.requisition || res?.data?.purchase_request || res?.data || res
+        const signoffs = pr.signoffs || []
+        const findSignoff = (type) => signoffs.find((s) => s.type === type) || {}
+        const req = findSignoff('requester')
+        const bh = findSignoff('budget_holder')
+        const fin = findSignoff('finance')
+        const log = findSignoff('logistics')
+
+        setForm({
+          title: pr.title || '',
+          date: pr.date || todayStr(),
+          department_id: pr.department_id || '',
+          requested_by: pr.requested_by || '',
+          delivery_location: pr.delivery_location || '',
+          delivery_date: pr.needed_by || pr.delivery_date || '',
+          purchase_scenario: pr.purchase_scenario || '',
+          logistics_involved: pr.logistics_involved || 'No',
+          boq: pr.boq || 'No',
+          project_code: pr.project_code || '',
+          donor: pr.donor || '',
+          currency: pr.currency || 'NGN',
+          exchange_rate: pr.exchange_rate || '',
+          items: (pr.items || []).length > 0
+            ? pr.items.map((it) => ({
+              description: it.description || '',
+              unit: it.unit || '',
+              quantity: it.quantity || '',
+              estimated_unit_cost: it.estimated_unit_cost || '',
+              project_code: it.project_code || '',
+              budget_line: it.budget_line || '',
+              inventory_item_id: it.inventory_item_id || '',
+            }))
+            : [{ ...EMPTY_LINE_ITEM }],
+          justification: pr.justification || '',
+          notes: pr.notes || '',
+          requester: { name: req.name || '', position: req.position || '', email: req.email || '', date: req.date || '', signature: req.signature || '' },
+          budget_holder: { name: bh.name || '', position: bh.position || '', email: bh.email || '', date: bh.date || '', signature: bh.signature || '' },
+          finance: { name: fin.name || '', position: fin.position || '', email: fin.email || '', date: fin.date || '', signature: fin.signature || '' },
+          logistics: { name: log.name || '', position: log.position || '', email: log.email || '', date: log.date || '', signature: log.signature || '' },
+          priority: pr.priority || 'medium',
+        })
+      })
+      .catch((err) => setFormErrors({ _general: err.message || 'Failed to load purchase request' }))
+      .finally(() => setLoadingEdit(false))
+  }, [id, isEdit])
+
+  /* Fetch donors when project changes */
   useEffect(() => {
     if (!form.project_code) { setDonorsForProject([]); return }
     const proj = projects.find((p) => (p.project_code || p.id) === form.project_code)
@@ -97,7 +152,7 @@ export default function CreatePurchaseRequest() {
       .catch(() => setDonorsForProject([]))
   }, [form.project_code, projects])
 
-  /* ─── Form helpers ─── */
+  /* Form helpers */
   const updateField = useCallback((f, v) => setForm((p) => {
     const next = { ...p, [f]: v }
     if (f === 'project_code') next.donor = ''
@@ -106,26 +161,26 @@ export default function CreatePurchaseRequest() {
 
   const updateLineItem = useCallback((idx, field, value) => {
     setForm((p) => {
-      const items = p.line_items.map((li, i) => i === idx ? { ...li, [field]: value } : li)
-      return { ...p, line_items: items }
+      const items = p.items.map((li, i) => i === idx ? { ...li, [field]: value } : li)
+      return { ...p, items }
     })
   }, [])
 
   const addLineItem = useCallback(() => {
-    setForm((p) => ({ ...p, line_items: [...p.line_items, { ...EMPTY_LINE_ITEM }] }))
+    setForm((p) => ({ ...p, items: [...p.items, { ...EMPTY_LINE_ITEM }] }))
   }, [])
 
   const removeLineItem = useCallback((idx) => {
-    setForm((p) => ({ ...p, line_items: p.line_items.length > 1 ? p.line_items.filter((_, i) => i !== idx) : p.line_items }))
+    setForm((p) => ({ ...p, items: p.items.length > 1 ? p.items.filter((_, i) => i !== idx) : p.items }))
   }, [])
 
   const updateSignoff = useCallback((section, field, value) => {
     setForm((p) => ({ ...p, [section]: { ...p[section], [field]: value } }))
   }, [])
 
-  /* ─── Line item totals ─── */
-  const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.unit_cost) || 0), [])
-  const grandTotal = useMemo(() => form.line_items.reduce((s, li) => s + lineTotal(li), 0), [form.line_items, lineTotal])
+  /* Line item totals */
+  const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.estimated_unit_cost) || 0), [])
+  const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineTotal(li), 0), [form.items, lineTotal])
   const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
 
   function handleSubmit(e) {
@@ -133,36 +188,55 @@ export default function CreatePurchaseRequest() {
     setSubmitting(true)
     setFormErrors({})
 
-    /* Map frontend form → backend-accepted payload.
-       Extra fields (delivery_location, purchase_scenario, signoffs, etc.)
-       are documented in BACKEND_PROCUREMENT_GAPS.md for future backend support. */
+    const signoffs = []
+    if (form.requester.name) signoffs.push({ type: 'requester', ...form.requester, date: form.requester.date || todayStr() })
+    if (form.budget_holder.name) signoffs.push({ type: 'budget_holder', ...form.budget_holder, date: form.budget_holder.date || todayStr() })
+    if (form.finance.name) signoffs.push({ type: 'finance', ...form.finance, date: form.finance.date || todayStr() })
+    if (form.logistics.name) signoffs.push({ type: 'logistics', ...form.logistics, date: form.logistics.date || todayStr() })
+
     const payload = {
-      title: form.pr_number + (form.delivery_location ? ` — ${form.delivery_location}` : ''),
-      justification: form.comment || undefined,
-      priority: form.priority,
+      title: form.title,
+      date: form.date || undefined,
+      department_id: form.department_id || undefined,
+      requested_by: form.requested_by || undefined,
+      delivery_location: form.delivery_location || undefined,
       needed_by: form.delivery_date || undefined,
-      notes: form.comment || undefined,
-      status: 'draft',
-      items: form.line_items
+      purchase_scenario: form.purchase_scenario || undefined,
+      logistics_involved: form.logistics_involved || undefined,
+      boq: form.boq || undefined,
+      project_code: form.project_code || undefined,
+      donor: form.donor || undefined,
+      currency: form.currency || undefined,
+      exchange_rate: form.currency !== 'NGN' && form.exchange_rate ? Number(form.exchange_rate) : undefined,
+      justification: form.justification || undefined,
+      notes: form.notes || undefined,
+      priority: form.priority,
+      signoffs: signoffs.length ? signoffs : undefined,
+      items: form.items
         .filter((li) => li.description)
         .map((li) => ({
           description: li.description,
           quantity: Number(li.quantity) || 1,
           unit: li.unit || undefined,
-          estimated_unit_cost: Number(li.unit_cost) || 0,
+          estimated_unit_cost: Number(li.estimated_unit_cost) || 0,
+          project_code: li.project_code || undefined,
+          budget_line: li.budget_line || undefined,
+          inventory_item_id: li.inventory_item_id || undefined,
         })),
     }
 
-    purchaseRequestsApi.create(payload)
+    const apiCall = isEdit ? purchaseRequestsApi.update(id, payload) : purchaseRequestsApi.create(payload)
+
+    apiCall
       .then(() => navigate('/procurement/purchase-requests'))
       .catch((err) => {
         if (err.errors) setFormErrors(err.errors)
-        else setFormErrors({ _general: err.message || 'Failed to create purchase request' })
+        else setFormErrors({ _general: err.message || 'Failed to save purchase request' })
       })
       .finally(() => setSubmitting(false))
   }
 
-  /* ─── Signoff block (render function, not component) ─── */
+  /* Signoff block renderer */
   function renderSignoff(label, section) {
     return (
       <div className="pr-signoff-block" key={section}>
@@ -172,21 +246,27 @@ export default function CreatePurchaseRequest() {
           <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} /></div>
         </div>
         <div className="hr-form-row">
+          <div className="hr-form-field"><label>Email</label><input type="email" value={form[section].email} onChange={(e) => updateSignoff(section, 'email', e.target.value)} placeholder="email@example.com" /></div>
           <div className="hr-form-field"><label>Date</label><input type="date" value={form[section].date} onChange={(e) => updateSignoff(section, 'date', e.target.value)} /></div>
-          <div className="hr-form-field"><label>Signature</label><input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" /></div>
+        </div>
+        <div className="hr-form-field">
+          <label>Signature</label><input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" />
         </div>
       </div>
     )
   }
 
+  if (loadingEdit) {
+    return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="auth-spinner large" /></div>
+  }
+
   return (
     <div className="animate-in">
-      {/* Page header */}
       <div className="pr-page-header">
         <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-requests')}>
           <ArrowLeft size={16} /> Back to Purchase Requests
         </button>
-        <h2 className="pr-page-title">New Purchase Request</h2>
+        <h2 className="pr-page-title">{isEdit ? 'Edit Purchase Request' : 'New Purchase Request'}</h2>
       </div>
 
       <div className="card">
@@ -199,13 +279,12 @@ export default function CreatePurchaseRequest() {
             </div>
           )}
 
-          {/* ── Header fields ── */}
           <p className="hr-form-section-title">Purchase Request</p>
 
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>PR Number</label>
-              <input type="text" value={form.pr_number} readOnly className="pr-readonly" />
+              <label>Title *</label>
+              <input type="text" value={form.title} onChange={(e) => updateField('title', e.target.value)} placeholder="Purchase request title" required />
             </div>
             <div className="hr-form-field">
               <label>Date</label>
@@ -215,12 +294,29 @@ export default function CreatePurchaseRequest() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>Delivery Location *</label>
-              <input type="text" value={form.delivery_location} onChange={(e) => updateField('delivery_location', e.target.value)} placeholder="Enter delivery location" required />
+              <label>Department *</label>
+              <select value={form.department_id} onChange={(e) => updateField('department_id', e.target.value)} required>
+                <option value="">Select department...</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
             </div>
             <div className="hr-form-field">
-              <label>Delivery Date *</label>
-              <input type="date" value={form.delivery_date} onChange={(e) => updateField('delivery_date', e.target.value)} required />
+              <label>Requested By *</label>
+              <select value={form.requested_by} onChange={(e) => updateField('requested_by', e.target.value)} required>
+                <option value="">Select employee...</option>
+                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Delivery Location</label>
+              <input type="text" value={form.delivery_location} onChange={(e) => updateField('delivery_location', e.target.value)} placeholder="Enter delivery location" />
+            </div>
+            <div className="hr-form-field">
+              <label>Delivery Date</label>
+              <input type="date" value={form.delivery_date} onChange={(e) => updateField('delivery_date', e.target.value)} />
             </div>
           </div>
 
@@ -228,7 +324,7 @@ export default function CreatePurchaseRequest() {
             <div className="hr-form-field">
               <label>Purchase Scenario</label>
               <select value={form.purchase_scenario} onChange={(e) => updateField('purchase_scenario', e.target.value)}>
-                <option value="">Select scenario…</option>
+                <option value="">Select scenario...</option>
                 {PURCHASE_SCENARIOS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -239,6 +335,16 @@ export default function CreatePurchaseRequest() {
               </select>
             </div>
           </div>
+
+          {form.currency !== 'NGN' && (
+            <div className="hr-form-row">
+              <div className="hr-form-field">
+                <label>Exchange Rate (to NGN) *</label>
+                <input type="number" value={form.exchange_rate} onChange={(e) => updateField('exchange_rate', e.target.value)} placeholder="e.g. 1500" min="0" step="0.01" required />
+              </div>
+              <div className="hr-form-field" />
+            </div>
+          )}
 
           <div className="hr-form-row">
             <div className="hr-form-field">
@@ -259,9 +365,9 @@ export default function CreatePurchaseRequest() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>Project Code *</label>
-              <select value={form.project_code} onChange={(e) => updateField('project_code', e.target.value)} required>
-                <option value="">Select project…</option>
+              <label>Project Code</label>
+              <select value={form.project_code} onChange={(e) => updateField('project_code', e.target.value)}>
+                <option value="">Select project...</option>
                 {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{(p.project_code || p.id)} \u2014 {p.name}</option>)}
               </select>
             </div>
@@ -274,22 +380,14 @@ export default function CreatePurchaseRequest() {
             </div>
           </div>
 
-          <div className="hr-form-row">
-            <div className="hr-form-field">
-              <label>Priority</label>
-              <select value={form.priority} onChange={(e) => updateField('priority', e.target.value)}>
-                {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
-              </select>
-            </div>
-            <div className="hr-form-field">
-              <label>Status</label>
-              <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
-                {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
-              </select>
-            </div>
+          <div className="hr-form-field" style={{ maxWidth: 250 }}>
+            <label>Priority</label>
+            <select value={form.priority} onChange={(e) => updateField('priority', e.target.value)}>
+              {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
+            </select>
           </div>
 
-          {/* ── Activity Description table ── */}
+          {/* Activity Description table */}
           <p className="hr-form-section-title">Activity Description</p>
 
           <div className="pr-line-items-wrapper">
@@ -308,13 +406,13 @@ export default function CreatePurchaseRequest() {
                 </tr>
               </thead>
               <tbody>
-                {form.line_items.map((li, idx) => (
+                {form.items.map((li, idx) => (
                   <tr key={idx}>
                     <td className="pr-sn">{idx + 1}</td>
                     <td><input type="text" value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Item description" /></td>
                     <td><input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" /></td>
                     <td><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" /></td>
-                    <td><input type="number" value={li.unit_cost} onChange={(e) => updateLineItem(idx, 'unit_cost', e.target.value)} min="0" step="0.01" /></td>
+                    <td><input type="number" value={li.estimated_unit_cost} onChange={(e) => updateLineItem(idx, 'estimated_unit_cost', e.target.value)} min="0" step="0.01" /></td>
                     <td className="pr-computed">{currencyInfo.symbol}{lineTotal(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td>
                       <select value={li.project_code} onChange={(e) => updateLineItem(idx, 'project_code', e.target.value)}>
@@ -329,7 +427,7 @@ export default function CreatePurchaseRequest() {
                       </select>
                     </td>
                     <td>
-                      {form.line_items.length > 1 && (
+                      {form.items.length > 1 && (
                         <button type="button" className="pr-remove-row" onClick={() => removeLineItem(idx)} title="Remove row"><X size={14} /></button>
                       )}
                     </td>
@@ -347,34 +445,38 @@ export default function CreatePurchaseRequest() {
             <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
           </div>
 
-          {form.currency !== 'NGN' && (
+          {form.currency !== 'NGN' && form.exchange_rate && (
             <div className="pr-naira-equivalent">
-              Naira equivalent: <strong>₦{(grandTotal * currencyInfo.rate).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-              <span className="pr-rate-note">({currencyInfo.symbol}1 = ₦{currencyInfo.rate.toLocaleString()})</span>
+              Naira equivalent: <strong>₦{(grandTotal * Number(form.exchange_rate)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              <span className="pr-rate-note">({currencyInfo.symbol}1 = ₦{Number(form.exchange_rate).toLocaleString()})</span>
             </div>
           )}
 
-          {/* ── Comments / Special ── */}
-          <p className="hr-form-section-title">Comments / Special</p>
+          {/* Justification & Notes */}
+          <p className="hr-form-section-title">Justification & Notes</p>
           <div className="hr-form-field">
-            <textarea value={form.comment} onChange={(e) => updateField('comment', e.target.value)} placeholder="Any comments or special instructions…" rows={3} />
+            <label>Justification</label>
+            <textarea value={form.justification} onChange={(e) => updateField('justification', e.target.value)} placeholder="Reason for this purchase request..." rows={3} />
+          </div>
+          <div className="hr-form-field">
+            <label>Notes</label>
+            <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} placeholder="Any additional notes or special instructions..." rows={2} />
           </div>
 
-          {/* ── Sign-off sections ── */}
-          <p className="hr-form-section-title">Validation & Approvals</p>
+          {/* Sign-off sections */}
+          <p className="hr-form-section-title">Approvals</p>
 
           <div className="pr-signoffs-grid">
-            {renderSignoff('Validation', 'validation')}
             {renderSignoff('Requester', 'requester')}
             {renderSignoff('Budget Holder', 'budget_holder')}
             {renderSignoff('Finance', 'finance')}
             {renderSignoff('Logistics', 'logistics')}
           </div>
 
-          {/* ── Actions ── */}
+          {/* Actions */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-requests')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit PR'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving...' : isEdit ? 'Update PR' : 'Submit PR'}</button>
           </div>
         </form>
       </div>

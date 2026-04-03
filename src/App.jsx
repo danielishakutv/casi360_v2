@@ -138,8 +138,10 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement" element={<ProcOverview />} />
                 <Route path="/procurement/purchase-requests" element={<PurchaseRequests />} />
                 <Route path="/procurement/purchase-requests/create" element={<CreatePurchaseRequest />} />
+                <Route path="/procurement/purchase-requests/:id/edit" element={<CreatePurchaseRequest />} />
                 <Route path="/procurement/boq" element={<BillOfQuantities />} />
                 <Route path="/procurement/boq/create" element={<CreateBillOfQuantities />} />
+                <Route path="/procurement/boq/:id/edit" element={<CreateBillOfQuantities />} />
                 <Route path="/procurement/rfq" element={<RequestForQuotation />} />
                 <Route path="/procurement/rfq/create" element={<CreateRequestForQuotation />} />
                 <Route path="/procurement/purchase-orders" element={<PurchaseOrders />} />

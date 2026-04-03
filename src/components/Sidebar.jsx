@@ -63,7 +63,7 @@ const navItems = [
     icon: ShoppingCart,
     children: [
       { label: 'Overview',              icon: Eye,           path: '/procurement' },
-      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.purchase_requests.view' },
+      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.requisitions.view' },
       { label: 'Bill of Quantities',    icon: ListOrdered,   path: '/procurement/boq',              permission: 'procurement.boq.view' },
       { label: 'Request for Quotation', icon: FileText,      path: '/procurement/rfq',              permission: 'procurement.rfq.view' },
       { label: 'Purchase Orders',       icon: Store,         path: '/procurement/purchase-orders',  permission: 'procurement.purchase_orders.view' },
