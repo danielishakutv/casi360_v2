@@ -217,8 +217,18 @@ function TeamTab({ projectId, canEdit }) {
         employeesApi.list({ per_page: 0 }),
       ])
       const data = res?.data || res
-      setItems(data?.team_members || data?.team || extractItems(res))
-      setEmployees(extractItems(empRes))
+      const teamItems = data?.team_members || data?.team || extractItems(res)
+      const empList = extractItems(empRes)
+      // Build employee lookup to resolve department for each team member
+      const empMap = {}
+      for (const emp of empList) { empMap[emp.id] = emp }
+      const enriched = teamItems.map((m) => {
+        if (m.employee_department) return m
+        const emp = empMap[m.employee_id]
+        return emp ? { ...m, employee_department: emp.department || emp.department_name || '' } : m
+      })
+      setItems(enriched)
+      setEmployees(empList)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }, [projectId])
 
