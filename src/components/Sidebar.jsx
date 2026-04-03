@@ -33,6 +33,9 @@ import {
   ClipboardCheck,
   Inbox,
   MessagesSquare,
+  Shield,
+  Clock,
+  Database,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
@@ -108,8 +111,14 @@ const navItems = [
     id: 'settings',
     label: 'Settings',
     icon: Settings,
-    path: '/settings',
-    permission: 'settings.view',
+    roleRequired: 'admin',
+    children: [
+      { label: 'User Management', icon: Users,    path: '/settings/users',     roleRequired: 'admin' },
+      { label: 'Roles & Access',  icon: Shield,   path: '/settings/roles',     roleRequired: 'super_admin' },
+      { label: 'System Settings', icon: Cog,      path: '/settings/general',   roleRequired: 'super_admin' },
+      { label: 'Audit Log',       icon: Clock,    path: '/settings/audit-log', roleRequired: 'super_admin' },
+      { label: 'Data & Backup',   icon: Database, path: '/settings/data',      roleRequired: 'super_admin' },
+    ],
   },
   {
     id: 'help',
@@ -125,8 +134,20 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
   const { user, logout, can } = useAuth()
   const [openMenus, setOpenMenus] = useState({})
 
-  // Filter nav items based on user permissions
+  const userRole = user?.role
+
+  function hasRole(required) {
+    if (!required) return true
+    if (required === 'admin') return userRole === 'super_admin' || userRole === 'admin'
+    if (required === 'super_admin') return userRole === 'super_admin'
+    return false
+  }
+
+  // Filter nav items based on user permissions and role requirements
   const visibleItems = navItems.reduce((acc, item) => {
+    // Check role requirement at the group level
+    if (item.roleRequired && !hasRole(item.roleRequired)) return acc
+
     // Top-level item with a direct path — check its permission
     if (item.path) {
       if (!item.permission || can(item.permission)) acc.push(item)
@@ -135,7 +156,11 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
     // Section with children — filter children, keep section if any children remain
     if (item.children) {
       const visibleChildren = item.children.filter(
-        (child) => !child.permission || can(child.permission)
+        (child) => {
+          if (child.roleRequired && !hasRole(child.roleRequired)) return false
+          if (child.permission && !can(child.permission)) return false
+          return true
+        }
       )
       if (visibleChildren.length > 0) {
         acc.push({ ...item, children: visibleChildren })

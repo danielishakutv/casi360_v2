@@ -111,6 +111,14 @@ export function AuthProvider({ children }) {
     return permissions[key] === true
   }, [user, permissions])
 
+  const isAdmin = useCallback(() => {
+    return ['super_admin', 'admin'].includes(user?.role)
+  }, [user])
+
+  const isSuperAdmin = useCallback(() => {
+    return user?.role === 'super_admin'
+  }, [user])
+
   const isAuthenticated = !!user
   const mustChangePassword = !!user?.force_password_change
 
@@ -122,13 +130,15 @@ export function AuthProvider({ children }) {
     mustChangePassword,
     permissions,
     can,
+    isAdmin,
+    isSuperAdmin,
     fetchPermissions,
     login,
     logout,
     updateUser,
     checkSession,
     setError,
-  }), [user, loading, error, isAuthenticated, mustChangePassword, permissions, can, fetchPermissions, login, logout, updateUser, checkSession])
+  }), [user, loading, error, isAuthenticated, mustChangePassword, permissions, can, isAdmin, isSuperAdmin, fetchPermissions, login, logout, updateUser, checkSession])
 
   return (
     <AuthContext.Provider value={value}>
