@@ -251,7 +251,7 @@ export default function ProjectsList() {
               ) : items.length === 0 ? (
                 <tr><td colSpan={8} className="hr-empty-cell">No projects found. {can('projects.projects.create') ? 'Create your first project to get started.' : ''}</td></tr>
               ) : items.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} onClick={() => navigate(`/projects/list/${p.id}`)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{p.project_code}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{p.name}</td>
                   <td>{p.department || '—'}</td>
@@ -270,7 +270,7 @@ export default function ProjectsList() {
                   </td>
                   <td><span className={`status-badge ${p.status}`}><span className="status-dot" />{fmtStatus(p.status)}</span></td>
                   <td>
-                    <div className="hr-actions">
+                    <div className="hr-actions" onClick={(e) => e.stopPropagation()}>
                       <button className="hr-action-btn" onClick={() => navigate(`/projects/list/${p.id}`)} title="View"><Eye size={15} /></button>
                       {can('projects.projects.edit') && (
                         <button className="hr-action-btn" onClick={() => openEdit(p)} title="Edit"><Pencil size={15} /></button>
