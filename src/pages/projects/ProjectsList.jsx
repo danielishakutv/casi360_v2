@@ -31,7 +31,7 @@ const SORTABLE = [
 const EMPTY_FORM = {
   name: '', description: '', objectives: '', department_id: '',
   project_manager_id: '', start_date: '', end_date: '', location: '',
-  currency: 'NGN', status: 'draft', notes: '',
+  status: 'draft', notes: '',
 }
 
 export default function ProjectsList() {
@@ -139,7 +139,7 @@ export default function ProjectsList() {
       start_date: item.start_date || '',
       end_date: item.end_date || '',
       location: item.location || '',
-      currency: item.currency || 'NGN',
+
       status: item.status || 'draft',
       notes: item.notes || '',
     })
@@ -237,7 +237,6 @@ export default function ProjectsList() {
               <tr>
                 <SortHeader col="project_code" />
                 <SortHeader col="name" />
-                <th>Department</th>
                 <SortHeader col="start_date" />
                 <SortHeader col="total_budget" />
                 <th>Progress</th>
@@ -247,14 +246,13 @@ export default function ProjectsList() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '20px auto' }} /></td></tr>
+                <tr><td colSpan={7} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '20px auto' }} /></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={8} className="hr-empty-cell">No projects found. {can('projects.projects.create') ? 'Create your first project to get started.' : ''}</td></tr>
+                <tr><td colSpan={7} className="hr-empty-cell">No projects found. {can('projects.projects.create') ? 'Create your first project to get started.' : ''}</td></tr>
               ) : items.map((p) => (
                 <tr key={p.id} onClick={() => navigate(`/projects/list/${p.id}`)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{p.project_code}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{p.name}</td>
-                  <td>{p.department || '—'}</td>
                   <td style={{ fontSize: 12 }}>
                     {p.start_date || p.end_date
                       ? `${fmtDate(p.start_date)} — ${fmtDate(p.end_date)}`
@@ -306,9 +304,9 @@ export default function ProjectsList() {
               {formErrors?.name && <small style={{ color: 'var(--danger)' }}>{formErrors.name[0]}</small>}
             </div>
             <div className="hr-form-field">
-              <label>Department *</label>
-              <select value={form.department_id} onChange={(e) => setForm((p) => ({ ...p, department_id: e.target.value }))} required>
-                <option value="">— Select —</option>
+              <label>Department</label>
+              <select value={form.department_id} onChange={(e) => setForm((p) => ({ ...p, department_id: e.target.value }))}>
+                <option value="">— None —</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
               {formErrors?.department_id && <small style={{ color: 'var(--danger)' }}>{formErrors.department_id[0]}</small>}
@@ -320,7 +318,7 @@ export default function ProjectsList() {
               <label>Project Manager</label>
               <select value={form.project_manager_id} onChange={(e) => setForm((p) => ({ ...p, project_manager_id: e.target.value }))}>
                 <option value="">— None —</option>
-                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>)}
+                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </select>
             </div>
             <div className="hr-form-field">
@@ -346,10 +344,6 @@ export default function ProjectsList() {
             <div className="hr-form-field">
               <label>Location</label>
               <input type="text" value={form.location} onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} maxLength={255} placeholder="e.g. Lagos" />
-            </div>
-            <div className="hr-form-field">
-              <label>Currency</label>
-              <input type="text" value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))} maxLength={10} placeholder="NGN" />
             </div>
           </div>
 

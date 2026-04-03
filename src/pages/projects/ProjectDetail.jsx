@@ -50,7 +50,7 @@ export default function ProjectDetail() {
     setError('')
     try {
       const res = await projectsApi.get(id)
-      setProject(res?.data || res)
+      setProject(res?.data?.project || res?.data || res)
     } catch (err) {
       setError(err.message || 'Failed to load project')
     } finally {
@@ -282,7 +282,7 @@ function TeamTab({ projectId, canEdit }) {
               <label>Employee *</label>
               <select value={form.employee_id} onChange={(e) => setForm((p) => ({ ...p, employee_id: e.target.value }))} required disabled={!!editItem}>
                 <option value="">— Select —</option>
-                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>)}
+                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </select>
             </div>
             <div className="hr-form-field">
@@ -584,14 +584,14 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="hr-form-field"><label>Description *</label><input type="text" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} required maxLength={500} /></div>
+            <div className="hr-form-field"><label>Title *</label><input type="text" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} required maxLength={500} /></div>
           </div>
           <div className="hr-form-row">
             <div className="hr-form-field"><label>Unit</label><input type="text" value={form.unit} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} placeholder="e.g. month, piece" maxLength={100} /></div>
             <div className="hr-form-field"><label>Quantity *</label><input type="number" step="0.01" min="0.01" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} required /></div>
             <div className="hr-form-field"><label>Unit Cost *</label><input type="number" step="0.01" min="0" value={form.unit_cost} onChange={(e) => setForm((p) => ({ ...p, unit_cost: e.target.value }))} required /></div>
           </div>
-          <div className="hr-form-field"><label>Notes</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
+          <div className="hr-form-field"><label>Description</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => setFormOpen(false)}>Cancel</button>
             <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : editItem ? 'Update' : 'Add Line'}</button>
