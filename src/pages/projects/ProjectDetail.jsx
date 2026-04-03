@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Pencil, Plus, Trash2, AlertCircle, Search,
+  ArrowLeft, Pencil, Plus, Trash2, AlertCircle, Search, Eye,
   ExternalLink, Users, Activity, Wallet, Heart, Handshake, StickyNote,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
@@ -210,6 +210,7 @@ function TeamTab({ projectId, project, canEdit }) {
   const [form, setForm] = useState({ employee_id: '', role: '', start_date: today, end_date: projEnd, notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -265,7 +266,7 @@ function TeamTab({ projectId, project, canEdit }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Start</th><th>End</th>{canEdit && <th style={{ width: 80 }}>Actions</th>}</tr></thead>
+            <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Start</th><th>End</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((m) => (
                 <tr key={m.id}>
@@ -274,12 +275,11 @@ function TeamTab({ projectId, project, canEdit }) {
                   <td>{m.role ? capitalize(m.role.replace(/_/g, ' ')) : '—'}</td>
                   <td style={{ fontSize: 12 }}>{fmtDate(m.start_date)}</td>
                   <td style={{ fontSize: 12 }}>{fmtDate(m.end_date)}</td>
-                  {canEdit && (
-                    <td><div className="hr-actions">
-                      <button className="hr-action-btn" onClick={() => openEdit(m)} title="Edit"><Pencil size={14} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(m)} title="Remove"><Trash2 size={14} /></button>
-                    </div></td>
-                  )}
+                  <td><div className="hr-actions">
+                    <button className="hr-action-btn" onClick={() => setViewItem(m)} title="View"><Eye size={14} /></button>
+                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(m)} title="Edit"><Pencil size={14} /></button>}
+                    {canEdit && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(m)} title="Remove"><Trash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -323,6 +323,19 @@ function TeamTab({ projectId, project, canEdit }) {
           </div>
         </div>
       </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Team Member Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field"><label>Employee</label><p>{viewItem.employee_name || '—'}</p></div>
+            <div className="view-modal-field"><label>Department</label><p>{viewItem.employee_department || '—'}</p></div>
+            <div className="view-modal-field"><label>Role</label><p>{viewItem.role ? capitalize(viewItem.role.replace(/_/g, ' ')) : '—'}</p></div>
+            <div className="view-modal-field"><label>Start Date</label><p>{fmtDate(viewItem.start_date)}</p></div>
+            <div className="view-modal-field"><label>End Date</label><p>{fmtDate(viewItem.end_date)}</p></div>
+            <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -345,6 +358,7 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
   const [form, setForm] = useState({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -415,7 +429,7 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Title</th><th>Date Range</th><th>Status</th><th>Progress</th>{(canEdit || canDelete) && <th style={{ width: 80 }}>Actions</th>}</tr></thead>
+            <thead><tr><th>Title</th><th>Date Range</th><th>Status</th><th>Progress</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((a) => (
                 <tr key={a.id}>
@@ -433,12 +447,11 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
                       <span className="pct">{a.completion_percentage ?? 0}%</span>
                     </div>
                   </td>
-                  {(canEdit || canDelete) && (
-                    <td><div className="hr-actions">
-                      {canEdit && <button className="hr-action-btn" onClick={() => openEdit(a)} title="Edit"><Pencil size={14} /></button>}
-                      {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(a)} title="Delete"><Trash2 size={14} /></button>}
-                    </div></td>
-                  )}
+                  <td><div className="hr-actions">
+                    <button className="hr-action-btn" onClick={() => setViewItem(a)} title="View"><Eye size={14} /></button>
+                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(a)} title="Edit"><Pencil size={14} /></button>}
+                    {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(a)} title="Delete"><Trash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -482,6 +495,22 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
           </div>
         </div>
       </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Activity Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field full"><label>Title</label><p>{viewItem.title || '—'}</p></div>
+            <div className="view-modal-field full"><label>Description</label><p>{viewItem.description || '—'}</p></div>
+            <div className="view-modal-field"><label>Start Date</label><p>{fmtDate(viewItem.start_date)}</p></div>
+            <div className="view-modal-field"><label>End Date</label><p>{fmtDate(viewItem.end_date)}</p></div>
+            <div className="view-modal-field"><label>Target Date</label><p>{fmtDate(viewItem.target_date)}</p></div>
+            <div className="view-modal-field"><label>Status</label><p><span className={`status-badge ${viewItem.status}`}><span className="status-dot" />{fmtStatus(viewItem.status)}</span></p></div>
+            <div className="view-modal-field"><label>Completion</label><p>{viewItem.completion_percentage ?? 0}%</p></div>
+            <div className="view-modal-field"><label>Sort Order</label><p>{viewItem.sort_order ?? 0}</p></div>
+            <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -500,6 +529,7 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
   const [form, setForm] = useState({ budget_category_id: '', description: '', unit: '', quantity: '', unit_cost: '', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -565,7 +595,7 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Category</th><th>Description</th><th>Unit</th><th>Qty</th><th>Unit Cost</th><th>Total</th>{(canEdit || canDelete) && <th style={{ width: 80 }}>Actions</th>}</tr></thead>
+            <thead><tr><th>Category</th><th>Description</th><th>Unit</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
@@ -575,12 +605,11 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
                   <td>{item.quantity}</td>
                   <td>{naira(item.unit_cost)}</td>
                   <td style={{ fontWeight: 600 }}>{naira(item.total_cost)}</td>
-                  {(canEdit || canDelete) && (
-                    <td><div className="hr-actions">
-                      {canEdit && <button className="hr-action-btn" onClick={() => openEdit(item)} title="Edit"><Pencil size={14} /></button>}
-                      {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(item)} title="Delete"><Trash2 size={14} /></button>}
-                    </div></td>
-                  )}
+                  <td><div className="hr-actions">
+                    <button className="hr-action-btn" onClick={() => setViewItem(item)} title="View"><Eye size={14} /></button>
+                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(item)} title="Edit"><Pencil size={14} /></button>}
+                    {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(item)} title="Delete"><Trash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -622,6 +651,20 @@ function BudgetTab({ projectId, canCreate, canEdit, canDelete }) {
           </div>
         </div>
       </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Budget Line Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field"><label>Category</label><p>{viewItem.budget_category || '—'}</p></div>
+            <div className="view-modal-field"><label>Description</label><p>{viewItem.description || '—'}</p></div>
+            <div className="view-modal-field"><label>Unit</label><p>{viewItem.unit || '—'}</p></div>
+            <div className="view-modal-field"><label>Quantity</label><p>{viewItem.quantity}</p></div>
+            <div className="view-modal-field"><label>Unit Cost</label><p>{naira(viewItem.unit_cost)}</p></div>
+            <div className="view-modal-field"><label>Total Cost</label><p>{naira(viewItem.total_cost)}</p></div>
+            <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -641,6 +684,7 @@ function DonorsTab({ projectId, canEdit }) {
   const [form, setForm] = useState({ name: '', type: '', email: '', phone: '', contribution_amount: '', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -693,7 +737,7 @@ function DonorsTab({ projectId, canEdit }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Name</th><th>Type</th><th>Email</th><th>Phone</th><th>Contribution</th>{canEdit && <th style={{ width: 80 }}>Actions</th>}</tr></thead>
+            <thead><tr><th>Name</th><th>Type</th><th>Email</th><th>Phone</th><th>Contribution</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((d) => (
                 <tr key={d.id}>
@@ -702,12 +746,11 @@ function DonorsTab({ projectId, canEdit }) {
                   <td style={{ fontSize: 12 }}>{d.email || '—'}</td>
                   <td style={{ fontSize: 12 }}>{d.phone || '—'}</td>
                   <td style={{ fontWeight: 600 }}>{naira(d.contribution_amount)}</td>
-                  {canEdit && (
-                    <td><div className="hr-actions">
-                      <button className="hr-action-btn" onClick={() => openEdit(d)} title="Edit"><Pencil size={14} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(d)} title="Delete"><Trash2 size={14} /></button>
-                    </div></td>
-                  )}
+                  <td><div className="hr-actions">
+                    <button className="hr-action-btn" onClick={() => setViewItem(d)} title="View"><Eye size={14} /></button>
+                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(d)} title="Edit"><Pencil size={14} /></button>}
+                    {canEdit && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(d)} title="Delete"><Trash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -749,6 +792,19 @@ function DonorsTab({ projectId, canEdit }) {
           </div>
         </div>
       </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Donor Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field"><label>Name</label><p>{viewItem.name || '—'}</p></div>
+            <div className="view-modal-field"><label>Type</label><p>{viewItem.type ? capitalize(viewItem.type) : '—'}</p></div>
+            <div className="view-modal-field"><label>Email</label><p>{viewItem.email || '—'}</p></div>
+            <div className="view-modal-field"><label>Phone</label><p>{viewItem.phone || '—'}</p></div>
+            <div className="view-modal-field"><label>Contribution</label><p>{naira(viewItem.contribution_amount)}</p></div>
+            <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -767,6 +823,7 @@ function PartnersTab({ projectId, canEdit }) {
   const [form, setForm] = useState({ name: '', role: '', contact_person: '', email: '', phone: '', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -809,7 +866,7 @@ function PartnersTab({ projectId, canEdit }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Name</th><th>Role</th><th>Contact Person</th><th>Email</th><th>Phone</th>{canEdit && <th style={{ width: 80 }}>Actions</th>}</tr></thead>
+            <thead><tr><th>Name</th><th>Role</th><th>Contact Person</th><th>Email</th><th>Phone</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((p) => (
                 <tr key={p.id}>
@@ -818,12 +875,11 @@ function PartnersTab({ projectId, canEdit }) {
                   <td>{p.contact_person || '—'}</td>
                   <td style={{ fontSize: 12 }}>{p.email || '—'}</td>
                   <td style={{ fontSize: 12 }}>{p.phone || '—'}</td>
-                  {canEdit && (
-                    <td><div className="hr-actions">
-                      <button className="hr-action-btn" onClick={() => openEdit(p)} title="Edit"><Pencil size={14} /></button>
-                      <button className="hr-action-btn danger" onClick={() => setDeleteTarget(p)} title="Delete"><Trash2 size={14} /></button>
-                    </div></td>
-                  )}
+                  <td><div className="hr-actions">
+                    <button className="hr-action-btn" onClick={() => setViewItem(p)} title="View"><Eye size={14} /></button>
+                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(p)} title="Edit"><Pencil size={14} /></button>}
+                    {canEdit && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(p)} title="Delete"><Trash2 size={14} /></button>}
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -865,6 +921,19 @@ function PartnersTab({ projectId, canEdit }) {
           </div>
         </div>
       </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Partner Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field"><label>Name</label><p>{viewItem.name || '—'}</p></div>
+            <div className="view-modal-field"><label>Role</label><p>{viewItem.role ? capitalize(viewItem.role) : '—'}</p></div>
+            <div className="view-modal-field"><label>Contact Person</label><p>{viewItem.contact_person || '—'}</p></div>
+            <div className="view-modal-field"><label>Email</label><p>{viewItem.email || '—'}</p></div>
+            <div className="view-modal-field"><label>Phone</label><p>{viewItem.phone || '—'}</p></div>
+            <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -883,6 +952,7 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
   const [form, setForm] = useState({ title: '', content: '', link_url: '', link_label: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -932,12 +1002,11 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
             <div key={note.id} className="project-note-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <h4 style={{ margin: 0, fontSize: 14 }}>{note.title}</h4>
-                {(canEdit || canDelete) && (
-                  <div className="hr-actions">
-                    {canEdit && <button className="hr-action-btn" onClick={() => openEdit(note)} title="Edit"><Pencil size={12} /></button>}
-                    {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(note)} title="Delete"><Trash2 size={12} /></button>}
-                  </div>
-                )}
+                <div className="hr-actions">
+                  <button className="hr-action-btn" onClick={() => setViewItem(note)} title="View"><Eye size={12} /></button>
+                  {canEdit && <button className="hr-action-btn" onClick={() => openEdit(note)} title="Edit"><Pencil size={12} /></button>}
+                  {canDelete && <button className="hr-action-btn danger" onClick={() => setDeleteTarget(note)} title="Delete"><Trash2 size={12} /></button>}
+                </div>
               </div>
               <div className="note-meta">
                 {note.creator_name || 'Unknown'} &middot; {fmtDate(note.created_at)}
@@ -978,6 +1047,20 @@ function NotesTab({ projectId, canCreate, canEdit, canDelete }) {
             <button className="hr-btn-danger" onClick={confirmDelete}>Delete</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Note Details" size="md">
+        {viewItem && (
+          <div className="view-modal-grid">
+            <div className="view-modal-field full"><label>Title</label><p>{viewItem.title || '—'}</p></div>
+            <div className="view-modal-field"><label>Author</label><p>{viewItem.creator_name || 'Unknown'}</p></div>
+            <div className="view-modal-field"><label>Date</label><p>{fmtDate(viewItem.created_at)}</p></div>
+            <div className="view-modal-field full"><label>Content</label><p style={{ whiteSpace: 'pre-wrap' }}>{viewItem.content || '—'}</p></div>
+            {viewItem.link_url && (
+              <div className="view-modal-field full"><label>Link</label><p><a href={viewItem.link_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ExternalLink size={12} />{viewItem.link_label || viewItem.link_url}</a></p></div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )

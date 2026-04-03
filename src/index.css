@@ -4422,6 +4422,34 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   overflow: hidden;
 }
 
+/* View modal grid */
+.view-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.view-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.view-modal-field.full {
+  grid-column: 1 / -1;
+}
+.view-modal-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.view-modal-field p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
 /* Activity progress slider */
 .activity-progress-cell {
   display: flex;
