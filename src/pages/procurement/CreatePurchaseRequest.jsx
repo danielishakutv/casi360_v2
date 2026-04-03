@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi } from '../../services/procurement'
-import { projectsApi } from '../../services/projects'
+import { projectsApi, projectDonorsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
@@ -77,15 +77,24 @@ export default function CreatePurchaseRequest() {
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
   const [projects, setProjects] = useState([])
+  const [donorsForProject, setDonorsForProject] = useState([])
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
   }, [])
 
-  /* ─── Derived: donors for selected project ─── */
-  const donorsForProject = useMemo(() => {
+  /* ─── Fetch donors when project changes ─── */
+  useEffect(() => {
+    if (!form.project_code) { setDonorsForProject([]); return }
     const proj = projects.find((p) => (p.project_code || p.id) === form.project_code)
-    return proj?.donors || []
+    if (!proj) { setDonorsForProject([]); return }
+    projectDonorsApi.list(proj.id)
+      .then((res) => {
+        const data = res?.data || res
+        const donors = data?.donors || extractItems(res)
+        setDonorsForProject(donors)
+      })
+      .catch(() => setDonorsForProject([]))
   }, [form.project_code, projects])
 
   /* ─── Form helpers ─── */
@@ -259,8 +268,8 @@ export default function CreatePurchaseRequest() {
             <div className="hr-form-field">
               <label>Donor</label>
               <select value={form.donor} onChange={(e) => updateField('donor', e.target.value)} disabled={!form.project_code}>
-                <option value="">{form.project_code ? 'Select donor…' : 'Select a project first'}</option>
-                {donorsForProject.map((d) => <option key={d} value={d}>{d}</option>)}
+                <option value="">{form.project_code ? 'Select donor...' : 'Select a project first'}</option>
+                {donorsForProject.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
             </div>
           </div>
