@@ -94,7 +94,7 @@ const navItems = [
       { label: 'Overview',     icon: Eye,            path: '/communication' },
       { label: 'Messages',     icon: Inbox,          path: '/communication/messages', permission: 'communication.messages.view' },
       { label: 'Forums',       icon: MessagesSquare, path: '/communication/forums',   permission: 'communication.forums.view' },
-      { label: 'Send Notice',  icon: Bell,           path: '/communication/notice',   permission: 'communication.notice.view' },
+      { label: 'Notices',       icon: Bell,           path: '/communication/notices',  permission: 'communication.notices.view' },
     ],
   },
   {

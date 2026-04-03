@@ -164,6 +164,7 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/communication" element={<CommOverview />} />
                 <Route path="/communication/messages" element={<Messages />} />
                 <Route path="/communication/forums" element={<Forums />} />
+                <Route path="/communication/notices" element={<SendNotice />} />
                 <Route path="/communication/notice" element={<SendNotice />} />
 
                 {/* Other */}

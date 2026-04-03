@@ -176,7 +176,7 @@ function OverviewTab({ project }) {
         </div>
       )}
 
-      {p.notes && (
+      {typeof p.notes === 'string' && p.notes && (
         <div className="project-section-text">
           <h4>Notes</h4>
           <p>{p.notes}</p>
