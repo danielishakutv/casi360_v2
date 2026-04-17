@@ -25,7 +25,6 @@ const StaffList    = lazy(() => import('./pages/hr/StaffList'))
 const Departments  = lazy(() => import('./pages/hr/Departments'))
 const Designations = lazy(() => import('./pages/hr/Designations'))
 const HRNotes      = lazy(() => import('./pages/hr/Notes'))
-const HRSettings   = lazy(() => import('./pages/hr/Settings'))
 
 // Procurement
 const ProcOverview       = lazy(() => import('./pages/procurement/Overview'))
@@ -139,7 +138,6 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/hr/departments" element={<Departments />} />
                 <Route path="/hr/designations" element={<Designations />} />
                 <Route path="/hr/notes" element={<HRNotes />} />
-                <Route path="/hr/settings" element={<HRSettings />} />
 
                 {/* Procurement */}
                 <Route path="/procurement" element={<ProcOverview />} />

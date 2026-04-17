@@ -57,7 +57,6 @@ const navItems = [
       { label: 'Departments',  icon: Building2,    path: '/hr/departments',  permission: 'hr.departments.view' },
       { label: 'Designations', icon: Award,        path: '/hr/designations', permission: 'hr.designations.view' },
       { label: 'Notes',        icon: StickyNote,   path: '/hr/notes',        permission: 'hr.notes.view' },
-      { label: 'Settings',     icon: Cog,          path: '/hr/settings',     permission: 'hr.settings.view' },
     ],
   },
   {
