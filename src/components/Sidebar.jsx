@@ -36,6 +36,7 @@ import {
   Shield,
   Clock,
   Database,
+  Wallet,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
