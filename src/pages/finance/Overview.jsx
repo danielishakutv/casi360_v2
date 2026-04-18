@@ -1,15 +1,47 @@
+import { useMemo, useState } from 'react'
 import { AlertCircle, ClipboardCheck, PieChart, ShieldAlert, Wallet } from 'lucide-react'
-import { demoFinanceApprovals, demoFinanceBudgetLines, getFinanceOverviewStats } from '../../data/financeDemo'
+import { getDemoApprovals, getDemoBudgetLines, resetFinanceDemoData } from '../../data/financeDemoStore'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { capitalize } from '../../utils/capitalize'
 
 export default function FinanceOverview() {
-  const stats = getFinanceOverviewStats()
-  const flaggedLines = demoFinanceBudgetLines.filter((line) => ['low', 'critical', 'overdrawn'].includes(line.status))
-  const recentApprovals = [...demoFinanceApprovals]
+  const [budgetLines, setBudgetLines] = useState(() => getDemoBudgetLines())
+  const [approvals, setApprovals] = useState(() => getDemoApprovals())
+
+  const stats = useMemo(() => {
+    const allocated = budgetLines.reduce((sum, line) => sum + line.allocated_amount, 0)
+    const committed = budgetLines.reduce((sum, line) => sum + line.committed_amount, 0)
+    const spent = budgetLines.reduce((sum, line) => sum + line.actual_spent_amount, 0)
+    const pending = budgetLines.reduce((sum, line) => sum + line.pending_request_amount, 0)
+    const available = budgetLines.reduce((sum, line) => sum + line.available_amount, 0)
+    const pendingApprovals = approvals.filter((item) => item.status === 'pending')
+    return {
+      totalAllocated: allocated,
+      totalCommitted: committed,
+      totalSpent: spent,
+      totalPending: pending,
+      totalAvailable: available,
+      totalProjects: new Set(budgetLines.map((line) => line.project_name)).size,
+      totalBudgetLines: budgetLines.length,
+      flaggedLines: budgetLines.filter((line) => ['watch', 'over_budget', 'fully_used'].includes(line.status)).length,
+      pendingApprovals: pendingApprovals.length,
+      pendingApprovalAmount: pendingApprovals.reduce((sum, item) => sum + item.amount_requested, 0),
+    }
+  }, [budgetLines, approvals])
+
+  const flaggedLines = budgetLines.filter((line) => ['watch', 'over_budget', 'fully_used'].includes(line.status))
+  const recentApprovals = [...approvals]
     .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
     .slice(0, 6)
+
+  function handleResetDemoData() {
+    const shouldReset = window.confirm('Reset finance demo data to defaults? This will remove your local changes.')
+    if (!shouldReset) return
+    resetFinanceDemoData()
+    setBudgetLines(getDemoBudgetLines())
+    setApprovals(getDemoApprovals())
+  }
 
   const statCards = [
     { label: 'Allocated Budget', value: naira(stats.totalAllocated), icon: PieChart, color: 'blue' },
@@ -37,7 +69,10 @@ export default function FinanceOverview() {
         <div className="card">
           <div className="card-header">
             <h3>Finance Control Snapshot</h3>
-            <span className="card-badge blue">Demo structure</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="card-badge blue">Demo structure</span>
+              <button type="button" className="hr-btn-secondary" onClick={handleResetDemoData}>Reset Demo Data</button>
+            </div>
           </div>
           <div className="card-body">
             <div className="project-mini-stats">
@@ -76,11 +111,11 @@ export default function FinanceOverview() {
                 <div className="label">Awaiting Finance Decision</div>
               </div>
               <div className="project-mini-stat">
-                <div className="value">{demoFinanceApprovals.filter((item) => item.status === 'approved').length}</div>
+                <div className="value">{approvals.filter((item) => item.status === 'approved').length}</div>
                 <div className="label">Moved to Procurement</div>
               </div>
               <div className="project-mini-stat">
-                <div className="value">{demoFinanceApprovals.filter((item) => item.status === 'rejected').length}</div>
+                <div className="value">{approvals.filter((item) => item.status === 'rejected').length}</div>
                 <div className="label">Rejected by Finance</div>
               </div>
             </div>
