@@ -89,6 +89,16 @@ const navItems = [
     ],
   },
   {
+    id: 'finance',
+    label: 'Finance',
+    icon: Wallet,
+    children: [
+      { label: 'Overview',  icon: Eye,            path: '/finance' },
+      { label: 'Budget',    icon: PieChart,       path: '/finance/budget' },
+      { label: 'Approvals', icon: ClipboardCheck, path: '/finance/approvals' },
+    ],
+  },
+  {
     id: 'communication',
     label: 'Communication',
     icon: MessageSquare,
