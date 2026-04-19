@@ -355,7 +355,7 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
   const [statusFilter, setStatusFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' })
+  const [form, setForm] = useState({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', sort_order: 0, notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [viewItem, setViewItem] = useState(null)
@@ -372,28 +372,33 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
 
   useEffect(() => { load() }, [load])
 
-  function openAdd() { setEditItem(null); setForm({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', completion_percentage: 0, sort_order: 0, notes: '' }); setFormOpen(true) }
+  function openAdd() { setEditItem(null); setForm({ title: '', description: '', start_date: today, end_date: projEnd, target_date: projEnd, status: 'not_started', sort_order: 0, notes: '' }); setFormOpen(true) }
   function openEdit(item) {
     setEditItem(item)
-    setForm({ title: item.title || '', description: item.description || '', start_date: item.start_date || '', end_date: item.end_date || '', target_date: item.target_date || '', status: item.status || 'not_started', completion_percentage: item.completion_percentage ?? 0, sort_order: item.sort_order ?? 0, notes: item.notes || '' })
+    setForm({ title: item.title || '', description: item.description || '', start_date: item.start_date || '', end_date: item.end_date || '', target_date: item.target_date || '', status: item.status || 'not_started', sort_order: item.sort_order ?? 0, notes: item.notes || '' })
     setFormOpen(true)
   }
 
   async function handleSubmit(e) {
     e.preventDefault(); setSubmitting(true); setError('')
     try {
-      const payload = { ...form, completion_percentage: Number(form.completion_percentage), sort_order: Number(form.sort_order) }
+      const payload = { ...form, sort_order: Number(form.sort_order) }
       if (editItem) await projectActivitiesApi.update(projectId, editItem.id, payload)
       else await projectActivitiesApi.create(projectId, payload)
       setFormOpen(false); load()
     } catch (err) { setError(err.message) } finally { setSubmitting(false) }
   }
 
-  async function handleProgressUpdate(item, pct) {
-    try {
-      await projectActivitiesApi.update(projectId, item.id, { completion_percentage: pct })
-      load()
-    } catch (err) { setError(err.message) }
+  function getDueHealth(activity) {
+    const dueDate = activity.target_date || activity.end_date
+    if (!dueDate) return 'No due date'
+    if (activity.status === 'completed') return 'Completed'
+    const due = new Date(dueDate)
+    const now = new Date(today)
+    const days = Math.ceil((due - now) / (1000 * 60 * 60 * 24))
+    if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`
+    if (days === 0) return 'Due today'
+    return `Due in ${days} day${days === 1 ? '' : 's'}`
   }
 
   async function confirmDelete() {
@@ -429,7 +434,7 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
       {items.length ? (
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>Title</th><th>Date Range</th><th>Status</th><th>Progress</th><th style={{ width: 100 }}>Actions</th></tr></thead>
+            <thead><tr><th>Title</th><th>Date Range</th><th>Status</th><th>Target / Due</th><th style={{ width: 100 }}>Actions</th></tr></thead>
             <tbody>
               {items.map((a) => (
                 <tr key={a.id}>
@@ -437,14 +442,9 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
                   <td style={{ fontSize: 12 }}>{fmtDate(a.start_date)} — {fmtDate(a.end_date)}</td>
                   <td><span className={`status-badge ${a.status}`}><span className="status-dot" />{fmtStatus(a.status)}</span></td>
                   <td>
-                    <div className="activity-progress-cell">
-                      <input
-                        type="range" min={0} max={100} value={a.completion_percentage ?? 0}
-                        onChange={(e) => handleProgressUpdate(a, Number(e.target.value))}
-                        disabled={!canEdit}
-                        title={`${a.completion_percentage ?? 0}%`}
-                      />
-                      <span className="pct">{a.completion_percentage ?? 0}%</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{fmtDate(a.target_date || a.end_date)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{getDueHealth(a)}</div>
                     </div>
                   </td>
                   <td><div className="hr-actions">
@@ -475,7 +475,6 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
                 {ACTIVITY_STATUSES.map((s) => <option key={s} value={s}>{fmtStatus(s)}</option>)}
               </select>
             </div>
-            <div className="hr-form-field"><label>Completion %</label><input type="number" min={0} max={100} value={form.completion_percentage} onChange={(e) => setForm((p) => ({ ...p, completion_percentage: e.target.value }))} /></div>
             <div className="hr-form-field"><label>Sort Order</label><input type="number" min={0} value={form.sort_order} onChange={(e) => setForm((p) => ({ ...p, sort_order: e.target.value }))} /></div>
           </div>
           <div className="hr-form-field"><label>Notes</label><textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
@@ -505,7 +504,7 @@ function ActivitiesTab({ projectId, project, canCreate, canEdit, canDelete }) {
             <div className="view-modal-field"><label>End Date</label><p>{fmtDate(viewItem.end_date)}</p></div>
             <div className="view-modal-field"><label>Target Date</label><p>{fmtDate(viewItem.target_date)}</p></div>
             <div className="view-modal-field"><label>Status</label><p><span className={`status-badge ${viewItem.status}`}><span className="status-dot" />{fmtStatus(viewItem.status)}</span></p></div>
-            <div className="view-modal-field"><label>Completion</label><p>{viewItem.completion_percentage ?? 0}%</p></div>
+            <div className="view-modal-field"><label>Due Health</label><p>{getDueHealth(viewItem)}</p></div>
             <div className="view-modal-field"><label>Sort Order</label><p>{viewItem.sort_order ?? 0}</p></div>
             <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes || '—'}</p></div>
           </div>
