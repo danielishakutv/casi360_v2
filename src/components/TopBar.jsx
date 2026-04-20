@@ -77,7 +77,10 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { fetchNotices() }, [fetchNotices])
+  useEffect(() => {
+    const timer = setTimeout(() => fetchNotices(), 0)
+    return () => clearTimeout(timer)
+  }, [fetchNotices])
 
   /* Poll every 60s and on window focus */
   useEffect(() => {

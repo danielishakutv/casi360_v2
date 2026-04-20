@@ -461,4 +461,5 @@ Key Notes for Frontend
 - The settings page is only accessible to super_admin users
 
 
+SERVER IP: 
 cd /home/casi360/public_html && git pull origin main && npm install && npm run build && pm2 restart casi360

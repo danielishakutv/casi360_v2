@@ -4,15 +4,12 @@ import { capitalize } from '../../utils/capitalize'
 import { settingsApi } from '../../services/api'
 import { extractItems } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
-import { useAuth } from '../../contexts/AuthContext'
 
 const ROLE_COLORS = { super_admin: 'purple', admin: 'blue', manager: 'green', staff: 'gray' }
 
 function fmtRole(r) { return capitalize((r || 'staff').replace(/_/g, ' ')) }
 
 export default function RolesAccess() {
-  const { isSuperAdmin } = useAuth()
-
   const [roles, setRoles] = useState([])
   const [permissions, setPermissions] = useState([])
   const [loading, setLoading] = useState(true)

@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react'
 import { Download, Upload, DatabaseBackup, AlertCircle, Check, FileDown, FileUp, X } from 'lucide-react'
-import { capitalize } from '../../utils/capitalize'
 import { settingsApi } from '../../services/api'
 import Modal from '../../components/Modal'
 

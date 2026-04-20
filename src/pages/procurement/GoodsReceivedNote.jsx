@@ -52,7 +52,6 @@ export default function GoodsReceivedNote() {
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
 
-  function openCreate() { setEditing(null); setForm(INITIAL_FORM); setModalOpen(true) }
   function openEdit(item) {
     setEditing(item)
     setForm({ po_reference: item.po_reference || '', vendor: item.vendor || '', received_by: item.received_by || '', received_date: item.received_date || '', total_amount: item.total_amount, status: item.status, description: item.description || '', notes: item.notes || '', office: item.office || '' })

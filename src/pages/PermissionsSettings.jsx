@@ -45,7 +45,7 @@ function formatActionLabel(key) {
 /* ================================================================== */
 export default function PermissionsSettings() {
   const navigate = useNavigate()
-  const { user, can, fetchPermissions: refreshPerms } = useAuth()
+  const { user, fetchPermissions: refreshPerms } = useAuth()
 
   const [permissions, setPermissions] = useState([])
   const [roles, setRoles] = useState([])

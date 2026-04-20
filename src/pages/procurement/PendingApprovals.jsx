@@ -2,15 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { AlertCircle, CheckCircle, XCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
-import { fmtDate } from '../../utils/formatDate'
 import { approvalsApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
-import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 
 function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
 
 export default function PendingApprovals() {
-  const { user } = useAuth()
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
   const [loading, setLoading] = useState(true)

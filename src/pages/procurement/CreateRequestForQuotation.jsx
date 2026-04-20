@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { capitalize } from '../../utils/capitalize'
 import { rfqApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'

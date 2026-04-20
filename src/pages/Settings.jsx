@@ -8,7 +8,6 @@ import {
   Clock, CalendarDays,
   Save, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
 import { settingsApi } from '../services/api'
 import { extractItems, extractMeta } from '../utils/apiHelpers'
 import { fmtDate } from '../utils/formatDate'
@@ -73,10 +72,10 @@ function Toggle({ checked, onChange, label, description }) {
 /* Main component                                                     */
 /* ================================================================== */
 export default function Settings() {
-  const { user, can } = useAuth()
   const [activeTab, setActiveTab] = useState('general')
   const [toast, setToast] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [exportFormat, setExportFormat] = useState('csv')
+  const [importFile, setImportFile] = useState(null)
 
   /* Flat key-value map of all settings */
   const [settings, setSettings] = useState({ ...DEFAULTS })
@@ -94,8 +93,7 @@ export default function Settings() {
         })
         setSettings((prev) => ({ ...prev, ...flat }))
       })
-      .catch(() => { /* non-super_admin will get 403 — keep defaults */ })
-      .finally(() => setLoading(false))
+        .catch(() => { /* non-super_admin will get 403 — keep defaults */ })
   }, [])
 
   function s(key) { return settings[key] ?? DEFAULTS[key] ?? '' }
@@ -107,7 +105,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (activeTab === 'roles' && roles.length === 0) {
-      setRolesLoading(true)
+      queueMicrotask(() => setRolesLoading(true))
       settingsApi.listRoles().then((res) => setRoles(extractItems(res))).catch(() => {}).finally(() => setRolesLoading(false))
     }
   }, [activeTab, roles.length])
@@ -120,7 +118,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (activeTab === 'audit') {
-      setAuditLoading(true)
+      queueMicrotask(() => setAuditLoading(true))
       settingsApi.auditLog({ page: auditPage, per_page: 15 })
         .then((res) => { setAudit(extractItems(res)); setAuditMeta(extractMeta(res)) })
         .catch(() => {})
@@ -460,9 +458,6 @@ export default function Settings() {
   /* Tab: Data & Backup                                               */
   /* ================================================================ */
   function renderData() {
-    const [exportFormat, setExportFormat] = useState('csv')
-    const [importFile, setImportFile] = useState(null)
-
     async function handleExport() {
       try {
         await settingsApi.exportData({ format: exportFormat })

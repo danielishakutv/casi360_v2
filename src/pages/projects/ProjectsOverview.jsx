@@ -4,13 +4,10 @@ import {
   FolderKanban, Briefcase, CheckCircle, PieChart, Plus, ArrowRight, AlertCircle,
 } from 'lucide-react'
 import { naira } from '../../utils/currency'
-import { fmtDate } from '../../utils/formatDate'
 import { capitalize } from '../../utils/capitalize'
 import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
-
-const STATUS_COLORS = { draft: 'gray', active: 'green', on_hold: 'orange', completed: 'blue', closed: 'red' }
 
 function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
 

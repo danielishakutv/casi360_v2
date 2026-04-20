@@ -49,7 +49,6 @@ export default function RequestForQuotation() {
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
 
-  function openCreate() { setEditing(null); setForm(INITIAL_FORM); setModalOpen(true) }
   function openEdit(item) {
     setEditing(item)
     setForm({ title: item.title, description: item.description || '', pr_reference: item.pr_reference || '', deadline: item.deadline || '', status: item.status, notes: item.notes || '' })

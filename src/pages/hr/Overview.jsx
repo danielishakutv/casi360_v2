@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { employeesApi, departmentsApi, designationsApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
-import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { extractItems } from '../../utils/apiHelpers'
 
 export default function HROverview() {
   const [employees, setEmployees] = useState([])

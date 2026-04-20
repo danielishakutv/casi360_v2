@@ -36,7 +36,6 @@ const HOLIDAY_INITIAL = {
 export default function HRSettings() {
   const { can } = useAuth()
   const [tab, setTab] = useState('leave')
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   /* ── Leave Types state ── */
@@ -66,22 +65,18 @@ export default function HRSettings() {
   /* ================================================================ */
   const fetchLeaveTypes = useCallback(async () => {
     try {
-      setLoading(true)
       const res = await leaveTypesApi.list({ search: leaveSearch || undefined, page: leavePage, per_page: 25 })
       setLeaveTypes(extractItems(res))
       setLeaveMeta(extractMeta(res))
     } catch { /* keep current */ }
-    finally { setLoading(false) }
   }, [leaveSearch, leavePage])
 
   const fetchHolidays = useCallback(async () => {
     try {
-      setLoading(true)
       const res = await holidaysApi.list({ search: holSearch || undefined, page: holPage, per_page: 25, sort_by: 'date', sort_dir: 'asc' })
       setHolidays(extractItems(res))
       setHolMeta(extractMeta(res))
     } catch { /* keep current */ }
-    finally { setLoading(false) }
   }, [holSearch, holPage])
 
   useEffect(() => { fetchLeaveTypes() }, [fetchLeaveTypes])

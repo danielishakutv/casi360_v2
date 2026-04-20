@@ -77,7 +77,7 @@ export default function CreatePurchaseRequest() {
   const [departments, setDepartments] = useState([])
   const [employees, setEmployees] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
-  const [loadingEdit, setLoadingEdit] = useState(false)
+  const [loadingEdit, setLoadingEdit] = useState(isEdit)
 
   /* Fetch dropdown data */
   useEffect(() => {
@@ -89,7 +89,6 @@ export default function CreatePurchaseRequest() {
   /* Load existing PR for edit mode */
   useEffect(() => {
     if (!isEdit) return
-    setLoadingEdit(true)
     purchaseRequestsApi.get(id)
       .then((res) => {
         const pr = res?.data?.requisition || res?.data?.purchase_request || res?.data || res
@@ -140,9 +139,15 @@ export default function CreatePurchaseRequest() {
 
   /* Fetch donors when project changes */
   useEffect(() => {
-    if (!form.project_code) { setDonorsForProject([]); return }
+    if (!form.project_code) {
+      queueMicrotask(() => setDonorsForProject([]))
+      return
+    }
     const proj = projects.find((p) => (p.project_code || p.id) === form.project_code)
-    if (!proj) { setDonorsForProject([]); return }
+    if (!proj) {
+      queueMicrotask(() => setDonorsForProject([]))
+      return
+    }
     projectDonorsApi.list(proj.id)
       .then((res) => {
         const data = res?.data || res

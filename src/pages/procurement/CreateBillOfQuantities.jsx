@@ -43,7 +43,7 @@ export default function CreateBillOfQuantities() {
   const [departments, setDepartments] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
-  const [loadingEdit, setLoadingEdit] = useState(false)
+  const [loadingEdit, setLoadingEdit] = useState(isEdit)
 
   /* Fetch dropdown data */
   useEffect(() => {
@@ -54,7 +54,6 @@ export default function CreateBillOfQuantities() {
   /* Load existing BOQ for edit mode */
   useEffect(() => {
     if (!isEdit) return
-    setLoadingEdit(true)
     boqApi.get(id)
       .then((res) => {
         const boq = res?.data?.boq || res?.data || res

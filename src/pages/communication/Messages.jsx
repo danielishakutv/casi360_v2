@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal } from 'lucide-react'
-import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { usersApi } from '../../services/api'
