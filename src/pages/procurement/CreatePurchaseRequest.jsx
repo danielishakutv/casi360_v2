@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi } from '../../services/procurement'
 import { projectsApi, projectDonorsApi } from '../../services/projects'
-import { departmentsApi, employeesApi } from '../../services/hr'
+import { departmentsApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
 
 /* ─── Constants ─── */
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
@@ -35,8 +36,6 @@ const EMPTY_LINE_ITEM = {
   project_code: '', budget_line: '', inventory_item_id: '',
 }
 
-const EMPTY_SIGNOFF = { name: '', position: '', email: '', date: '', signature: '' }
-
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
 function buildInitialForm() {
@@ -44,7 +43,6 @@ function buildInitialForm() {
     title: '',
     date: todayStr(),
     department_id: '',
-    requested_by: '',
     delivery_location: '',
     delivery_date: '',
     purchase_scenario: '',
@@ -57,10 +55,6 @@ function buildInitialForm() {
     items: [{ ...EMPTY_LINE_ITEM }],
     justification: '',
     notes: '',
-    requester: { ...EMPTY_SIGNOFF },
-    budget_holder: { ...EMPTY_SIGNOFF },
-    finance: { ...EMPTY_SIGNOFF },
-    logistics: { ...EMPTY_SIGNOFF },
     priority: 'medium',
   }
 }
@@ -69,13 +63,13 @@ export default function CreatePurchaseRequest() {
   const navigate = useNavigate()
   const { id } = useParams()
   const isEdit = !!id
+  const { user } = useAuth()
 
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
-  const [employees, setEmployees] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
 
@@ -83,7 +77,6 @@ export default function CreatePurchaseRequest() {
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
-    employeesApi.list({ per_page: 0 }).then((res) => setEmployees(extractItems(res))).catch(() => {})
   }, [])
 
   /* Load existing PR for edit mode */
@@ -92,18 +85,10 @@ export default function CreatePurchaseRequest() {
     purchaseRequestsApi.get(id)
       .then((res) => {
         const pr = res?.data?.requisition || res?.data?.purchase_request || res?.data || res
-        const signoffs = pr.signoffs || []
-        const findSignoff = (type) => signoffs.find((s) => s.type === type) || {}
-        const req = findSignoff('requester')
-        const bh = findSignoff('budget_holder')
-        const fin = findSignoff('finance')
-        const log = findSignoff('logistics')
-
         setForm({
           title: pr.title || '',
           date: pr.date || todayStr(),
           department_id: pr.department_id || '',
-          requested_by: pr.requested_by || '',
           delivery_location: pr.delivery_location || '',
           delivery_date: pr.needed_by || pr.delivery_date || '',
           purchase_scenario: pr.purchase_scenario || '',
@@ -126,10 +111,6 @@ export default function CreatePurchaseRequest() {
             : [{ ...EMPTY_LINE_ITEM }],
           justification: pr.justification || '',
           notes: pr.notes || '',
-          requester: { name: req.name || '', position: req.position || '', email: req.email || '', date: req.date || '', signature: req.signature || '' },
-          budget_holder: { name: bh.name || '', position: bh.position || '', email: bh.email || '', date: bh.date || '', signature: bh.signature || '' },
-          finance: { name: fin.name || '', position: fin.position || '', email: fin.email || '', date: fin.date || '', signature: fin.signature || '' },
-          logistics: { name: log.name || '', position: log.position || '', email: log.email || '', date: log.date || '', signature: log.signature || '' },
           priority: pr.priority || 'medium',
         })
       })
@@ -179,10 +160,6 @@ export default function CreatePurchaseRequest() {
     setForm((p) => ({ ...p, items: p.items.length > 1 ? p.items.filter((_, i) => i !== idx) : p.items }))
   }, [])
 
-  const updateSignoff = useCallback((section, field, value) => {
-    setForm((p) => ({ ...p, [section]: { ...p[section], [field]: value } }))
-  }, [])
-
   /* Line item totals */
   const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.estimated_unit_cost) || 0), [])
   const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineTotal(li), 0), [form.items, lineTotal])
@@ -193,17 +170,11 @@ export default function CreatePurchaseRequest() {
     setSubmitting(true)
     setFormErrors({})
 
-    const signoffs = []
-    if (form.requester.name) signoffs.push({ type: 'requester', ...form.requester, date: form.requester.date || todayStr() })
-    if (form.budget_holder.name) signoffs.push({ type: 'budget_holder', ...form.budget_holder, date: form.budget_holder.date || todayStr() })
-    if (form.finance.name) signoffs.push({ type: 'finance', ...form.finance, date: form.finance.date || todayStr() })
-    if (form.logistics.name) signoffs.push({ type: 'logistics', ...form.logistics, date: form.logistics.date || todayStr() })
-
     const payload = {
       title: form.title,
       date: form.date || undefined,
       department_id: form.department_id || undefined,
-      requested_by: form.requested_by || undefined,
+      requested_by: user?.id || undefined,
       delivery_location: form.delivery_location || undefined,
       needed_by: form.delivery_date || undefined,
       purchase_scenario: form.purchase_scenario || undefined,
@@ -216,7 +187,6 @@ export default function CreatePurchaseRequest() {
       justification: form.justification || undefined,
       notes: form.notes || undefined,
       priority: form.priority,
-      signoffs: signoffs.length ? signoffs : undefined,
       items: form.items
         .filter((li) => li.description)
         .map((li) => ({
@@ -239,26 +209,6 @@ export default function CreatePurchaseRequest() {
         else setFormErrors({ _general: err.message || 'Failed to save purchase request' })
       })
       .finally(() => setSubmitting(false))
-  }
-
-  /* Signoff block renderer */
-  function renderSignoff(label, section) {
-    return (
-      <div className="pr-signoff-block" key={section}>
-        <h4 className="pr-signoff-title">{label}</h4>
-        <div className="hr-form-row">
-          <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} /></div>
-          <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} /></div>
-        </div>
-        <div className="hr-form-row">
-          <div className="hr-form-field"><label>Email</label><input type="email" value={form[section].email} onChange={(e) => updateSignoff(section, 'email', e.target.value)} placeholder="email@example.com" /></div>
-          <div className="hr-form-field"><label>Date</label><input type="date" value={form[section].date} onChange={(e) => updateSignoff(section, 'date', e.target.value)} /></div>
-        </div>
-        <div className="hr-form-field">
-          <label>Signature</label><input type="text" value={form[section].signature} onChange={(e) => updateSignoff(section, 'signature', e.target.value)} placeholder="Type name as signature" />
-        </div>
-      </div>
-    )
   }
 
   if (loadingEdit) {
@@ -306,11 +256,11 @@ export default function CreatePurchaseRequest() {
               </select>
             </div>
             <div className="hr-form-field">
-              <label>Requested By *</label>
-              <select value={form.requested_by} onChange={(e) => updateField('requested_by', e.target.value)} required>
-                <option value="">Select employee...</option>
-                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>)}
-              </select>
+              <label>Requested By</label>
+              <div className="pr-requester-field">
+                <User size={14} />
+                {user?.name || '—'}
+              </div>
             </div>
           </div>
 
@@ -394,6 +344,7 @@ export default function CreatePurchaseRequest() {
 
           {/* Activity Description table */}
           <p className="hr-form-section-title">Activity Description</p>
+          <p className="pr-scroll-hint">← Scroll to see all columns</p>
 
           <div className="pr-line-items-wrapper">
             <table className="pr-line-items-table">
@@ -466,16 +417,6 @@ export default function CreatePurchaseRequest() {
           <div className="hr-form-field">
             <label>Notes</label>
             <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} placeholder="Any additional notes or special instructions..." rows={2} />
-          </div>
-
-          {/* Sign-off sections */}
-          <p className="hr-form-section-title">Approvals</p>
-
-          <div className="pr-signoffs-grid">
-            {renderSignoff('Requester', 'requester')}
-            {renderSignoff('Budget Holder', 'budget_holder')}
-            {renderSignoff('Finance', 'finance')}
-            {renderSignoff('Logistics', 'logistics')}
           </div>
 
           {/* Actions */}
