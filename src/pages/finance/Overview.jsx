@@ -24,13 +24,13 @@ export default function FinanceOverview() {
       totalAvailable: available,
       totalProjects: new Set(budgetLines.map((line) => line.project_name)).size,
       totalBudgetLines: budgetLines.length,
-      flaggedLines: budgetLines.filter((line) => ['watch', 'over_budget', 'fully_used'].includes(line.status)).length,
+      flaggedLines: budgetLines.filter((line) => ['low', 'critical', 'overdrawn'].includes(line.status)).length,
       pendingApprovals: pendingApprovals.length,
       pendingApprovalAmount: pendingApprovals.reduce((sum, item) => sum + item.amount_requested, 0),
     }
   }, [budgetLines, approvals])
 
-  const flaggedLines = budgetLines.filter((line) => ['watch', 'over_budget', 'fully_used'].includes(line.status))
+  const flaggedLines = budgetLines.filter((line) => ['low', 'critical', 'overdrawn'].includes(line.status))
   const recentApprovals = [...approvals]
     .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
     .slice(0, 6)
@@ -70,7 +70,7 @@ export default function FinanceOverview() {
           <div className="card-header">
             <h3>Finance Control Snapshot</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span className="card-badge blue">Demo structure</span>
+              <span className="card-badge blue">Sourced from Projects</span>
               <button type="button" className="hr-btn-secondary" onClick={handleResetDemoData}>Reset Demo Data</button>
             </div>
           </div>
@@ -94,7 +94,7 @@ export default function FinanceOverview() {
               </div>
             </div>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-              This overview is fully demo-backed and models the target finance workflow: budget lines, commitments, actual spend, pending requests, and approval checkpoints.
+              Budget lines are pulled automatically from the Projects module. The Finance Officer tracks allocation, commitments, actual spend, and pending requests per project budget line.
             </p>
           </div>
         </div>
