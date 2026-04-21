@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi } from '../../services/procurement'
-import { projectsApi, projectDonorsApi } from '../../services/projects'
+import { projectsApi, projectDonorsApi, projectBudgetApi } from '../../services/projects'
 import { departmentsApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
@@ -24,11 +24,6 @@ const CURRENCY_OPTIONS = [
   { code: 'EUR', symbol: '€', label: 'EUR — Euro' },
 ]
 
-const BUDGET_LINES = [
-  'Staff Costs', 'Travel & Transport', 'Equipment & Supplies',
-  'Office Costs', 'Training & Capacity Building', 'Communication',
-  'Construction & Renovation', 'Monitoring & Evaluation', 'Other Direct Costs',
-]
 
 const EMPTY_LINE_ITEM = {
   description: '', unit: '', quantity: '', estimated_unit_cost: '',
@@ -72,6 +67,8 @@ export default function HRCreatePurchaseRequest() {
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
+  const [budgetLinesByProject, setBudgetLinesByProject] = useState({})
+  const fetchedProjectIds = useRef(new Set())
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
 
   useEffect(() => {
@@ -136,21 +133,46 @@ export default function HRCreatePurchaseRequest() {
       .catch(() => setDonorsForProject([]))
   }, [form.project_code, projects])
 
+  /* Fetch budget lines for all project codes in the form */
+  const allProjectCodesKey = [form.project_code, ...form.items.map((li) => li.project_code)].filter(Boolean).join(',')
+  useEffect(() => {
+    const codes = [...new Set([form.project_code, ...form.items.map((li) => li.project_code)].filter(Boolean))]
+    codes.forEach((code) => {
+      const proj = projects.find((p) => (p.project_code || p.id) === code)
+      if (!proj || fetchedProjectIds.current.has(proj.id)) return
+      fetchedProjectIds.current.add(proj.id)
+      projectBudgetApi.list(proj.id)
+        .then((res) => {
+          const lines = res?.data?.budget_lines || res?.data || extractItems(res)
+          setBudgetLinesByProject((prev) => ({ ...prev, [proj.id]: Array.isArray(lines) ? lines : [] }))
+        })
+        .catch(() => {})
+    })
+  }, [allProjectCodesKey, projects]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const updateField = useCallback((f, v) => setForm((p) => {
     const next = { ...p, [f]: v }
-    if (f === 'project_code') next.donor = ''
+    if (f === 'project_code') {
+      next.donor = ''
+      next.items = p.items.map((li) => ({ ...li, project_code: v, budget_line: '' }))
+    }
     return next
   }), [])
 
   const updateLineItem = useCallback((idx, field, value) => {
     setForm((p) => {
-      const items = p.items.map((li, i) => i === idx ? { ...li, [field]: value } : li)
+      const items = p.items.map((li, i) => {
+        if (i !== idx) return li
+        const updated = { ...li, [field]: value }
+        if (field === 'project_code') updated.budget_line = ''
+        return updated
+      })
       return { ...p, items }
     })
   }, [])
 
   const addLineItem = useCallback(() => {
-    setForm((p) => ({ ...p, items: [...p.items, { ...EMPTY_LINE_ITEM }] }))
+    setForm((p) => ({ ...p, items: [...p.items, { ...EMPTY_LINE_ITEM, project_code: p.project_code }] }))
   }, [])
 
   const removeLineItem = useCallback((idx) => {
@@ -160,6 +182,13 @@ export default function HRCreatePurchaseRequest() {
   const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.estimated_unit_cost) || 0), [])
   const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineTotal(li), 0), [form.items, lineTotal])
   const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
+
+  const getBudgetLines = useCallback((projectCode) => {
+    if (!projectCode) return []
+    const proj = projects.find((p) => (p.project_code || p.id) === projectCode)
+    if (!proj) return []
+    return budgetLinesByProject[proj.id] || []
+  }, [projects, budgetLinesByProject])
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -375,7 +404,9 @@ export default function HRCreatePurchaseRequest() {
                       <td>
                         <select value={li.budget_line} onChange={(e) => updateLineItem(idx, 'budget_line', e.target.value)}>
                           <option value="">—</option>
-                          {BUDGET_LINES.map((b) => <option key={b} value={b}>{b}</option>)}
+                          {getBudgetLines(li.project_code).map((b) => (
+                            <option key={b.id} value={b.description}>{b.budget_category} — {b.description}</option>
+                          ))}
                         </select>
                       </td>
                       <td>
@@ -442,7 +473,9 @@ export default function HRCreatePurchaseRequest() {
                       <label>Budget Line</label>
                       <select value={li.budget_line} onChange={(e) => updateLineItem(idx, 'budget_line', e.target.value)}>
                         <option value="">—</option>
-                        {BUDGET_LINES.map((b) => <option key={b} value={b}>{b}</option>)}
+                        {getBudgetLines(li.project_code).map((b) => (
+                          <option key={b.id} value={b.description}>{b.budget_category} — {b.description}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
