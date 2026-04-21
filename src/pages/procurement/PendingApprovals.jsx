@@ -30,8 +30,8 @@ export default function PendingApprovals() {
 
   /* Detail view modal (PRs only) */
   const [viewTarget, setViewTarget] = useState(null)
-  const [viewJustification, setViewJustification] = useState(null)
-  const [viewJustificationLoading, setViewJustificationLoading] = useState(false)
+  const [viewExtra, setViewExtra] = useState(null)
+  const [viewExtraLoading, setViewExtraLoading] = useState(false)
   const [viewAuditLog, setViewAuditLog] = useState([])
   const [viewAuditLoading, setViewAuditLoading] = useState(false)
   const [viewIsHistory] = useState(false)
@@ -61,23 +61,27 @@ export default function PendingApprovals() {
 
   function openDetail(item) {
     setViewTarget(item)
-    setViewJustification(null)
+    setViewExtra(null)
     setViewAuditLog([])
-    setViewJustificationLoading(true)
+    setViewExtraLoading(true)
     setViewAuditLoading(true)
     purchaseRequestsApi.get(item.id)
       .then((res) => {
         const d = res?.data?.data ?? res?.data?.requisition ?? res?.data ?? res ?? {}
-        setViewJustification(d?.justification ?? d?.notes ?? '')
+        setViewExtra({
+          justification: d?.justification ?? d?.notes ?? null,
+          item_count:    d?.item_count    ?? null,
+          needed_by:     d?.needed_by     ?? null,
+        })
       })
-      .catch(() => setViewJustification(''))
-      .finally(() => setViewJustificationLoading(false))
+      .catch(() => setViewExtra({}))
+      .finally(() => setViewExtraLoading(false))
     purchaseRequestsApi.auditLog(item.id)
       .then((res) => { const d = res?.data || res || {}; setViewAuditLog(d.audit_log || []) })
       .catch(() => setViewAuditLog([]))
       .finally(() => setViewAuditLoading(false))
   }
-  function closeDetail() { setViewTarget(null); setViewJustification(null); setViewAuditLog([]) }
+  function closeDetail() { setViewTarget(null); setViewExtra(null); setViewAuditLog([]) }
 
   function openAction(type, item, defaultAction = 'approve') {
     setTarget({ type, item })
@@ -266,20 +270,18 @@ export default function PendingApprovals() {
                 <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
                 <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
                 <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
-                <div><strong>Items</strong><span>{pr.item_count ?? 0}</span></div>
+                <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
                 <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>
-                {pr.needed_by && <div><strong>Needed By</strong><span>{fmtDate(pr.needed_by)}</span></div>}
+                {(viewExtra?.needed_by ?? pr.needed_by) && <div><strong>Needed By</strong><span>{fmtDate(viewExtra?.needed_by ?? pr.needed_by)}</span></div>}
                 {pr.due_date && <div><strong>Due Date</strong><span>{fmtDate(pr.due_date)}</span></div>}
                 <div><strong>Submitted</strong><span>{fmtDate(pr.submitted_at || pr.created_at)}</span></div>
                 {pr.request_type && <div><strong>Type</strong><span>{pr.request_type.replace(/_/g, ' ')}</span></div>}
               </div>
 
-              {viewJustificationLoading
+              {viewExtraLoading
                 ? <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}><div className="auth-spinner" /></div>
                 : <div className="note-detail-content">
-                    {viewJustification !== null
-                      ? (viewJustification || pr.justification || pr.notes || 'No description provided.')
-                      : (pr.justification || pr.notes || 'No description provided.')}
+                    {viewExtra?.justification ?? pr.justification ?? pr.notes ?? 'No description provided.'}
                   </div>
               }
 
