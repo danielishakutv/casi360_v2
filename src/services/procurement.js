@@ -82,6 +82,7 @@ export const purchaseRequestsApi = {
   submit:         (id)         => api.post(`/procurement/requisitions/${id}/submit`),
   approvalStatus: (id)         => api.get(`/procurement/requisitions/${id}/approval-status`),
   processApproval:(id, data)   => api.patch(`/procurement/requisitions/${id}/approval`, data),
+  auditLog:       (id)         => api.get(`/procurement/requisitions/${id}/audit-log`),
 }
 
 /* ------------------------------------------------------------------ */

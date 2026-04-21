@@ -15,6 +15,22 @@ const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejecte
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
 const PER_PAGE = 15
 
+const AUDIT_LABELS = {
+  created:   'Created',
+  updated:   'Updated',
+  submitted: 'Submitted for Approval',
+  approved:  'Approved',
+  forwarded: 'Forwarded to Operations',
+  revision:  'Revision Requested',
+  rejected:  'Rejected',
+}
+
+const STAGE_LABELS = {
+  budget_holder: 'Budget Holder',
+  finance:       'Finance',
+  operations:    'Operations',
+}
+
 function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 
 export default function HRPurchaseRequests() {
@@ -32,6 +48,8 @@ export default function HRPurchaseRequests() {
   const [page, setPage] = useState(1)
 
   const [viewItem, setViewItem] = useState(null)
+  const [auditLog, setAuditLog] = useState([])
+  const [auditLoading, setAuditLoading] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [submitTarget, setSubmitTarget] = useState(null)
@@ -59,6 +77,15 @@ export default function HRPurchaseRequests() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, priorityFilter])
+
+  useEffect(() => {
+    if (!viewItem) { setAuditLog([]); return }
+    setAuditLoading(true)
+    purchaseRequestsApi.auditLog(viewItem.id)
+      .then((res) => { const d = res?.data || res || {}; setAuditLog(d.audit_log || []) })
+      .catch(() => setAuditLog([]))
+      .finally(() => setAuditLoading(false))
+  }, [viewItem?.id])
 
   async function confirmSubmit() {
     if (!submitTarget) return
@@ -201,6 +228,30 @@ export default function HRPurchaseRequests() {
               <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
             </div>
             <div className="note-detail-content">{viewItem.justification || viewItem.notes || 'No description'}</div>
+
+            {/* Audit log */}
+            <div className="pr-audit-log">
+              <p className="pr-audit-title">Activity Log</p>
+              {auditLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><div className="auth-spinner" /></div>
+              ) : auditLog.length === 0 ? (
+                <p className="pr-audit-empty">No activity recorded yet.</p>
+              ) : auditLog.map((entry) => (
+                <div key={entry.id} className={`pr-audit-entry pr-audit-${entry.action}`}>
+                  <div className="pr-audit-dot" />
+                  <div className="pr-audit-body">
+                    <div className="pr-audit-row">
+                      <span className="pr-audit-action">{AUDIT_LABELS[entry.action] || entry.action}</span>
+                      {entry.stage && <span className="pr-audit-stage">{STAGE_LABELS[entry.stage] || entry.stage}</span>}
+                      <span className="pr-audit-actor">{entry.actor_name}</span>
+                      <span className="pr-audit-time">{fmtDate(entry.created_at)}</span>
+                    </div>
+                    {entry.comments && <div className="pr-audit-comments">"{entry.comments}"</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
               {can('procurement.requisitions.edit') && (viewItem.status === 'draft' || viewItem.status === 'revision' || viewItem.status === 'rejected') && (
