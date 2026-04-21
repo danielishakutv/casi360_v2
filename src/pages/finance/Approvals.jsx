@@ -56,6 +56,7 @@ export default function FinanceApprovals() {
   const [viewDetailLoading, setViewDetailLoading] = useState(false)
   const [viewAuditLog, setViewAuditLog] = useState([])
   const [viewAuditLoading, setViewAuditLoading] = useState(false)
+  const [viewIsHistory, setViewIsHistory] = useState(false)
 
   /* Action modal */
   const [target, setTarget] = useState(null)
@@ -122,14 +123,15 @@ export default function FinanceApprovals() {
 
   const pendingAmount = reqs.reduce((s, i) => s + (i.estimated_cost || 0), 0)
 
-  function openDetail(item) {
+  function openDetail(item, isHistory = false) {
     setViewTarget(item)
+    setViewIsHistory(isHistory)
     setViewDetail(null)
     setViewAuditLog([])
     setViewDetailLoading(true)
     setViewAuditLoading(true)
     purchaseRequestsApi.get(item.id)
-      .then((res) => setViewDetail(res?.data || res))
+      .then((res) => { const data = res?.data?.data || res?.data || res; setViewDetail(data) })
       .catch(() => {})
       .finally(() => setViewDetailLoading(false))
     purchaseRequestsApi.auditLog(item.id)
@@ -180,7 +182,7 @@ export default function FinanceApprovals() {
         </div>
         <div className="stat-card blue animate-in">
           <div className="stat-top"><div className="stat-icon blue"><Clock3 size={22} /></div></div>
-          <div className="stat-value">{naira(pendingAmount)}</div>
+          <div className="stat-value stat-value-amount">{naira(pendingAmount)}</div>
           <div className="stat-label">Total Pending Amount</div>
         </div>
       </div>
@@ -215,74 +217,103 @@ export default function FinanceApprovals() {
             </div>
           </div>
 
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Title / Project</th>
-                  <th>Requester</th>
-                  <th>Amount</th>
-                  <th className="approvals-hide-mobile">Budget Effect</th>
-                  <th>Approval Chain</th>
-                  <th>Priority</th>
-                  <th>Submitted</th>
-                  <th style={{ width: 220 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.length === 0 ? (
-                  <tr><td colSpan={9} className="hr-empty-cell">No items awaiting your approval.</td></tr>
-                ) : paged.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <div className="approvals-meta">
-                        <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.requisition_number}</span>
-                        <span className="approvals-meta-sub">{item.request_type?.replace(/_/g, ' ')}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="approvals-meta">
-                        <span className="approvals-meta-main">{item.title}</span>
-                        <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="approvals-meta">
-                        <span className="approvals-meta-main">{item.requested_by_name || '—'}</span>
-                        <span className="approvals-meta-sub">{item.department}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.estimated_cost)}</td>
-                    <td className="approvals-hide-mobile">
-                      <div className="approvals-budget-row">
-                        <div className="approvals-budget-item"><label>Before</label><span>—</span></div>
-                        <div className="approvals-budget-item"><label>After</label><span>—</span></div>
-                      </div>
-                    </td>
-                    <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
-                    <td><span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority || 'normal')}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {fmtDate(item.submitted_at || item.created_at)}
-                      {item.due_date && (
-                        <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>
-                          Due {fmtDate(item.due_date)}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="approvals-action-row">
-                        <button className="hr-action-btn" onClick={() => openDetail(item)} title="View full details"><Eye size={13} /></button>
-                        <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
-                        <button className="approval-action-btn forward"  onClick={() => openAction(item, 'forward')}><ChevronRight size={12} /> Fwd Ops</button>
-                        <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
-                        <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
-                      </div>
-                    </td>
+          {/* Mobile cards */}
+          <div className="approval-cards-mobile">
+            {paged.length === 0 ? (
+              <p className="hr-empty-cell" style={{ textAlign: 'center', padding: 24 }}>No items awaiting your approval.</p>
+            ) : paged.map((item) => (
+              <div key={item.id} className="approval-card">
+                <div className="approval-card-header">
+                  <div>
+                    <div className="approval-card-ref">{item.requisition_number}</div>
+                    {(item.project_name || item.project_code) && (
+                      <div className="approval-card-project">{item.project_name || item.project_code}</div>
+                    )}
+                  </div>
+                  <span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority || 'normal')}</span>
+                </div>
+                <div className="approval-card-title">{item.title}</div>
+                <div className="approval-card-meta">
+                  <span>{item.requested_by_name || '—'}{item.department ? ` · ${item.department}` : ''}</span>
+                  <span className="approval-card-amount">{naira(item.estimated_cost)}</span>
+                </div>
+                <div className="approval-card-chain"><ApprovalChain chain={buildChainFromPR(item)} /></div>
+                <div className="approval-card-actions">
+                  <button className="approval-card-view-btn" onClick={() => openDetail(item)}><Eye size={14} /> View Details</button>
+                  <div className="approval-card-quick">
+                    <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                    <button className="approval-action-btn forward"  onClick={() => openAction(item, 'forward')}><ChevronRight size={12} /></button>
+                    <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                    <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="approval-table-desktop">
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Title / Project</th>
+                    <th>Requester</th>
+                    <th>Amount</th>
+                    <th className="approvals-hide-mobile">Budget Effect</th>
+                    <th>Approval Chain</th>
+                    <th>Submitted</th>
+                    <th style={{ width: 220 }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paged.length === 0 ? (
+                    <tr><td colSpan={7} className="hr-empty-cell">No items awaiting your approval.</td></tr>
+                  ) : paged.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="approvals-meta">
+                          <span className="approvals-meta-main">{item.title}</span>
+                          <span className="approvals-meta-sub" style={{ color: 'var(--primary)', fontSize: 11 }}>{item.requisition_number}</span>
+                          <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="approvals-meta">
+                          <span className="approvals-meta-main">{item.requested_by_name || '—'}</span>
+                          <span className="approvals-meta-sub">{item.department}</span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.estimated_cost)}</td>
+                      <td className="approvals-hide-mobile">
+                        <div className="approvals-budget-row">
+                          <div className="approvals-budget-item"><label>Before</label><span>—</span></div>
+                          <div className="approvals-budget-item"><label>After</label><span>—</span></div>
+                        </div>
+                      </td>
+                      <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {fmtDate(item.submitted_at || item.created_at)}
+                        {item.due_date && (
+                          <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>
+                            Due {fmtDate(item.due_date)}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="approvals-action-row">
+                          <button className="hr-action-btn" onClick={() => openDetail(item)} title="View full details"><Eye size={13} /></button>
+                          <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                          <button className="approval-action-btn forward"  onClick={() => openAction(item, 'forward')}><ChevronRight size={12} /> Fwd</button>
+                          <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                          <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
           {filtered.length > 0 && <Pagination meta={meta} onPageChange={setPage} />}
         </div>
@@ -335,13 +366,13 @@ export default function FinanceApprovals() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Reference</th>
                     <th>Title / Project</th>
                     <th>Requester</th>
                     <th>Amount</th>
                     <th>Approval Chain</th>
                     <th>Status</th>
                     <th>Submitted</th>
+                    <th style={{ width: 56 }}>View</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -353,13 +384,8 @@ export default function FinanceApprovals() {
                     <tr key={item.id}>
                       <td>
                         <div className="approvals-meta">
-                          <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.requisition_number}</span>
-                          <span className="approvals-meta-sub">{item.request_type?.replace(/_/g, ' ')}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="approvals-meta">
                           <span className="approvals-meta-main">{item.title}</span>
+                          <span className="approvals-meta-sub" style={{ color: 'var(--primary)', fontSize: 11 }}>{item.requisition_number}</span>
                           <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
                         </div>
                       </td>
@@ -373,6 +399,7 @@ export default function FinanceApprovals() {
                       <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
                       <td><span className={`status-badge ${item.status}`}><span className="status-dot" />{capitalize((item.status || '').replace(/_/g, ' '))}</span></td>
                       <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(item.submitted_at || item.created_at)}</td>
+                      <td><button className="hr-action-btn" onClick={() => openDetail(item, true)} title="View details"><Eye size={13} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -445,9 +472,11 @@ export default function FinanceApprovals() {
 
               <div className="hr-form-actions">
                 <button className="hr-btn-secondary" onClick={closeDetail}>Close</button>
-                <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction(viewTarget, 'approve') }}>
-                  Take Action
-                </button>
+                {!viewIsHistory && (
+                  <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction(viewTarget, 'approve') }}>
+                    Take Action
+                  </button>
+                )}
               </div>
             </div>
           )

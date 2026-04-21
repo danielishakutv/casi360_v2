@@ -34,6 +34,7 @@ export default function PendingApprovals() {
   const [viewDetailLoading, setViewDetailLoading] = useState(false)
   const [viewAuditLog, setViewAuditLog] = useState([])
   const [viewAuditLoading, setViewAuditLoading] = useState(false)
+  const [viewIsHistory] = useState(false)
 
   /* Action modal */
   const [target, setTarget] = useState(null) // { type: 'po'|'req', item }
@@ -65,7 +66,7 @@ export default function PendingApprovals() {
     setViewDetailLoading(true)
     setViewAuditLoading(true)
     purchaseRequestsApi.get(item.id)
-      .then((res) => setViewDetail(res?.data || res))
+      .then((res) => { const data = res?.data?.data || res?.data || res; setViewDetail(data) })
       .catch(() => {})
       .finally(() => setViewDetailLoading(false))
     purchaseRequestsApi.auditLog(item.id)
@@ -177,36 +178,66 @@ export default function PendingApprovals() {
             <span className="card-badge blue">{reqs.length} pending</span>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr><th>Req #</th><th>Title</th><th>Requester</th><th>Est. Cost</th><th>Priority</th><th>Approval Chain</th><th style={{ width: 160 }}>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {reqs.map((req) => (
-                    <tr key={req.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{req.requisition_number}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{req.title}</td>
-                      <td style={{ fontSize: 12 }}>{req.requested_by_name || '—'}</td>
-                      <td style={{ fontWeight: 600 }}>{naira(req.estimated_cost)}</td>
-                      <td>
-                        <span className={`card-badge ${req.priority === 'high' || req.priority === 'urgent' ? 'red' : req.priority === 'medium' ? 'orange' : 'green'}`}>
-                          {capitalize(req.priority)}
-                        </span>
-                      </td>
-                      <td><ApprovalChain chain={buildChainFromPR(req)} /></td>
-                      <td>
-                        <div className="approvals-action-row">
-                          <button className="hr-action-btn" onClick={() => openDetail(req)} title="View full details"><Eye size={13} /></button>
-                          <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
-                          <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
-                          <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Mobile cards */}
+            <div className="approval-cards-mobile">
+              {reqs.map((req) => {
+                const priorityCls = req.priority === 'high' || req.priority === 'urgent' ? 'red' : req.priority === 'medium' ? 'orange' : 'green'
+                return (
+                  <div key={req.id} className="approval-card">
+                    <div className="approval-card-header">
+                      <div className="approval-card-ref">{req.requisition_number}</div>
+                      <span className={`card-badge ${priorityCls}`}>{capitalize(req.priority)}</span>
+                    </div>
+                    <div className="approval-card-title">{req.title}</div>
+                    <div className="approval-card-meta">
+                      <span>{req.requested_by_name || '—'}</span>
+                      <span className="approval-card-amount">{naira(req.estimated_cost)}</span>
+                    </div>
+                    <div className="approval-card-chain"><ApprovalChain chain={buildChainFromPR(req)} /></div>
+                    <div className="approval-card-actions">
+                      <button className="approval-card-view-btn" onClick={() => openDetail(req)}><Eye size={14} /> View Details</button>
+                      <div className="approval-card-quick">
+                        <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}><CheckCircle size={12} /> Approve</button>
+                        <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')}><RotateCcw size={12} /></button>
+                        <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}><XCircle size={12} /></button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {/* Desktop table */}
+            <div className="approval-table-desktop">
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Title / Project</th><th>Requester</th><th>Est. Cost</th><th>Approval Chain</th><th style={{ width: 160 }}>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {reqs.map((req) => (
+                      <tr key={req.id}>
+                        <td>
+                          <div className="approvals-meta">
+                            <span className="approvals-meta-main">{req.title}</span>
+                            <span className="approvals-meta-sub" style={{ color: 'var(--primary)', fontSize: 11 }}>{req.requisition_number}</span>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 12 }}>{req.requested_by_name || '—'}</td>
+                        <td style={{ fontWeight: 600 }}>{naira(req.estimated_cost)}</td>
+                        <td><ApprovalChain chain={buildChainFromPR(req)} /></td>
+                        <td>
+                          <div className="approvals-action-row">
+                            <button className="hr-action-btn" onClick={() => openDetail(req)} title="View full details"><Eye size={13} /></button>
+                            <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                            <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Revision"><RotateCcw size={13} /></button>
+                            <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -275,9 +306,11 @@ export default function PendingApprovals() {
 
               <div className="hr-form-actions">
                 <button className="hr-btn-secondary" onClick={closeDetail}>Close</button>
-                <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction('req', viewTarget, 'approve') }}>
-                  Take Action
-                </button>
+                {!viewIsHistory && (
+                  <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction('req', viewTarget, 'approve') }}>
+                    Take Action
+                  </button>
+                )}
               </div>
             </div>
           )
