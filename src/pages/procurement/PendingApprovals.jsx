@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, CheckCircle, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { approvalsApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
 import Modal from '../../components/Modal'
+import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
+
+const ACTIONS = [
+  { key: 'approve',  label: 'Approve',          icon: <CheckCircle size={13} />,  cls: 'approve'  },
+  { key: 'revision', label: 'Request Revision',  icon: <RotateCcw size={13} />,   cls: 'revision' },
+  { key: 'reject',   label: 'Reject',            icon: <XCircle size={13} />,     cls: 'reject'   },
+]
 
 export default function PendingApprovals() {
   const [pos, setPos] = useState([])
@@ -36,7 +43,7 @@ export default function PendingApprovals() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  function openAction(type, item, defaultAction) {
+  function openAction(type, item, defaultAction = 'approve') {
     setTarget({ type, item })
     setAction(defaultAction)
     setComments('')
@@ -88,7 +95,7 @@ export default function PendingApprovals() {
         </div>
       )}
 
-      {/* Purchase Orders pending approval */}
+      {/* Purchase Orders */}
       {pos.length > 0 && (
         <div className="card animate-in">
           <div className="card-header">
@@ -99,7 +106,7 @@ export default function PendingApprovals() {
             <div className="table-wrapper">
               <table className="data-table">
                 <thead>
-                  <tr><th>PO #</th><th>Vendor</th><th>Amount</th><th>Status</th><th>Progress</th><th style={{ width: 140 }}>Actions</th></tr>
+                  <tr><th>PO #</th><th>Vendor</th><th>Amount</th><th>Status</th><th>Approval Chain</th><th style={{ width: 160 }}>Actions</th></tr>
                 </thead>
                 <tbody>
                   {pos.map((po) => (
@@ -108,11 +115,17 @@ export default function PendingApprovals() {
                       <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{po.vendor}</td>
                       <td style={{ fontWeight: 600 }}>{naira(po.total_amount)}</td>
                       <td><span className={`status-badge ${po.status}`}><span className="status-dot" />{fmtStatus(po.status)}</span></td>
-                      <td style={{ fontSize: 12 }}>{po.approval_progress?.completed ?? 0}/{po.approval_progress?.total ?? 0}</td>
                       <td>
-                        <div className="hr-actions">
-                          <button className="hr-action-btn" style={{ color: 'var(--success)' }} onClick={() => openAction('po', po, 'approve')} title="Approve"><CheckCircle size={16} /></button>
-                          <button className="hr-action-btn danger" onClick={() => openAction('po', po, 'reject')} title="Reject"><XCircle size={16} /></button>
+                        {po.approval_chain?.length
+                          ? <ApprovalChain chain={po.approval_chain} />
+                          : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{po.approval_progress?.completed ?? 0}/{po.approval_progress?.total ?? 0} stages</span>
+                        }
+                      </td>
+                      <td>
+                        <div className="approvals-action-row">
+                          <button className="approval-action-btn approve"  onClick={() => openAction('po', po, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                          <button className="approval-action-btn revision" onClick={() => openAction('po', po, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
+                          <button className="approval-action-btn reject"   onClick={() => openAction('po', po, 'reject')}   title="Reject"><XCircle size={13} /></button>
                         </div>
                       </td>
                     </tr>
@@ -124,7 +137,7 @@ export default function PendingApprovals() {
         </div>
       )}
 
-      {/* Requisitions pending approval */}
+      {/* Purchase Requests */}
       {reqs.length > 0 && (
         <div className="card animate-in">
           <div className="card-header">
@@ -135,20 +148,26 @@ export default function PendingApprovals() {
             <div className="table-wrapper">
               <table className="data-table">
                 <thead>
-                  <tr><th>Req #</th><th>Title</th><th>Est. Cost</th><th>Status</th><th>Progress</th><th style={{ width: 140 }}>Actions</th></tr>
+                  <tr><th>Req #</th><th>Title</th><th>Requester</th><th>Est. Cost</th><th>Priority</th><th>Approval Chain</th><th style={{ width: 160 }}>Actions</th></tr>
                 </thead>
                 <tbody>
                   {reqs.map((req) => (
                     <tr key={req.id}>
                       <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{req.requisition_number}</td>
                       <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{req.title}</td>
+                      <td style={{ fontSize: 12 }}>{req.requested_by_name || '—'}</td>
                       <td style={{ fontWeight: 600 }}>{naira(req.estimated_cost)}</td>
-                      <td><span className={`status-badge ${req.status}`}><span className="status-dot" />{fmtStatus(req.status)}</span></td>
-                      <td style={{ fontSize: 12 }}>{req.approval_progress?.completed ?? 0}/{req.approval_progress?.total ?? 0}</td>
                       <td>
-                        <div className="hr-actions">
-                          <button className="hr-action-btn" style={{ color: 'var(--success)' }} onClick={() => openAction('req', req, 'approve')} title="Approve"><CheckCircle size={16} /></button>
-                          <button className="hr-action-btn danger" onClick={() => openAction('req', req, 'reject')} title="Reject"><XCircle size={16} /></button>
+                        <span className={`card-badge ${req.priority === 'high' || req.priority === 'urgent' ? 'red' : req.priority === 'medium' ? 'orange' : 'green'}`}>
+                          {capitalize(req.priority)}
+                        </span>
+                      </td>
+                      <td><ApprovalChain chain={buildChainFromPR(req)} /></td>
+                      <td>
+                        <div className="approvals-action-row">
+                          <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                          <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
+                          <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
                         </div>
                       </td>
                     </tr>
@@ -160,26 +179,55 @@ export default function PendingApprovals() {
         </div>
       )}
 
-      {/* Approve / Reject Modal */}
-      <Modal open={!!target} onClose={closeAction} title={action === 'approve' ? 'Approve Item' : 'Reject Item'} size="sm">
+      {/* Action Modal */}
+      <Modal open={!!target} onClose={closeAction} title="Process Approval" size="sm">
         {target && (
           <form onSubmit={handleAction} className="hr-form">
-            <p style={{ marginBottom: 12 }}>
-              {action === 'approve' ? 'Approve' : 'Reject'}{' '}
-              <strong>{target.type === 'po' ? target.item.po_number : target.item.requisition_number}</strong>?
-            </p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button type="button" className={`hr-btn-${action === 'approve' ? 'primary' : 'secondary'}`} onClick={() => setAction('approve')}>Approve</button>
-              <button type="button" className={`hr-btn-${action === 'reject' ? 'danger' : 'secondary'}`} onClick={() => setAction('reject')}>Reject</button>
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                {target.type === 'po' ? target.item.po_number : target.item.requisition_number}
+              </div>
+              {target.type === 'req' && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.item.title}</div>}
             </div>
+
+            {/* Action selector */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+              {ACTIONS.map(({ key, label, icon, cls }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`approval-action-btn ${cls}`}
+                  style={{ opacity: action === key ? 1 : 0.45, outline: action === key ? '2px solid currentColor' : 'none', outlineOffset: 2 }}
+                  onClick={() => setAction(key)}
+                >
+                  {icon} {label}
+                </button>
+              ))}
+            </div>
+
             <div className="hr-form-field">
-              <label>Comments {action === 'reject' ? '*' : ''}</label>
-              <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={3} placeholder={action === 'reject' ? 'Reason for rejection (required)…' : 'Optional comments…'} required={action === 'reject'} />
+              <label>Comments {(action === 'reject' || action === 'revision') ? '*' : '(optional)'}</label>
+              <textarea
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                rows={3}
+                placeholder={
+                  action === 'reject'   ? 'Reason for rejection (required)…' :
+                  action === 'revision' ? 'What needs to be corrected? (required)…' :
+                  'Optional comments…'
+                }
+                required={action === 'reject' || action === 'revision'}
+              />
             </div>
+
             <div className="hr-form-actions">
               <button type="button" className="hr-btn-secondary" onClick={closeAction}>Cancel</button>
-              <button type="submit" className={action === 'approve' ? 'hr-btn-primary' : 'hr-btn-danger'} disabled={submitting}>
-                {submitting ? 'Processing…' : action === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}
+              <button
+                type="submit"
+                className={action === 'reject' ? 'hr-btn-danger' : 'hr-btn-primary'}
+                disabled={submitting}
+              >
+                {submitting ? 'Processing…' : ACTIONS.find((a) => a.key === action)?.label}
               </button>
             </div>
           </form>

@@ -47,6 +47,10 @@ const VendorCategories   = lazy(() => import('./pages/procurement/VendorCategori
 const InventoryItems     = lazy(() => import('./pages/procurement/InventoryItems'))
 const PendingApprovals   = lazy(() => import('./pages/procurement/PendingApprovals'))
 
+// Operations
+const OperationsOverview  = lazy(() => import('./pages/operations/Overview'))
+const OperationsApprovals = lazy(() => import('./pages/operations/Approvals'))
+
 // Finance
 const FinanceOverview              = lazy(() => import('./pages/finance/Overview'))
 const FinanceBudget                = lazy(() => import('./pages/finance/Budget'))
@@ -171,6 +175,10 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/vendor-categories" element={<VendorCategories />} />
                 <Route path="/procurement/inventory" element={<InventoryItems />} />
                 <Route path="/procurement/pending-approvals" element={<PendingApprovals />} />
+
+                {/* Operations */}
+                <Route path="/operations" element={<OperationsOverview />} />
+                <Route path="/operations/approvals" element={<OperationsApprovals />} />
 
                 {/* Finance */}
                 <Route path="/finance" element={<FinanceOverview />} />

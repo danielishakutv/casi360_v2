@@ -37,6 +37,7 @@ import {
   Clock,
   Database,
   Wallet,
+  Forklift,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
@@ -99,6 +100,15 @@ const navItems = [
       { label: 'Budget',            icon: PieChart,       path: '/finance/budget' },
       { label: 'Approvals',         icon: ClipboardCheck, path: '/finance/approvals' },
       { label: 'Purchase Requests', icon: ClipboardList,  path: '/finance/purchase-requests' },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    icon: Forklift,
+    children: [
+      { label: 'Overview',  icon: Eye,           path: '/operations' },
+      { label: 'Approvals', icon: ClipboardCheck, path: '/operations/approvals' },
     ],
   },
   {

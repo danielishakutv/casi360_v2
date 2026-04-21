@@ -229,6 +229,11 @@ export function setDemoApprovals(items) {
   saveToStorage(APPROVALS_KEY, items)
 }
 
+/** Returns items forwarded to Operations (procurement_status = 'pending'). */
+export function getDemoOperationsApprovals() {
+  return getDemoApprovals().filter((item) => item.procurement_status === 'pending')
+}
+
 export function resetFinanceDemoData() {
   if (canUseStorage()) {
     window.localStorage.removeItem(OVERLAYS_KEY)
