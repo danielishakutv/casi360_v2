@@ -57,7 +57,8 @@ const navItems = [
       { label: 'Staff List',   icon: UserCheck,    path: '/hr/staff',        permission: 'hr.employees.view' },
       { label: 'Departments',  icon: Building2,    path: '/hr/departments',  permission: 'hr.departments.view' },
       { label: 'Designations', icon: Award,        path: '/hr/designations', permission: 'hr.designations.view' },
-      { label: 'Notes',        icon: StickyNote,   path: '/hr/notes',        permission: 'hr.notes.view' },
+      { label: 'Notes',              icon: StickyNote,    path: '/hr/notes',                 permission: 'hr.notes.view' },
+      { label: 'Purchase Requests',  icon: ClipboardList, path: '/hr/purchase-requests' },
     ],
   },
   {
@@ -94,9 +95,10 @@ const navItems = [
     label: 'Finance',
     icon: Wallet,
     children: [
-      { label: 'Overview',  icon: Eye,            path: '/finance' },
-      { label: 'Budget',    icon: PieChart,       path: '/finance/budget' },
-      { label: 'Approvals', icon: ClipboardCheck, path: '/finance/approvals' },
+      { label: 'Overview',          icon: Eye,            path: '/finance' },
+      { label: 'Budget',            icon: PieChart,       path: '/finance/budget' },
+      { label: 'Approvals',         icon: ClipboardCheck, path: '/finance/approvals' },
+      { label: 'Purchase Requests', icon: ClipboardList,  path: '/finance/purchase-requests' },
     ],
   },
   {

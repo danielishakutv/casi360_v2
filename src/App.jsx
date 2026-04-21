@@ -20,11 +20,13 @@ const ForceChangePassword = lazy(() => import('./pages/auth/ForceChangePassword'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 
 // HR
-const HROverview   = lazy(() => import('./pages/hr/Overview'))
-const StaffList    = lazy(() => import('./pages/hr/StaffList'))
-const Departments  = lazy(() => import('./pages/hr/Departments'))
-const Designations = lazy(() => import('./pages/hr/Designations'))
-const HRNotes      = lazy(() => import('./pages/hr/Notes'))
+const HROverview              = lazy(() => import('./pages/hr/Overview'))
+const StaffList               = lazy(() => import('./pages/hr/StaffList'))
+const Departments             = lazy(() => import('./pages/hr/Departments'))
+const Designations            = lazy(() => import('./pages/hr/Designations'))
+const HRNotes                 = lazy(() => import('./pages/hr/Notes'))
+const HRPurchaseRequests      = lazy(() => import('./pages/hr/PurchaseRequests'))
+const HRCreatePurchaseRequest = lazy(() => import('./pages/hr/CreatePurchaseRequest'))
 
 // Procurement
 const ProcOverview       = lazy(() => import('./pages/procurement/Overview'))
@@ -46,9 +48,11 @@ const InventoryItems     = lazy(() => import('./pages/procurement/InventoryItems
 const PendingApprovals   = lazy(() => import('./pages/procurement/PendingApprovals'))
 
 // Finance
-const FinanceOverview    = lazy(() => import('./pages/finance/Overview'))
-const FinanceBudget      = lazy(() => import('./pages/finance/Budget'))
-const FinanceApprovals   = lazy(() => import('./pages/finance/Approvals'))
+const FinanceOverview              = lazy(() => import('./pages/finance/Overview'))
+const FinanceBudget                = lazy(() => import('./pages/finance/Budget'))
+const FinanceApprovals             = lazy(() => import('./pages/finance/Approvals'))
+const FinancePurchaseRequests      = lazy(() => import('./pages/finance/PurchaseRequests'))
+const FinanceCreatePurchaseRequest = lazy(() => import('./pages/finance/CreatePurchaseRequest'))
 
 // Projects
 const ProjectsOverview = lazy(() => import('./pages/projects/ProjectsOverview'))
@@ -143,6 +147,9 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/hr/departments" element={<Departments />} />
                 <Route path="/hr/designations" element={<Designations />} />
                 <Route path="/hr/notes" element={<HRNotes />} />
+                <Route path="/hr/purchase-requests" element={<HRPurchaseRequests />} />
+                <Route path="/hr/purchase-requests/create" element={<HRCreatePurchaseRequest />} />
+                <Route path="/hr/purchase-requests/:id/edit" element={<HRCreatePurchaseRequest />} />
 
                 {/* Procurement */}
                 <Route path="/procurement" element={<ProcOverview />} />
@@ -169,6 +176,9 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/finance" element={<FinanceOverview />} />
                 <Route path="/finance/budget" element={<FinanceBudget />} />
                 <Route path="/finance/approvals" element={<FinanceApprovals />} />
+                <Route path="/finance/purchase-requests" element={<FinancePurchaseRequests />} />
+                <Route path="/finance/purchase-requests/create" element={<FinanceCreatePurchaseRequest />} />
+                <Route path="/finance/purchase-requests/:id/edit" element={<FinanceCreatePurchaseRequest />} />
 
                 {/* Projects */}
                 <Route path="/projects" element={<ProjectsOverview />} />
