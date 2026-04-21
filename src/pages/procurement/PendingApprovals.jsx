@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
+import { AlertCircle, CheckCircle, Eye, XCircle, RotateCcw } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
+import { fmtDate } from '../../utils/formatDate'
 import { approvalsApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
 import Modal from '../../components/Modal'
 import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
@@ -14,11 +15,25 @@ const ACTIONS = [
   { key: 'reject',   label: 'Reject',            icon: <XCircle size={13} />,     cls: 'reject'   },
 ]
 
+const AUDIT_LABELS = {
+  created: 'Created', updated: 'Updated', submitted: 'Submitted for Approval',
+  approved: 'Approved', forwarded: 'Forwarded to Operations',
+  revision: 'Revision Requested', rejected: 'Rejected',
+}
+const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', operations: 'Operations' }
+
 export default function PendingApprovals() {
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  /* Detail view modal (PRs only) */
+  const [viewTarget, setViewTarget] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
+  const [viewDetailLoading, setViewDetailLoading] = useState(false)
+  const [viewAuditLog, setViewAuditLog] = useState([])
+  const [viewAuditLoading, setViewAuditLoading] = useState(false)
 
   /* Action modal */
   const [target, setTarget] = useState(null) // { type: 'po'|'req', item }
@@ -42,6 +57,23 @@ export default function PendingApprovals() {
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  function openDetail(item) {
+    setViewTarget(item)
+    setViewDetail(null)
+    setViewAuditLog([])
+    setViewDetailLoading(true)
+    setViewAuditLoading(true)
+    purchaseRequestsApi.get(item.id)
+      .then((res) => setViewDetail(res?.data || res))
+      .catch(() => {})
+      .finally(() => setViewDetailLoading(false))
+    purchaseRequestsApi.auditLog(item.id)
+      .then((res) => { const d = res?.data || res || {}; setViewAuditLog(d.audit_log || []) })
+      .catch(() => setViewAuditLog([]))
+      .finally(() => setViewAuditLoading(false))
+  }
+  function closeDetail() { setViewTarget(null); setViewDetail(null); setViewAuditLog([]) }
 
   function openAction(type, item, defaultAction = 'approve') {
     setTarget({ type, item })
@@ -165,6 +197,7 @@ export default function PendingApprovals() {
                       <td><ApprovalChain chain={buildChainFromPR(req)} /></td>
                       <td>
                         <div className="approvals-action-row">
+                          <button className="hr-action-btn" onClick={() => openDetail(req)} title="View full details"><Eye size={13} /></button>
                           <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
                           <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
                           <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
@@ -178,6 +211,78 @@ export default function PendingApprovals() {
           </div>
         </div>
       )}
+
+      {/* Detail Modal (PRs) */}
+      <Modal open={!!viewTarget} onClose={closeDetail} title="Purchase Request Details" size="xl">
+        {viewTarget && (() => {
+          const pr = viewDetail || viewTarget
+          const priorityCls = pr.priority === 'high' || pr.priority === 'urgent' ? 'red' : pr.priority === 'medium' ? 'orange' : 'green'
+          return (
+            <div className="note-detail">
+              <div className="note-detail-header">
+                <h3>{pr.requisition_number} — {pr.title}</h3>
+                <div className="note-detail-badges">
+                  <span className={`card-badge ${priorityCls}`}>{capitalize(pr.priority || 'normal')}</span>
+                  <span className={`status-badge ${pr.status}`}><span className="status-dot" />{capitalize((pr.status || '').replace(/_/g, ' '))}</span>
+                </div>
+              </div>
+
+              <div className="pr-detail-meta-grid">
+                <div><strong>Requester</strong><span>{pr.requested_by_name || '—'}</span></div>
+                <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
+                <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
+                <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
+                <div><strong>Items</strong><span>{pr.item_count ?? 0}</span></div>
+                <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>
+                {pr.needed_by && <div><strong>Needed By</strong><span>{fmtDate(pr.needed_by)}</span></div>}
+                {pr.due_date && <div><strong>Due Date</strong><span>{fmtDate(pr.due_date)}</span></div>}
+                <div><strong>Submitted</strong><span>{fmtDate(pr.submitted_at || pr.created_at)}</span></div>
+                {pr.request_type && <div><strong>Type</strong><span>{pr.request_type.replace(/_/g, ' ')}</span></div>}
+              </div>
+
+              {viewDetailLoading
+                ? <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}><div className="auth-spinner" /></div>
+                : <div className="note-detail-content">{pr.justification || pr.notes || 'No description provided.'}</div>
+              }
+
+              <div style={{ marginBottom: 20 }}>
+                <p className="pr-audit-title">Approval Chain</p>
+                <ApprovalChain chain={buildChainFromPR(pr)} compact={false} />
+              </div>
+
+              <div className="pr-audit-log">
+                <p className="pr-audit-title">Activity Log</p>
+                {viewAuditLoading
+                  ? <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><div className="auth-spinner" /></div>
+                  : viewAuditLog.length === 0
+                    ? <p className="pr-audit-empty">No activity recorded yet.</p>
+                    : viewAuditLog.map((entry) => (
+                      <div key={entry.id} className={`pr-audit-entry pr-audit-${entry.action}`}>
+                        <div className="pr-audit-dot" />
+                        <div className="pr-audit-body">
+                          <div className="pr-audit-row">
+                            <span className="pr-audit-action">{AUDIT_LABELS[entry.action] || entry.action}</span>
+                            {entry.stage && <span className="pr-audit-stage">{STAGE_LABELS[entry.stage] || entry.stage}</span>}
+                            <span className="pr-audit-actor">{entry.actor_name}</span>
+                            <span className="pr-audit-time">{fmtDate(entry.created_at)}</span>
+                          </div>
+                          {entry.comments && <div className="pr-audit-comments">"{entry.comments}"</div>}
+                        </div>
+                      </div>
+                    ))
+                }
+              </div>
+
+              <div className="hr-form-actions">
+                <button className="hr-btn-secondary" onClick={closeDetail}>Close</button>
+                <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction('req', viewTarget, 'approve') }}>
+                  Take Action
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
 
       {/* Action Modal */}
       <Modal open={!!target} onClose={closeAction} title="Process Approval" size="sm">

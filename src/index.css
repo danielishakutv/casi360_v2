@@ -4820,6 +4820,41 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* PR Detail meta grid (approval view modal)                      */
+/* ─────────────────────────────────────────────────────────────── */
+.pr-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 24px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+.pr-detail-meta-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pr-detail-meta-grid strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pr-detail-meta-grid span {
+  color: var(--text-secondary);
+}
+
+/* Responsive: approval table — hide less critical columns */
+@media (max-width: 768px) {
+  .approvals-hide-mobile { display: none; }
+  .modal-xl { max-width: calc(100vw - 24px); }
+}
+@media (max-width: 480px) {
+  .pr-detail-meta-grid { grid-template-columns: 1fr; }
+}
+
+/* ─────────────────────────────────────────────────────────────── */
 /* PR Audit Log timeline                                          */
 /* ─────────────────────────────────────────────────────────────── */
 .pr-audit-log {
