@@ -30,8 +30,8 @@ export default function PendingApprovals() {
 
   /* Detail view modal (PRs only) */
   const [viewTarget, setViewTarget] = useState(null)
-  const [viewDetail, setViewDetail] = useState(null)
-  const [viewDetailLoading, setViewDetailLoading] = useState(false)
+  const [viewJustification, setViewJustification] = useState(null)
+  const [viewJustificationLoading, setViewJustificationLoading] = useState(false)
   const [viewAuditLog, setViewAuditLog] = useState([])
   const [viewAuditLoading, setViewAuditLoading] = useState(false)
   const [viewIsHistory] = useState(false)
@@ -61,20 +61,23 @@ export default function PendingApprovals() {
 
   function openDetail(item) {
     setViewTarget(item)
-    setViewDetail(null)
+    setViewJustification(null)
     setViewAuditLog([])
-    setViewDetailLoading(true)
+    setViewJustificationLoading(true)
     setViewAuditLoading(true)
     purchaseRequestsApi.get(item.id)
-      .then((res) => { const data = res?.data?.data || res?.data || res; setViewDetail(data) })
-      .catch(() => {})
-      .finally(() => setViewDetailLoading(false))
+      .then((res) => {
+        const d = res?.data?.data ?? res?.data?.requisition ?? res?.data ?? res ?? {}
+        setViewJustification(d?.justification ?? d?.notes ?? '')
+      })
+      .catch(() => setViewJustification(''))
+      .finally(() => setViewJustificationLoading(false))
     purchaseRequestsApi.auditLog(item.id)
       .then((res) => { const d = res?.data || res || {}; setViewAuditLog(d.audit_log || []) })
       .catch(() => setViewAuditLog([]))
       .finally(() => setViewAuditLoading(false))
   }
-  function closeDetail() { setViewTarget(null); setViewDetail(null); setViewAuditLog([]) }
+  function closeDetail() { setViewTarget(null); setViewJustification(null); setViewAuditLog([]) }
 
   function openAction(type, item, defaultAction = 'approve') {
     setTarget({ type, item })
@@ -246,7 +249,7 @@ export default function PendingApprovals() {
       {/* Detail Modal (PRs) */}
       <Modal open={!!viewTarget} onClose={closeDetail} title="Purchase Request Details" size="xl">
         {viewTarget && (() => {
-          const pr = viewDetail || viewTarget
+          const pr = viewTarget
           const priorityCls = pr.priority === 'high' || pr.priority === 'urgent' ? 'red' : pr.priority === 'medium' ? 'orange' : 'green'
           return (
             <div className="note-detail">
@@ -271,9 +274,13 @@ export default function PendingApprovals() {
                 {pr.request_type && <div><strong>Type</strong><span>{pr.request_type.replace(/_/g, ' ')}</span></div>}
               </div>
 
-              {viewDetailLoading
+              {viewJustificationLoading
                 ? <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}><div className="auth-spinner" /></div>
-                : <div className="note-detail-content">{pr.justification || pr.notes || 'No description provided.'}</div>
+                : <div className="note-detail-content">
+                    {viewJustification !== null
+                      ? (viewJustification || pr.justification || pr.notes || 'No description provided.')
+                      : (pr.justification || pr.notes || 'No description provided.')}
+                  </div>
               }
 
               <div style={{ marginBottom: 20 }}>
