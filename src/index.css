@@ -4801,3 +4801,28 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   .approvals-action-row { gap: 4px; }
   .approval-action-btn  { padding: 4px 8px; font-size: 11px; }
 }
+
+/* ─────────────────────────────────────────────────────────────── */
+/* Offline banner                                                 */
+/* ─────────────────────────────────────────────────────────────── */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #b91c1c;
+  color: #fff;
+  animation: offline-slide-in 0.2s ease;
+}
+
+.offline-banner.back-online {
+  background: #15803d;
+  animation: offline-slide-in 0.2s ease;
+}
+
+@keyframes offline-slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

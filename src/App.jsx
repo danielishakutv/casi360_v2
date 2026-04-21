@@ -7,6 +7,7 @@ import TopBar from './components/TopBar'
 import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import GuestRoute from './components/GuestRoute'
+import OfflineBanner from './components/OfflineBanner'
 
 // ─── Lazy-loaded pages (route-level code-splitting) ──────────
 
@@ -137,6 +138,7 @@ function AppLayout({ theme, toggleTheme }) {
       />
 
       <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <OfflineBanner />
         <TopBar onMobileMenuClick={toggleMobile} theme={theme} onToggleTheme={toggleTheme} />
 
         <div className="page-content">
