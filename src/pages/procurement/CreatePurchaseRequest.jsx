@@ -63,6 +63,7 @@ export default function CreatePurchaseRequest() {
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState({})
+  const [prStatus, setPrStatus] = useState('')
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
@@ -82,6 +83,7 @@ export default function CreatePurchaseRequest() {
     purchaseRequestsApi.get(id)
       .then((res) => {
         const pr = res?.data?.requisition || res?.data?.purchase_request || res?.data || res
+        setPrStatus(pr.status || '')
         setForm({
           title: pr.title || '',
           date: pr.date || todayStr(),
@@ -194,12 +196,8 @@ export default function CreatePurchaseRequest() {
     return budgetLinesByProject[proj.id] || []
   }, [projects, budgetLinesByProject])
 
-  function handleSubmit(e) {
-    e.preventDefault()
-    setSubmitting(true)
-    setFormErrors({})
-
-    const payload = {
+  function buildPayload() {
+    return {
       title: form.title,
       date: form.date || undefined,
       department_id: form.department_id || undefined,
@@ -227,9 +225,14 @@ export default function CreatePurchaseRequest() {
           inventory_item_id: li.inventory_item_id || undefined,
         })),
     }
+  }
 
+  function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    setFormErrors({})
+    const payload = buildPayload()
     const apiCall = isEdit ? purchaseRequestsApi.update(id, payload) : purchaseRequestsApi.create(payload)
-
     apiCall
       .then(() => navigate('/procurement/purchase-requests'))
       .catch((err) => {
@@ -237,6 +240,35 @@ export default function CreatePurchaseRequest() {
         else setFormErrors({ _general: err.message || 'Failed to save purchase request' })
       })
       .finally(() => setSubmitting(false))
+  }
+
+  async function handleSaveAndSubmit() {
+    setSubmitting(true)
+    setFormErrors({})
+    try {
+      await purchaseRequestsApi.update(id, buildPayload())
+      await purchaseRequestsApi.submit(id)
+      navigate('/procurement/purchase-requests')
+    } catch (err) {
+      if (err.errors) setFormErrors(err.errors)
+      else setFormErrors({ _general: err.message || 'Failed to save and submit' })
+      setSubmitting(false)
+    }
+  }
+
+  async function handleCreateAndSubmit() {
+    setSubmitting(true)
+    setFormErrors({})
+    try {
+      const res = await purchaseRequestsApi.create(buildPayload())
+      const newId = res?.data?.requisition?.id || res?.data?.id || res?.id
+      if (newId) await purchaseRequestsApi.submit(newId)
+      navigate('/procurement/purchase-requests')
+    } catch (err) {
+      if (err.errors) setFormErrors(err.errors)
+      else setFormErrors({ _general: err.message || 'Failed to submit' })
+      setSubmitting(false)
+    }
   }
 
   if (loadingEdit) {
@@ -511,7 +543,19 @@ export default function CreatePurchaseRequest() {
           {/* Actions */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-requests')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving...' : isEdit ? 'Update PR' : 'Submit PR'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>
+              {submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Save as Draft'}
+            </button>
+            {isEdit && (prStatus === 'rejected' || prStatus === 'revision') && (
+              <button type="button" className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} disabled={submitting} onClick={handleSaveAndSubmit}>
+                {submitting ? 'Submitting…' : 'Save & Submit for Approval'}
+              </button>
+            )}
+            {!isEdit && (
+              <button type="button" className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} disabled={submitting} onClick={handleCreateAndSubmit}>
+                {submitting ? 'Submitting…' : 'Submit for Approval'}
+              </button>
+            )}
           </div>
         </form>
       </div>

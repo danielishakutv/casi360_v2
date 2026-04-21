@@ -162,10 +162,10 @@ export default function FinancePurchaseRequests() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
-                      {can('procurement.requisitions.edit') && (r.status === 'draft' || r.status === 'revision') && (
+                      {can('procurement.requisitions.edit') && (r.status === 'draft' || r.status === 'revision' || r.status === 'rejected') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/finance/purchase-requests/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
                       )}
-                      {r.status === 'draft' && (
+                      {(r.status === 'draft' || r.status === 'revision' || r.status === 'rejected') && (
                         <button className="hr-action-btn success" onClick={() => setSubmitTarget(r)} title="Submit for Approval"><Send size={15} /></button>
                       )}
                       {can('procurement.requisitions.delete') && (
@@ -203,12 +203,12 @@ export default function FinancePurchaseRequests() {
             <div className="note-detail-content">{viewItem.justification || viewItem.notes || 'No description'}</div>
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              {can('procurement.requisitions.edit') && (viewItem.status === 'draft' || viewItem.status === 'revision') && (
+              {can('procurement.requisitions.edit') && (viewItem.status === 'draft' || viewItem.status === 'revision' || viewItem.status === 'rejected') && (
                 <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/finance/purchase-requests/${viewItem.id}/edit`) }}>
                   <Pencil size={14} /> Edit
                 </button>
               )}
-              {viewItem.status === 'draft' && (
+              {(viewItem.status === 'draft' || viewItem.status === 'revision' || viewItem.status === 'rejected') && (
                 <button className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} onClick={() => { setViewItem(null); setSubmitTarget(viewItem) }}><Send size={14} /> Submit for Approval</button>
               )}
             </div>
