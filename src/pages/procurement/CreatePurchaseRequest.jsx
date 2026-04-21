@@ -342,64 +342,121 @@ export default function CreatePurchaseRequest() {
             </select>
           </div>
 
-          {/* Activity Description table */}
+          {/* Activity Description */}
           <p className="hr-form-section-title">Activity Description</p>
-          <p className="pr-scroll-hint">← Scroll to see all columns</p>
 
-          <div className="pr-line-items-wrapper">
-            <table className="pr-line-items-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 44 }}>S/N</th>
-                  <th>Description</th>
-                  <th style={{ width: 80 }}>Unit</th>
-                  <th style={{ width: 70 }}>Qty</th>
-                  <th style={{ width: 110 }}>Est. Unit Cost</th>
-                  <th style={{ width: 120 }}>Est. Total Cost</th>
-                  <th style={{ width: 130 }}>Project Code</th>
-                  <th style={{ width: 130 }}>Budget Line</th>
-                  <th style={{ width: 36 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {form.items.map((li, idx) => (
-                  <tr key={idx}>
-                    <td className="pr-sn">{idx + 1}</td>
-                    <td><input type="text" value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Item description" /></td>
-                    <td><input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" /></td>
-                    <td><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" /></td>
-                    <td><input type="number" value={li.estimated_unit_cost} onChange={(e) => updateLineItem(idx, 'estimated_unit_cost', e.target.value)} min="0" step="0.01" /></td>
-                    <td className="pr-computed">{currencyInfo.symbol}{lineTotal(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td>
+          {/* Desktop: table layout */}
+          <div className="pr-line-items-desktop">
+            <div className="pr-line-items-wrapper">
+              <table className="pr-line-items-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 44 }}>S/N</th>
+                    <th>Description</th>
+                    <th style={{ width: 80 }}>Unit</th>
+                    <th style={{ width: 70 }}>Qty</th>
+                    <th style={{ width: 110 }}>Est. Unit Cost</th>
+                    <th style={{ width: 120 }}>Est. Total Cost</th>
+                    <th style={{ width: 130 }}>Project Code</th>
+                    <th style={{ width: 130 }}>Budget Line</th>
+                    <th style={{ width: 36 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((li, idx) => (
+                    <tr key={idx}>
+                      <td className="pr-sn">{idx + 1}</td>
+                      <td><input type="text" value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Item description" /></td>
+                      <td><input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" /></td>
+                      <td><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" /></td>
+                      <td><input type="number" value={li.estimated_unit_cost} onChange={(e) => updateLineItem(idx, 'estimated_unit_cost', e.target.value)} min="0" step="0.01" /></td>
+                      <td className="pr-computed">{currencyInfo.symbol}{lineTotal(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td>
+                        <select value={li.project_code} onChange={(e) => updateLineItem(idx, 'project_code', e.target.value)}>
+                          <option value="">—</option>
+                          {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={li.budget_line} onChange={(e) => updateLineItem(idx, 'budget_line', e.target.value)}>
+                          <option value="">—</option>
+                          {BUDGET_LINES.map((b) => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        {form.items.length > 1 && (
+                          <button type="button" className="pr-remove-row" onClick={() => removeLineItem(idx)} title="Remove row"><X size={14} /></button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="pr-total-row">
+                    <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL</td>
+                    <td className="pr-computed" style={{ fontWeight: 700 }}>{currencyInfo.symbol}{grandTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile: card layout */}
+          <div className="pr-line-items-mobile">
+            {form.items.map((li, idx) => (
+              <div className="pr-item-card" key={idx}>
+                <div className="pr-item-card-header">
+                  <span className="pr-item-card-num">Item {idx + 1}</span>
+                  {form.items.length > 1 && (
+                    <button type="button" className="pr-remove-row" onClick={() => removeLineItem(idx)} title="Remove"><X size={14} /></button>
+                  )}
+                </div>
+                <div className="pr-item-card-body">
+                  <div className="hr-form-field">
+                    <label>Description</label>
+                    <input type="text" value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Item description" />
+                  </div>
+                  <div className="pr-item-card-row">
+                    <div className="hr-form-field">
+                      <label>Unit</label>
+                      <input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" />
+                    </div>
+                    <div className="hr-form-field">
+                      <label>Qty</label>
+                      <input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" />
+                    </div>
+                  </div>
+                  <div className="hr-form-field">
+                    <label>Est. Unit Cost ({currencyInfo.symbol})</label>
+                    <input type="number" value={li.estimated_unit_cost} onChange={(e) => updateLineItem(idx, 'estimated_unit_cost', e.target.value)} min="0" step="0.01" />
+                  </div>
+                  <div className="pr-item-card-total">
+                    <span>Est. Total</span>
+                    <strong>{currencyInfo.symbol}{lineTotal(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div className="pr-item-card-row">
+                    <div className="hr-form-field">
+                      <label>Project Code</label>
                       <select value={li.project_code} onChange={(e) => updateLineItem(idx, 'project_code', e.target.value)}>
                         <option value="">—</option>
                         {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id}</option>)}
                       </select>
-                    </td>
-                    <td>
+                    </div>
+                    <div className="hr-form-field">
+                      <label>Budget Line</label>
                       <select value={li.budget_line} onChange={(e) => updateLineItem(idx, 'budget_line', e.target.value)}>
                         <option value="">—</option>
                         {BUDGET_LINES.map((b) => <option key={b} value={b}>{b}</option>)}
                       </select>
-                    </td>
-                    <td>
-                      {form.items.length > 1 && (
-                        <button type="button" className="pr-remove-row" onClick={() => removeLineItem(idx)} title="Remove row"><X size={14} /></button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="pr-total-row">
-                  <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL</td>
-                  <td className="pr-computed" style={{ fontWeight: 700 }}>{currencyInfo.symbol}{grandTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td colSpan={3}></td>
-                </tr>
-              </tfoot>
-            </table>
-            <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+
+          <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
 
           {form.currency !== 'NGN' && form.exchange_rate && (
             <div className="pr-naira-equivalent">
