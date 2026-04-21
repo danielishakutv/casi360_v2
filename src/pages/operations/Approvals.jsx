@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Search, CheckCheck, RotateCcw, X, AlertCircle } from 'lucide-react'
-import { getDemoApprovals, setDemoApprovals } from '../../data/financeDemoStore'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, CheckCheck, Clock3, RotateCcw, Search, X } from 'lucide-react'
+import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
 import { useDebounce } from '../../hooks/useDebounce'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { capitalize } from '../../utils/capitalize'
 import Pagination from '../../components/Pagination'
 import Modal from '../../components/Modal'
-import ApprovalChain, { buildChainFromDemo } from '../../components/ApprovalChain'
+import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 const PER_PAGE = 10
 
@@ -18,13 +18,15 @@ function priorityClass(p) {
 }
 
 const ACTIONS = [
-  { key: 'approve',  label: 'Approve',          icon: <CheckCheck size={13} />, cls: 'approve'  },
-  { key: 'revision', label: 'Request Revision',  icon: <RotateCcw size={13} />, cls: 'revision' },
-  { key: 'reject',   label: 'Reject',            icon: <X size={13} />,         cls: 'reject'   },
+  { key: 'approve',  label: 'Approve',         icon: <CheckCheck size={13} />, cls: 'approve'  },
+  { key: 'revision', label: 'Request Revision', icon: <RotateCcw size={13} />, cls: 'revision' },
+  { key: 'reject',   label: 'Reject',           icon: <X size={13} />,         cls: 'reject'   },
 ]
 
 export default function OperationsApprovals() {
-  const [allApprovals, setAllApprovals] = useState(() => getDemoApprovals())
+  const [reqs, setReqs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
   const [page, setPage] = useState(1)
@@ -35,20 +37,33 @@ export default function OperationsApprovals() {
   const [comments, setComments] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => { setDemoApprovals(allApprovals) }, [allApprovals])
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await approvalsApi.pending()
+      const d = res?.data || res || {}
+      setReqs(d.requisitions || [])
+    } catch (err) {
+      setError(err.message || 'Failed to load pending approvals')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  /* Operations only sees items forwarded by Finance (procurement_status = 'pending') */
+  useEffect(() => { fetchData() }, [fetchData])
+
   const filtered = useMemo(() => {
-    let items = allApprovals.filter((i) => i.procurement_status === 'pending')
+    let items = [...reqs]
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       items = items.filter((i) =>
-        [i.reference, i.title, i.project_name, i.project_code, i.budget_line_name, i.requester, i.department]
+        [i.requisition_number, i.title, i.project_name, i.project_code, i.requested_by_name, i.department]
           .filter(Boolean).join(' ').toLowerCase().includes(q)
       )
     }
-    return items.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
-  }, [allApprovals, debouncedSearch])
+    return items
+  }, [reqs, debouncedSearch])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const safePage   = Math.min(page, totalPages)
@@ -62,35 +77,36 @@ export default function OperationsApprovals() {
   }
   function closeAction() { setTarget(null); setComments('') }
 
-  function handleAction(e) {
+  async function handleAction(e) {
     e.preventDefault()
     if (!target) return
     setSubmitting(true)
-    setTimeout(() => {
-      setAllApprovals((prev) => prev.map((item) => {
-        if (item.id !== target.id) return item
-        if (action === 'approve') {
-          return { ...item, procurement_status: 'approved', current_stage: 'Approved', status: 'approved' }
-        }
-        if (action === 'revision') {
-          return { ...item, procurement_status: 'revision', current_stage: 'Revision Requested', status: 'pending' }
-        }
-        if (action === 'reject') {
-          return { ...item, procurement_status: 'rejected', current_stage: 'Rejected by Operations', status: 'rejected' }
-        }
-        return item
-      }))
-      setSubmitting(false)
+    setError('')
+    try {
+      await purchaseRequestsApi.processApproval(target.id, { action, comments: comments || undefined })
       closeAction()
-    }, 400)
+      fetchData()
+    } catch (err) {
+      setError(err.message || 'Approval action failed')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <>
+      {error && (
+        <div className="hr-error-banner">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+          <button onClick={() => setError('')} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+
       <div className="stats-grid">
         <div className="stat-card orange animate-in">
           <div className="stat-top"><div className="stat-icon orange"><Clock3 size={22} /></div></div>
-          <div className="stat-value">{filtered.length}</div>
+          <div className="stat-value">{reqs.length}</div>
           <div className="stat-label">Awaiting Operations Sign-off</div>
         </div>
       </div>
@@ -105,86 +121,104 @@ export default function OperationsApprovals() {
         </div>
       </div>
 
-      <div className="card animate-in">
-        <div className="hr-toolbar">
-          <div className="hr-toolbar-left">
-            <div className="search-box">
-              <Search size={16} className="search-icon" />
-              <input type="text" placeholder="Search by title, project, requester…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+      {loading ? (
+        <div className="card animate-in" style={{ textAlign: 'center', padding: 40 }}>
+          <div className="auth-spinner large" style={{ margin: '0 auto' }} />
+        </div>
+      ) : (
+        <div className="card animate-in">
+          <div className="hr-toolbar">
+            <div className="hr-toolbar-left">
+              <div className="search-box">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search by title, project, requester…"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Project / Budget Line</th>
-                <th>Requester</th>
-                <th>Amount</th>
-                <th>Approval Chain</th>
-                <th>Priority</th>
-                <th>Submitted</th>
-                <th style={{ width: 160 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr><td colSpan={8} className="hr-empty-cell">No items awaiting Operations approval.</td></tr>
-              ) : paged.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.reference}</span>
-                      <span className="approvals-meta-sub">{item.request_type.replace(/_/g, ' ')}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main">{item.project_name}</span>
-                      <span className="approvals-meta-sub">{item.budget_line_name}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main">{item.requester}</span>
-                      <span className="approvals-meta-sub">{item.department}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.amount_requested)}</td>
-                  <td><ApprovalChain chain={buildChainFromDemo(item)} /></td>
-                  <td><span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority)}</span></td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {fmtDate(item.submitted_at)}
-                    {item.due_date && <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>Due {fmtDate(item.due_date)}</div>}
-                  </td>
-                  <td>
-                    <div className="approvals-action-row">
-                      <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
-                      <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
-                      <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
-                    </div>
-                  </td>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Title / Project</th>
+                  <th>Requester</th>
+                  <th>Amount</th>
+                  <th>Approval Chain</th>
+                  <th>Priority</th>
+                  <th>Submitted</th>
+                  <th style={{ width: 160 }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paged.length === 0 ? (
+                  <tr><td colSpan={8} className="hr-empty-cell">No items awaiting Operations approval.</td></tr>
+                ) : paged.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.requisition_number}</span>
+                        <span className="approvals-meta-sub">{item.request_type?.replace(/_/g, ' ')}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main">{item.title}</span>
+                        <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main">{item.requested_by_name || '—'}</span>
+                        <span className="approvals-meta-sub">{item.department}</span>
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.estimated_cost)}</td>
+                    <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
+                    <td><span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority || 'normal')}</span></td>
+                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {fmtDate(item.submitted_at || item.created_at)}
+                      {item.due_date && (
+                        <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>
+                          Due {fmtDate(item.due_date)}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div className="approvals-action-row">
+                        <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                        <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                        <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length > 0 && <Pagination meta={meta} onPageChange={setPage} />}
         </div>
-        {filtered.length > 0 && <Pagination meta={meta} onPageChange={setPage} />}
-      </div>
+      )}
 
       {/* Action Modal */}
       <Modal open={!!target} onClose={closeAction} title="Operations Approval Action" size="sm">
         {target && (
           <form onSubmit={handleAction} className="hr-form">
             <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{target.reference} — {target.title}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.project_name} · {naira(target.amount_requested)}</div>
-              <div style={{ marginTop: 8 }}><ApprovalChain chain={buildChainFromDemo(target)} compact={false} /></div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                {target.requisition_number} — {target.title}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {target.project_name || target.project_code} · {naira(target.estimated_cost)}
+              </div>
+              <div style={{ marginTop: 8 }}><ApprovalChain chain={buildChainFromPR(target)} compact={false} /></div>
             </div>
 
-            {/* Action selector */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
               {ACTIONS.map(({ key, label, icon, cls }) => (
                 <button

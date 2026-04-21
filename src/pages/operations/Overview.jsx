@@ -1,17 +1,27 @@
+import { useEffect, useState } from 'react'
 import { ClipboardCheck, Clock3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getDemoOperationsApprovals } from '../../data/financeDemoStore'
+import { approvalsApi } from '../../services/procurement'
 
 export default function OperationsOverview() {
   const navigate = useNavigate()
-  const pending = getDemoOperationsApprovals()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    approvalsApi.pending()
+      .then((res) => {
+        const d = res?.data || res || {}
+        setPendingCount((d.requisitions || []).length)
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="animate-in">
       <div className="stats-grid">
         <div className="stat-card orange" style={{ cursor: 'pointer' }} onClick={() => navigate('/operations/approvals')}>
           <div className="stat-top"><div className="stat-icon orange"><Clock3 size={22} /></div></div>
-          <div className="stat-value">{pending.length}</div>
+          <div className="stat-value">{pendingCount}</div>
           <div className="stat-label">Pending Operations Approvals</div>
         </div>
       </div>

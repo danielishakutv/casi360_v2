@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Search, CheckCheck, ChevronRight, RotateCcw, X, AlertCircle } from 'lucide-react'
-import { getDemoApprovals, setDemoApprovals } from '../../data/financeDemoStore'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, CheckCheck, ChevronRight, Clock3, RotateCcw, Search, X } from 'lucide-react'
+import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
 import { useDebounce } from '../../hooks/useDebounce'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { capitalize } from '../../utils/capitalize'
 import Pagination from '../../components/Pagination'
 import Modal from '../../components/Modal'
-import ApprovalChain, { buildChainFromDemo } from '../../components/ApprovalChain'
+import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 const PER_PAGE = 10
 
@@ -17,11 +17,19 @@ function priorityClass(p) {
   return 'green'
 }
 
+const ACTION_META = {
+  approve:  { label: 'Approve (Final)',       icon: <CheckCheck size={13} />,   cls: 'approve'  },
+  forward:  { label: 'Forward to Operations', icon: <ChevronRight size={13} />, cls: 'forward'  },
+  revision: { label: 'Request Revision',      icon: <RotateCcw size={13} />,    cls: 'revision' },
+  reject:   { label: 'Reject',                icon: <X size={13} />,            cls: 'reject'   },
+}
+
 export default function FinanceApprovals() {
-  const [approvals, setApprovals] = useState(() => getDemoApprovals())
+  const [reqs, setReqs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
-  const [statusFilter, setStatusFilter] = useState('pending')
   const [page, setPage] = useState(1)
 
   /* Action modal */
@@ -30,31 +38,40 @@ export default function FinanceApprovals() {
   const [comments, setComments] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => { setDemoApprovals(approvals) }, [approvals])
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await approvalsApi.pending()
+      const d = res?.data || res || {}
+      setReqs(d.requisitions || [])
+    } catch (err) {
+      setError(err.message || 'Failed to load pending approvals')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  /* Finance only sees items at their stage (finance_status = 'pending') */
+  useEffect(() => { fetchData() }, [fetchData])
+
   const filtered = useMemo(() => {
-    let items = approvals.filter((i) => i.finance_status === 'pending')
-    if (statusFilter === 'pending')  items = items.filter((i) => i.status === 'pending')
-    if (statusFilter === 'approved') items = items.filter((i) => i.finance_status === 'approved' || i.finance_status === 'forwarded')
-    if (statusFilter === 'rejected') items = items.filter((i) => i.finance_status === 'rejected')
+    let items = [...reqs]
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       items = items.filter((i) =>
-        [i.reference, i.title, i.project_name, i.project_code, i.budget_line_name, i.requester, i.department]
+        [i.requisition_number, i.title, i.project_name, i.project_code, i.requested_by_name, i.department]
           .filter(Boolean).join(' ').toLowerCase().includes(q)
       )
     }
-    return items.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
-  }, [approvals, debouncedSearch, statusFilter])
+    return items
+  }, [reqs, debouncedSearch])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const safePage   = Math.min(page, totalPages)
   const paged      = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
   const meta = { current_page: safePage, last_page: totalPages, per_page: PER_PAGE, total: filtered.length, from: filtered.length ? (safePage - 1) * PER_PAGE + 1 : 0, to: Math.min(safePage * PER_PAGE, filtered.length) }
 
-  const pendingItems  = approvals.filter((i) => i.finance_status === 'pending')
-  const pendingAmount = pendingItems.reduce((s, i) => s + i.amount_requested, 0)
+  const pendingAmount = reqs.reduce((s, i) => s + (i.estimated_cost || 0), 0)
 
   function openAction(item, defaultAction) {
     setTarget(item)
@@ -63,45 +80,36 @@ export default function FinanceApprovals() {
   }
   function closeAction() { setTarget(null); setComments('') }
 
-  function handleAction(e) {
+  async function handleAction(e) {
     e.preventDefault()
     if (!target) return
     setSubmitting(true)
-    setTimeout(() => {
-      setApprovals((prev) => prev.map((item) => {
-        if (item.id !== target.id) return item
-        if (action === 'approve') {
-          return { ...item, finance_status: 'approved', procurement_status: 'skipped', current_stage: 'Approved', status: 'approved' }
-        }
-        if (action === 'forward') {
-          return { ...item, finance_status: 'forwarded', procurement_status: 'pending', current_stage: 'Operations Approval' }
-        }
-        if (action === 'revision') {
-          return { ...item, finance_status: 'revision', current_stage: 'Revision Requested', status: 'pending' }
-        }
-        if (action === 'reject') {
-          return { ...item, finance_status: 'rejected', procurement_status: 'blocked', current_stage: 'Rejected by Finance', status: 'rejected' }
-        }
-        return item
-      }))
-      setSubmitting(false)
+    setError('')
+    try {
+      await purchaseRequestsApi.processApproval(target.id, { action, comments: comments || undefined })
       closeAction()
-    }, 400)
-  }
-
-  const actionLabels = {
-    approve:  { label: 'Approve (Final)',         icon: <CheckCheck size={13} />,  cls: 'approve'  },
-    forward:  { label: 'Forward to Operations',   icon: <ChevronRight size={13} />, cls: 'forward'  },
-    revision: { label: 'Request Revision',        icon: <RotateCcw size={13} />,   cls: 'revision' },
-    reject:   { label: 'Reject',                  icon: <X size={13} />,           cls: 'reject'   },
+      fetchData()
+    } catch (err) {
+      setError(err.message || 'Approval action failed')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <>
+      {error && (
+        <div className="hr-error-banner">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+          <button onClick={() => setError('')} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+
       <div className="stats-grid">
         <div className="stat-card orange animate-in">
           <div className="stat-top"><div className="stat-icon orange"><Clock3 size={22} /></div></div>
-          <div className="stat-value">{pendingItems.length}</div>
+          <div className="stat-value">{reqs.length}</div>
           <div className="stat-label">Awaiting Finance Decision</div>
         </div>
         <div className="stat-card blue animate-in">
@@ -121,109 +129,113 @@ export default function FinanceApprovals() {
         </div>
       </div>
 
-      <div className="card animate-in">
-        <div className="hr-toolbar">
-          <div className="hr-toolbar-left">
-            <div className="search-box">
-              <Search size={16} className="search-icon" />
-              <input type="text" placeholder="Search by title, project, requester…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+      {loading ? (
+        <div className="card animate-in" style={{ textAlign: 'center', padding: 40 }}>
+          <div className="auth-spinner large" style={{ margin: '0 auto' }} />
+        </div>
+      ) : (
+        <div className="card animate-in">
+          <div className="hr-toolbar">
+            <div className="hr-toolbar-left">
+              <div className="search-box">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search by title, project, requester…"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                />
+              </div>
             </div>
           </div>
-          <div className="hr-toolbar-right">
-            <select className="hr-filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>
-              <option value="">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-        </div>
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Project / Budget Line</th>
-                <th>Requester</th>
-                <th>Amount</th>
-                <th>Budget Effect</th>
-                <th>Approval Chain</th>
-                <th>Priority</th>
-                <th>Submitted</th>
-                <th style={{ width: 220 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 ? (
-                <tr><td colSpan={9} className="hr-empty-cell">No items awaiting your approval.</td></tr>
-              ) : paged.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.reference}</span>
-                      <span className="approvals-meta-sub">{item.request_type.replace(/_/g, ' ')}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main">{item.project_name}</span>
-                      <span className="approvals-meta-sub">{item.budget_line_name}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="approvals-meta">
-                      <span className="approvals-meta-main">{item.requester}</span>
-                      <span className="approvals-meta-sub">{item.department}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.amount_requested)}</td>
-                  <td>
-                    <div className="approvals-budget-row">
-                      <div className="approvals-budget-item">
-                        <label>Before</label>
-                        <span>{naira(item.available_before)}</span>
-                      </div>
-                      <div className="approvals-budget-item">
-                        <label>After</label>
-                        <span className={item.available_after < 0 ? 'danger' : ''}>{naira(item.available_after)}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td><ApprovalChain chain={buildChainFromDemo(item)} /></td>
-                  <td><span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority)}</span></td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {fmtDate(item.submitted_at)}
-                    {item.due_date && <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>Due {fmtDate(item.due_date)}</div>}
-                  </td>
-                  <td>
-                    <div className="approvals-action-row">
-                      <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
-                      <button className="approval-action-btn forward"  onClick={() => openAction(item, 'forward')}><ChevronRight size={12} /> Fwd Ops</button>
-                      <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
-                      <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
-                    </div>
-                  </td>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Title / Project</th>
+                  <th>Requester</th>
+                  <th>Amount</th>
+                  <th>Budget Effect</th>
+                  <th>Approval Chain</th>
+                  <th>Priority</th>
+                  <th>Submitted</th>
+                  <th style={{ width: 220 }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paged.length === 0 ? (
+                  <tr><td colSpan={9} className="hr-empty-cell">No items awaiting your approval.</td></tr>
+                ) : paged.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main" style={{ color: 'var(--primary)', fontSize: 12 }}>{item.requisition_number}</span>
+                        <span className="approvals-meta-sub">{item.request_type?.replace(/_/g, ' ')}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main">{item.title}</span>
+                        <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="approvals-meta">
+                        <span className="approvals-meta-main">{item.requested_by_name || '—'}</span>
+                        <span className="approvals-meta-sub">{item.department}</span>
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.estimated_cost)}</td>
+                    <td>
+                      <div className="approvals-budget-row">
+                        <div className="approvals-budget-item"><label>Before</label><span>—</span></div>
+                        <div className="approvals-budget-item"><label>After</label><span>—</span></div>
+                      </div>
+                    </td>
+                    <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
+                    <td><span className={`card-badge ${priorityClass(item.priority)}`}>{capitalize(item.priority || 'normal')}</span></td>
+                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {fmtDate(item.submitted_at || item.created_at)}
+                      {item.due_date && (
+                        <div style={{ color: new Date(item.due_date) < new Date() ? 'var(--danger)' : 'var(--text-faint)', fontSize: 11 }}>
+                          Due {fmtDate(item.due_date)}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div className="approvals-action-row">
+                        <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                        <button className="approval-action-btn forward"  onClick={() => openAction(item, 'forward')}><ChevronRight size={12} /> Fwd Ops</button>
+                        <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                        <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length > 0 && <Pagination meta={meta} onPageChange={setPage} />}
         </div>
-        {filtered.length > 0 && <Pagination meta={meta} onPageChange={setPage} />}
-      </div>
+      )}
 
       {/* Action Modal */}
       <Modal open={!!target} onClose={closeAction} title="Finance Approval Action" size="sm">
         {target && (
           <form onSubmit={handleAction} className="hr-form">
             <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{target.reference} — {target.title}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.project_name} · {naira(target.amount_requested)}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                {target.requisition_number} — {target.title}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {target.project_name || target.project_code} · {naira(target.estimated_cost)}
+              </div>
             </div>
 
-            {/* Action selector */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-              {Object.entries(actionLabels).map(([key, { label, icon, cls }]) => (
+              {Object.entries(ACTION_META).map(([key, { label, icon, cls }]) => (
                 <button
                   key={key}
                   type="button"
@@ -266,7 +278,7 @@ export default function FinanceApprovals() {
                 className={action === 'reject' ? 'hr-btn-danger' : 'hr-btn-primary'}
                 disabled={submitting}
               >
-                {submitting ? 'Processing…' : actionLabels[action].label}
+                {submitting ? 'Processing…' : ACTION_META[action].label}
               </button>
             </div>
           </form>

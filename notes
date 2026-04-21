@@ -461,5 +461,1040 @@ Key Notes for Frontend
 - The settings page is only accessible to super_admin users
 
 
-SERVER IP: 
+SERVER IP:
 cd /home/casi360/public_html && git pull origin main && npm install && npm run build && pm2 restart casi360
+
+
+================================================================================
+Purchase Request — Approval Workflow Specification
+================================================================================
+
+Overview & Recommendation
+--------------------------
+The physical PR form has 4 sign-off columns: Requester, Budget Holder, Finance,
+and Logistics. The digital equivalent should mirror this exactly but with one key
+improvement: all approving units see the PR simultaneously (full transparency),
+while only the unit whose stage is currently "active" can take an action.
+
+This avoids the "queue and wait" problem where Finance doesn't even see the PR
+until the Budget Holder acts — instead, everyone sees everything always, but the
+action buttons are unlocked only when it is your turn.
+
+There are 3 approval STAGES (matching the physical form, minus the Requester who
+is the submitter — not an approver):
+
+  Stage 1 — Budget Holder    (validates budget availability)
+  Stage 2 — Finance          (financial approval; can finalize or forward)
+  Stage 3 — Operations       (final logistics sign-off; only if Finance forwards)
+
+Finance is special: they can either APPROVE FINAL (closes the chain) or
+FORWARD TO OPERATIONS (activates Stage 3 before the PR is fully approved).
+
+
+================================================================================
+1. DATABASE — NEW TABLE: requisition_approvals
+================================================================================
+
+Create one row per stage per requisition when a PR is submitted.
+
+  Column          Type                  Notes
+  ------          ----                  -----
+  id              UUID PK
+  requisition_id  UUID FK               → requisitions.id, CASCADE DELETE
+  stage           ENUM                  'budget_holder' | 'finance' | 'operations'
+  stage_order     TINYINT               1, 2, 3 — controls display order
+  stage_label     VARCHAR(50)           "Budget Holder", "Finance", "Operations"
+  status          ENUM                  see Status Enum below
+  actor_id        UUID NULL FK          → users.id — who took the action
+  actor_name      VARCHAR NULL          resolved name (snapshot)
+  actor_position  VARCHAR NULL          resolved position/designation (snapshot)
+  comments        TEXT NULL             required on reject/revision, optional otherwise
+  decided_at      TIMESTAMP NULL        when the action was taken
+  created_at      TIMESTAMP
+  updated_at      TIMESTAMP
+
+Status Enum for each stage row:
+  waiting     — Not yet this stage's turn (locked)
+  pending     — This stage is now active; awaiting action
+  approved    — Approved by this stage
+  forwarded   — Finance approved and forwarded to Operations (Finance-only status)
+  rejected    — Rejected at this stage (PR goes to rejected)
+  revision    — Sent back for revision (PR goes to revision)
+  skipped     — Operations stage was skipped (Finance approved final)
+
+
+================================================================================
+2. STAGE CREATION — WHEN A PR IS SUBMITTED
+================================================================================
+
+When POST /procurement/requisitions/{id}/submit is called:
+
+1. Create 3 rows in requisition_approvals:
+   - Stage 1 (budget_holder):  status = 'pending'    ← active immediately
+   - Stage 2 (finance):        status = 'waiting'
+   - Stage 3 (operations):     status = 'waiting'
+
+2. Update requisition status = 'pending_approval'
+
+3. (Optional but recommended) Fire an in-app notification or email to all users
+   with the `procurement.approvals.budget_holder` permission that a PR needs review.
+
+Do NOT create approval rows when the PR is first created (draft) — only on submit.
+If a PR is sent back for revision and re-submitted, RESET the approval chain:
+delete the old approval rows and create fresh ones.
+
+
+================================================================================
+3. STAGE TRANSITION RULES
+================================================================================
+
+When PATCH /procurement/requisitions/{id}/approval is called:
+
+Action: "approve"
+  - If active stage = budget_holder:
+      → Set stage 1 status = 'approved', decided_at = now, actor = auth user
+      → Set stage 2 status = 'pending'
+      → Notify Finance users
+
+  - If active stage = finance AND action = "approve" (final):
+      → Set stage 2 status = 'approved', decided_at = now, actor = auth user
+      → Set stage 3 status = 'skipped'
+      → Update requisition status = 'approved'
+      → Notify requester
+
+  - If active stage = operations:
+      → Set stage 3 status = 'approved', decided_at = now, actor = auth user
+      → Update requisition status = 'approved'
+      → Notify requester
+
+Action: "forward"  (Finance ONLY — activates Operations stage)
+  - Only valid when active stage = finance
+      → Set stage 2 status = 'forwarded', decided_at = now, actor = auth user
+      → Set stage 3 status = 'pending'
+      → Notify Operations users
+      → Requisition status remains 'pending_approval'
+
+Action: "reject"
+  - Set current stage status = 'rejected', decided_at = now, actor = auth user
+  - Set all remaining 'pending'/'waiting' stages to 'waiting' (untouch them)
+  - Update requisition status = 'rejected'
+  - Notify requester
+
+Action: "revision"
+  - Set current stage status = 'revision', decided_at = now, actor = auth user
+  - Set all remaining 'pending'/'waiting' stages to 'waiting'
+  - Update requisition status = 'revision'
+  - Notify requester (they can now edit and re-submit)
+
+VALIDATION — Server must enforce who can call this:
+  - Budget Holder action: user must have 'procurement.approvals.budget_holder' permission
+  - Finance action: user must have 'procurement.approvals.finance' permission
+  - Operations action: user must have 'procurement.approvals.operations' permission
+  - Return 403 if user tries to act on a stage they don't own
+  - Return 422 if the stage is not currently 'pending' (e.g., trying to approve
+    a stage that is still 'waiting' or already 'approved')
+
+
+================================================================================
+4. UPDATED PROCESS APPROVAL ENDPOINT
+================================================================================
+
+PATCH /procurement/requisitions/{id}/approval
+
+Request body:
+{
+  "action":   "approve | reject | revision | forward",
+  "comments": "string (required for reject and revision, optional for others)"
+}
+
+Validation:
+  action      required, in:approve,reject,revision,forward
+  comments    required_if:action,reject | required_if:action,revision | max:1000
+
+Success response (200):
+{
+  "success": true,
+  "message": "Purchase request approved by Budget Holder",
+  "data": {
+    "requisition": {
+      ...full requisition object with approval_chain...
+    }
+  }
+}
+
+Error — wrong stage / not your turn (403):
+{
+  "success": false,
+  "message": "You are not authorised to approve at the current stage."
+}
+
+Error — stage not active (422):
+{
+  "success": false,
+  "message": "This approval stage is not currently awaiting action."
+}
+
+
+================================================================================
+5. APPROVAL CHAIN — RESPONSE SHAPE
+================================================================================
+
+Include this in EVERY requisition response (list items, single GET, and after
+any approval action). The frontend uses this to render the visual chain.
+
+"approval_chain": [
+  {
+    "stage":          "budget_holder",
+    "stage_label":    "Budget Holder",
+    "stage_order":    1,
+    "status":         "approved",
+    "actor_id":       "uuid",
+    "actor_name":     "Amina Hassan",
+    "actor_position": "Programme Manager",
+    "comments":       null,
+    "decided_at":     "2026-04-21T10:30:00.000000Z"
+  },
+  {
+    "stage":          "finance",
+    "stage_label":    "Finance",
+    "stage_order":    2,
+    "status":         "pending",
+    "actor_id":       null,
+    "actor_name":     null,
+    "actor_position": null,
+    "comments":       null,
+    "decided_at":     null
+  },
+  {
+    "stage":          "operations",
+    "stage_label":    "Operations",
+    "stage_order":    3,
+    "status":         "waiting",
+    "actor_id":       null,
+    "actor_name":     null,
+    "actor_position": null,
+    "comments":       null,
+    "decided_at":     null
+  }
+],
+"active_stage": "finance",
+"approval_progress": {
+  "completed": 1,
+  "total": 3
+}
+
+active_stage values: "budget_holder" | "finance" | "operations" | null (if approved/rejected)
+
+NOTE: For list endpoints, including full approval_chain per row may be heavy.
+Minimum required on list rows: active_stage + approval_progress + approval_chain (status only).
+Full actor details (name, comments, decided_at) are needed in the detail view.
+
+
+================================================================================
+6. UPDATED PENDING APPROVALS ENDPOINT
+================================================================================
+
+The existing GET /procurement/pending-approvals endpoint must be enhanced.
+It currently returns { purchase_orders, requisitions } for the current user.
+
+New behaviour: Return ALL submitted/pending_approval requisitions, grouped/filtered
+by the authenticated user's approval role. The frontend for each module queries
+this same endpoint but the backend filters based on who is calling:
+
+  - User with 'budget_holder' permission → sees PRs where Stage 1 is 'pending'
+  - User with 'finance' permission → sees PRs where Stage 2 is 'pending'
+  - User with 'operations' permission → sees PRs where Stage 3 is 'pending'
+  - User with admin/super_admin → sees ALL pending PRs at any stage
+
+ADDITIONALLY: All three modules want to show the full pipeline for transparency
+(not just "my turn" items). So the endpoint should support a query parameter:
+
+GET /procurement/pending-approvals?scope=mine      ← only items awaiting MY action
+GET /procurement/pending-approvals?scope=all       ← all in-flight PRs (any stage)
+GET /procurement/pending-approvals                 ← defaults to 'mine'
+
+Each item in the response must include the approval_chain array so the frontend
+can display who has approved and who hasn't without a second API call.
+
+Response shape:
+{
+  "success": true,
+  "data": {
+    "purchase_orders": [ ...PO items with approval_progress... ],
+    "requisitions": [
+      {
+        "id":                 "uuid",
+        "requisition_number": "PR-2026-0042",
+        "title":              "Office Supplies Q2",
+        "requested_by_name":  "Daniel Ishaku",
+        "department":         "Administration",
+        "project_code":       "CAID-001",
+        "donor":              "USAID",
+        "estimated_cost":     185000.00,
+        "priority":           "medium",
+        "status":             "pending_approval",
+        "needed_by":          "2026-05-10",
+        "submitted_at":       "2026-04-21T09:15:00.000000Z",
+        "active_stage":       "finance",
+        "approval_progress":  { "completed": 1, "total": 3 },
+        "approval_chain": [
+          { "stage": "budget_holder", "stage_label": "Budget Holder", "stage_order": 1, "status": "approved", "actor_name": "Amina Hassan", "decided_at": "2026-04-21T10:30:00Z" },
+          { "stage": "finance",       "stage_label": "Finance",       "stage_order": 2, "status": "pending",  "actor_name": null, "decided_at": null },
+          { "stage": "operations",    "stage_label": "Operations",    "stage_order": 3, "status": "waiting",  "actor_name": null, "decided_at": null }
+        ]
+      }
+    ]
+  }
+}
+
+
+================================================================================
+7. APPROVAL-STATUS ENDPOINT
+================================================================================
+
+GET /procurement/requisitions/{id}/approval-status
+
+Returns the full approval chain for a single PR. Used when viewing PR details.
+
+{
+  "success": true,
+  "data": {
+    "requisition_id":    "uuid",
+    "requisition_number":"PR-2026-0042",
+    "current_status":    "pending_approval",
+    "active_stage":      "finance",
+    "approval_chain": [
+      {
+        "stage":          "budget_holder",
+        "stage_label":    "Budget Holder",
+        "stage_order":    1,
+        "status":         "approved",
+        "actor_id":       "uuid",
+        "actor_name":     "Amina Hassan",
+        "actor_position": "Programme Manager",
+        "comments":       null,
+        "decided_at":     "2026-04-21T10:30:00.000000Z"
+      },
+      {
+        "stage":          "finance",
+        "stage_label":    "Finance",
+        "stage_order":    2,
+        "status":         "pending",
+        "actor_id":       null,
+        "actor_name":     null,
+        "actor_position": null,
+        "comments":       null,
+        "decided_at":     null
+      },
+      {
+        "stage":          "operations",
+        "stage_label":    "Operations",
+        "stage_order":    3,
+        "status":         "waiting",
+        "actor_id":       null,
+        "actor_name":     null,
+        "actor_position": null,
+        "comments":       null,
+        "decided_at":     null
+      }
+    ]
+  }
+}
+
+
+================================================================================
+8. FRONTEND — HOW EACH MODULE'S APPROVALS PAGE BEHAVES
+================================================================================
+
+All three approval pages (Procurement, Finance, Operations) call the SAME endpoint:
+  GET /procurement/pending-approvals
+
+The difference is which users access which page, and what action buttons they see.
+
+--- Procurement > Pending Approvals ---
+  - Audience: Budget Holders (managers, department heads, procurement team)
+  - Default scope: 'mine' — shows PRs where Stage 1 is currently 'pending'
+  - Can toggle to 'all' to see all in-flight PRs
+  - Action buttons: Approve | Reject | Request Revision (for Stage 1 items only)
+  - Shows approval_chain strip on each row so they can see overall progress
+  - Already exists — needs to be updated to use new response shape
+
+--- Finance > Approvals ---
+  - Audience: Finance team
+  - Default scope: 'mine' — shows PRs where Stage 2 is currently 'pending'
+  - Action buttons: Approve (Final) | Forward to Operations | Reject | Request Revision
+  - "Forward to Operations" sends action = "forward" and activates Stage 3
+  - Shows budget context: project, budget line, available budget before/after
+  - Currently demo-backed — replace with live API call to pending-approvals endpoint
+
+--- Operations > Approvals (new page to create) ---
+  - Audience: Operations/Logistics team
+  - Default scope: 'mine' — shows PRs where Stage 3 is currently 'pending'
+  - PRs only appear here if Finance previously clicked "Forward to Operations"
+  - Action buttons: Approve | Reject | Request Revision (for Stage 3 items only)
+  - This module/page does not yet exist on the frontend — will be built once backend is ready
+
+UNIVERSAL RULE (backend enforced, frontend reflects):
+  If a user tries to call processApproval on a PR that is not in their active stage,
+  the backend returns 403. The frontend hides irrelevant action buttons using the
+  active_stage field from the response, so users only see buttons when it's their turn.
+
+
+================================================================================
+9. PERMISSIONS — NEW APPROVAL PERMISSION KEYS
+================================================================================
+
+Add these to the dynamic permissions system:
+
+Key                                    Description
+---                                    -----------
+procurement.approvals.view             Can see the Approvals page
+procurement.approvals.budget_holder    Can act as Budget Holder (Stage 1)
+procurement.approvals.finance          Can act as Finance approver (Stage 2)
+procurement.approvals.operations       Can act as Operations approver (Stage 3)
+
+Suggested defaults:
+
+Role          | view  | budget_holder | finance | operations
+--------------|-------|---------------|---------|------------
+super_admin   | true  | true          | true    | true   (hardcoded)
+admin         | true  | true          | true    | true
+manager       | true  | true          | false   | false
+staff         | true  | false         | false   | false
+
+IMPORTANT: A user should normally have only ONE of the three action permissions.
+Giving someone both budget_holder AND finance means they could approve both stages
+themselves — the system allows it technically but it defeats the purpose.
+Training/role assignment should enforce separation.
+
+
+================================================================================
+10. DESIGN NOTES & RECOMMENDATIONS
+================================================================================
+
+1. SNAPSHOT actor details at decision time.
+   Store actor_name and actor_position in the approval row at the time of action.
+   Do NOT rely on joining to users table at query time — names and positions can change.
+
+2. RESET the approval chain on re-submission.
+   When a PR in 'revision' status is re-submitted, delete the old approval rows
+   and create fresh ones. This gives a clean slate for the new review cycle.
+   (Consider keeping old chains in an audit log table if you want full history.)
+
+3. `comments` on each stage row replaces the "Comments / Special" column from
+   the physical form. Budget Holder and Finance comments are both stored and
+   visible in the chain display — not just the most recent.
+
+4. `actor_position` captures the signer's formal position (e.g. "Finance Officer",
+   "Programme Manager") — the digital equivalent of the "Position" row in the
+   physical form. Pull this from user.designation or user.position at action time.
+
+5. For Operations: since Finance decides whether to forward, the Operations stage
+   may never be created for some PRs. Use `status = 'skipped'` (already in the chain
+   from creation) so the frontend can always show all 3 stages and display
+   "N/A" or "Skipped" for Operations when Finance approved final.
+
+6. NOTIFICATIONS (recommended next step):
+   - When PR is submitted → notify Budget Holders in the PR's department
+   - When Stage 1 approved → notify Finance team
+   - When Stage 2 forwarded → notify Operations team
+   - When approved/rejected → notify the original requester
+
+7. EMAIL AUDIT TRAIL:
+   Each approval action should ideally trigger an email to all parties
+   showing the current state of the chain. This gives a paper trail that mirrors
+   what staff were used to with physical forms.
+
+
+================================================================================
+11. APPROVAL WORKFLOW QUICK REFERENCE
+================================================================================
+
+  PR Submitted
+       │
+       ▼
+  Stage 1: BUDGET HOLDER (pending)
+       │
+       ├── approve → Stage 2: FINANCE (pending)
+       │                  │
+       │                  ├── approve (final) → Stage 3: skipped → PR = approved
+       │                  │
+       │                  ├── forward to ops → Stage 3: OPERATIONS (pending)
+       │                  │                         │
+       │                  │                         └── approve → PR = approved
+       │                  │                         └── reject  → PR = rejected
+       │                  │                         └── revision → PR = revision
+       │                  │
+       │                  ├── reject   → PR = rejected
+       │                  └── revision → PR = revision
+       │
+       ├── reject   → PR = rejected
+       └── revision → PR = revision
+
+  PR = revision → requester edits → re-submits → Stage 1 resets to pending
+
+================================================================================
+12. CHECKLIST FOR BACKEND
+================================================================================
+
+  [ ] Create requisition_approvals table (schema above)
+  [ ] On POST .../submit: create 3 approval rows (stage 1 pending, 2+3 waiting)
+  [ ] On re-submission (revision → submit): reset approval chain
+  [ ] PATCH .../approval: implement all 4 actions with stage transition rules
+  [ ] Enforce permission-based stage ownership (403 if wrong role)
+  [ ] Include approval_chain in all requisition responses (list + detail)
+  [ ] Include active_stage and approval_progress on list items
+  [ ] Update GET /procurement/pending-approvals:
+        - Add ?scope=mine|all query param
+        - Filter by authenticated user's approval role
+        - Include full approval_chain in each item
+  [ ] GET .../approval-status: return full chain with actor details
+  [ ] Snapshot actor_name + actor_position at decision time
+  [ ] Add 4 new permission keys to the permissions system
+  [ ] (Optional) Notification triggers on each stage transition
+
+
+
+
+================================================================================
+Purchase Request Module — Backend Engineering Specification
+================================================================================
+
+Overview
+--------
+The Purchase Request (PR / Requisition) module is used across THREE sections of the
+app: Procurement, HR, and Finance. All three use the EXACT same backend endpoints
+and data structure — the module prefix in the UI is cosmetic only. Do NOT create
+separate tables or endpoints per module. One unified requisitions table serves all.
+
+The frontend submits `requested_by` (UUID of the logged-in user) automatically — no
+employee picker. The requester is always the authenticated user.
+
+Base URL
+--------
+https://api.casi360.com/api/v1
+
+
+================================================================================
+1. PURCHASE REQUISITIONS — CRUD ENDPOINTS
+================================================================================
+
+Method   Endpoint                                      Description
+------   --------                                      -----------
+GET      /procurement/requisitions                     List (paginated + filtered)
+GET      /procurement/requisitions/{id}                Get single PR
+POST     /procurement/requisitions                     Create new PR
+PATCH    /procurement/requisitions/{id}                Update PR (draft/revision only)
+DELETE   /procurement/requisitions/{id}                Cancel PR (soft delete / set status=cancelled)
+POST     /procurement/requisitions/{id}/submit         Submit PR for approval
+GET      /procurement/requisitions/{id}/approval-status  Get current approval chain status
+PATCH    /procurement/requisitions/{id}/approval       Process an approval decision
+
+
+================================================================================
+2. CREATE / UPDATE — REQUEST BODY
+================================================================================
+
+POST /procurement/requisitions
+PATCH /procurement/requisitions/{id}
+
+All fields are optional on PATCH (send only what changed).
+
+{
+  "title":               "string (required on create, max 255)",
+  "date":                "2026-04-21 (ISO date string, defaults to today)",
+  "department_id":       "uuid — must be a valid department",
+  "requested_by":        "uuid — set automatically from auth user on frontend; backend should also derive this from session and ignore/override any value sent",
+  "delivery_location":   "string (max 255)",
+  "needed_by":           "2026-05-10 (ISO date string — the delivery/required date)",
+  "purchase_scenario":   "one of: Direct Purchase | Competitive Bidding | Framework Agreement | Emergency Purchase | Sole Source",
+  "logistics_involved":  "Yes | No",
+  "boq":                 "Yes | No",
+  "project_code":        "string — the project code (e.g. 'CAID-001'), not the project UUID",
+  "donor":               "string — donor name as free text (resolved from project's donors list on frontend)",
+  "currency":            "NGN | USD | EUR (default: NGN)",
+  "exchange_rate":       "number — required if currency != NGN, rate to NGN (e.g. 1550.00)",
+  "priority":            "low | medium | high | urgent (default: medium)",
+  "justification":       "text — reason for the purchase request",
+  "notes":               "text — additional notes or special instructions",
+  "items": [
+    {
+      "description":          "string (required) — item description",
+      "unit":                 "string — unit of measure (e.g. Pcs, Litres, Kg)",
+      "quantity":             "number (default: 1)",
+      "estimated_unit_cost":  "number (decimal, e.g. 45000.00)",
+      "project_code":         "string — may differ per line item; defaults to the header project_code",
+      "budget_line":          "string — the description field from the project's budget-lines API",
+      "inventory_item_id":    "uuid | null — optional link to an inventory item"
+    }
+  ]
+}
+
+IMPORTANT NOTES:
+- `requested_by` must always be derived from the authenticated session server-side.
+  Even though the frontend sends it, the backend should enforce this and not allow
+  a user to submit a PR on behalf of someone else.
+- `items` that have no `description` are filtered out by the frontend before sending —
+  but validate server-side and skip/reject blank items.
+- `estimated_cost` (the PR total) should be COMPUTED by the backend as:
+  SUM(quantity * estimated_unit_cost) across all items. Do not accept it as input.
+- `exchange_rate` is only relevant when `currency != NGN`. When currency is NGN,
+  ignore it. When currency is USD or EUR, store the exchange rate so the Naira
+  equivalent can be displayed/reported.
+- On PATCH, if `items` is sent, REPLACE the full items array (not merge).
+  The frontend always sends the full items list on edit.
+
+
+================================================================================
+3. LIST RESPONSE — GET /procurement/requisitions
+================================================================================
+
+Query Parameters:
+
+Param           Type      Default       Description
+-----           ----      -------       -----------
+search          string    —             Search title, requisition_number, requested_by_name
+status          string    —             Filter by status (see status enum below)
+priority        string    —             Filter by priority: low | medium | high | urgent
+page            int       1             Page number
+per_page        int       15            Results per page (max 100)
+sort_by         string    created_at    Options: created_at, needed_by, estimated_cost, priority, status
+sort_dir        string    desc          asc | desc
+
+Response Shape (200):
+
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "requisitions": [
+      {
+        "id":                   "uuid",
+        "requisition_number":   "PR-2026-0042",
+        "title":                "Office Supplies Q2",
+        "date":                 "2026-04-21",
+        "department_id":        "uuid",
+        "department":           "Administration",
+        "requested_by":         "uuid",
+        "requested_by_name":    "Daniel Ishaku",
+        "project_code":         "CAID-001",
+        "donor":                "USAID",
+        "currency":             "NGN",
+        "exchange_rate":        null,
+        "estimated_cost":       185000.00,
+        "item_count":           4,
+        "priority":             "medium",
+        "status":               "draft",
+        "needed_by":            "2026-05-10",
+        "purchase_scenario":    "Direct Purchase",
+        "logistics_involved":   "No",
+        "boq":                  "No",
+        "purchase_order_number": null,
+        "created_at":           "2026-04-21T09:15:00.000000Z",
+        "updated_at":           "2026-04-21T09:15:00.000000Z"
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "last_page": 4,
+      "per_page": 15,
+      "total": 58,
+      "from": 1,
+      "to": 15
+    }
+  }
+}
+
+Fields the frontend uses from each list item:
+  id, requisition_number, title, requested_by_name, department, estimated_cost,
+  item_count, priority, status, needed_by, purchase_order_number, created_at
+
+`department` must be the resolved name string, not just department_id.
+`requested_by_name` must be the resolved full name, not just the UUID.
+`estimated_cost` must be the computed sum from items.
+`item_count` is the count of line items on this PR.
+`purchase_order_number` is null until a PO is raised from this PR.
+
+
+================================================================================
+4. SINGLE PR RESPONSE — GET /procurement/requisitions/{id}
+================================================================================
+
+This endpoint is used for the Edit form (pre-populates all fields).
+Must return the FULL record including the complete items array.
+
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "requisition": {
+      "id":                   "uuid",
+      "requisition_number":   "PR-2026-0042",
+      "title":                "Office Supplies Q2",
+      "date":                 "2026-04-21",
+      "department_id":        "uuid",
+      "department":           "Administration",
+      "requested_by":         "uuid",
+      "requested_by_name":    "Daniel Ishaku",
+      "delivery_location":    "Head Office, Abuja",
+      "needed_by":            "2026-05-10",
+      "purchase_scenario":    "Direct Purchase",
+      "logistics_involved":   "No",
+      "boq":                  "No",
+      "project_code":         "CAID-001",
+      "donor":                "USAID",
+      "currency":             "NGN",
+      "exchange_rate":        null,
+      "priority":             "medium",
+      "status":               "draft",
+      "justification":        "Required for Q2 operations...",
+      "notes":                "Urgent — needed before end of April",
+      "estimated_cost":       185000.00,
+      "item_count":           4,
+      "purchase_order_number": null,
+      "created_at":           "2026-04-21T09:15:00.000000Z",
+      "updated_at":           "2026-04-21T09:15:00.000000Z",
+      "items": [
+        {
+          "id":                    "uuid",
+          "description":           "A4 Printer Paper",
+          "unit":                  "Ream",
+          "quantity":              10,
+          "estimated_unit_cost":   4500.00,
+          "project_code":          "CAID-001",
+          "budget_line":           "Community Volunteer Training",
+          "inventory_item_id":     null
+        }
+      ]
+    }
+  }
+}
+
+NOTE: The frontend edit form expects the items array at `pr.items` (not nested deeper).
+The frontend also looks for: `res?.data?.requisition || res?.data?.purchase_request || res?.data`
+— so wrapping as `data.requisition` is the recommended and expected shape.
+
+
+================================================================================
+5. STATUS ENUM & WORKFLOW
+================================================================================
+
+Valid status values (used in list filter and displayed in UI):
+
+  draft             — Initial state when created
+  submitted         — Submitted for review (via POST .../submit)
+  pending_approval  — In approval chain
+  approved          — Fully approved
+  rejected          — Rejected by approver
+  revision          — Sent back for revision (user can edit and re-submit)
+  fulfilled         — PR has been fulfilled (linked PO delivered)
+  cancelled         — Cancelled / soft-deleted
+
+State transition rules:
+  draft       → submitted       (via POST /submit)
+  submitted   → pending_approval, approved, rejected, revision  (via approval endpoints)
+  revision    → submitted       (user edits and re-submits)
+  approved    → fulfilled       (when linked PO is received)
+  any         → cancelled       (via DELETE endpoint)
+
+The frontend only allows EDIT on status = 'draft' or 'revision'.
+The DELETE button is always visible (to authorised users) and sets status = 'cancelled'.
+The frontend label for DELETE is "Cancel Purchase Request" — this is a soft cancel, NOT a hard delete.
+
+
+================================================================================
+6. SUBMIT ENDPOINT
+================================================================================
+
+POST /procurement/requisitions/{id}/submit
+
+No request body needed. Transitions status from 'draft' or 'revision' → 'submitted'.
+Returns the updated requisition object.
+
+{
+  "success": true,
+  "message": "Purchase request submitted successfully",
+  "data": {
+    "requisition": { ...full requisition object... }
+  }
+}
+
+
+================================================================================
+7. APPROVAL ENDPOINTS
+================================================================================
+
+GET /procurement/requisitions/{id}/approval-status
+
+Returns the current approval chain for this PR.
+
+{
+  "success": true,
+  "message": "Success",
+  "data": {
+    "approvals": [
+      {
+        "id":            "uuid",
+        "level":         1,
+        "approver_id":   "uuid",
+        "approver_name": "Amina Hassan",
+        "status":        "pending | approved | rejected",
+        "comments":      null,
+        "decided_at":    null
+      }
+    ],
+    "overall_status": "pending_approval"
+  }
+}
+
+PATCH /procurement/requisitions/{id}/approval
+
+Process an approval decision (approve, reject, or request revision).
+
+{
+  "action":   "approve | reject | revision",
+  "comments": "string (required for reject/revision, optional for approve)"
+}
+
+Response (200):
+{
+  "success": true,
+  "message": "Purchase request approved",
+  "data": {
+    "requisition": { ...updated requisition... }
+  }
+}
+
+
+================================================================================
+8. REQUISITION NUMBER AUTO-GENERATION
+================================================================================
+
+Generate automatically on create. Must be:
+- Unique
+- Human-readable
+- Include year
+
+Recommended format:  PR-{YEAR}-{SEQUENCE}
+Example:             PR-2026-0042
+
+Sequence should be global (not per-department) and zero-padded to 4 digits.
+Return `requisition_number` in every response — the frontend displays it prominently.
+
+
+================================================================================
+9. PROJECTS INTEGRATION — DEPENDENCIES
+================================================================================
+
+The PR form depends on TWO other endpoints from the Projects module.
+Ensure these are working correctly as the PR form calls them on the fly.
+
+--- 9a. Projects List ---
+
+GET /projects?per_page=0
+
+Used to populate the "Project Code" dropdown in the PR header.
+Must return all active projects (no pagination when per_page=0).
+
+Each project object must include:
+  id, name, project_code
+
+The frontend renders: "{project_code} — {name}" as the option label.
+The frontend stores project_code (not id) as the form value.
+
+--- 9b. Project Donors ---
+
+GET /projects/{id}/donors
+
+Used to populate the Donor dropdown after a project is selected.
+Called with the project's UUID (not project_code).
+
+Response shape the frontend expects:
+{
+  "data": {
+    "donors": [
+      { "id": "uuid", "name": "USAID" },
+      { "id": "uuid", "name": "FCDO" }
+    ]
+  }
+}
+
+The frontend stores donor name (not id) as the form value (stored as string on the PR).
+
+--- 9c. Project Budget Lines ---
+
+GET /projects/{id}/budget-lines
+
+THIS IS CRITICAL — this is the new dynamic budget line feature.
+Called for each unique project_code in the form (header + all line items).
+Called with the project UUID.
+
+Response shape the frontend expects:
+{
+  "data": {
+    "budget_lines": [
+      {
+        "id":              "uuid",
+        "project_id":      "uuid",
+        "budget_category": "Training & Capacity Building",
+        "description":     "Community Volunteer Training",
+        "unit":            "persons",
+        "quantity":        50,
+        "unit_cost":       15000.00,
+        "total_cost":      750000.00
+      }
+    ]
+  }
+}
+
+The frontend renders each option as: "{budget_category} — {description}"
+The frontend stores `description` as the `budget_line` string value on the line item.
+
+IMPORTANT: The `id`, `budget_category`, and `description` fields are ALL required.
+If `data.budget_lines` is missing, the frontend also tries `data` directly as an array.
+Prefer always wrapping under `data.budget_lines`.
+
+
+================================================================================
+10. PERMISSIONS — REQUIRED PERMISSION KEYS
+================================================================================
+
+Add the following permission keys to the dynamic permissions system.
+These must be returned by GET /auth/permissions and managed via settings.
+
+Key                                Description
+---                                -----------
+procurement.requisitions.view      Can view the purchase requests list
+procurement.requisitions.create    Can create a new purchase request
+procurement.requisitions.edit      Can edit a PR (only when status is draft/revision)
+procurement.requisitions.delete    Can cancel a PR
+
+Suggested defaults:
+
+Role        | view  | create | edit  | delete
+------------|-------|--------|-------|-------
+super_admin | true  | true   | true  | true   (hardcoded)
+admin       | true  | true   | true  | true
+manager     | true  | true   | true  | false
+staff       | true  | true   | false | false
+
+Note: The approval endpoints should be gated separately (e.g. `procurement.requisitions.approve`).
+Add this permission when building the approvals UI.
+
+
+================================================================================
+11. VALIDATION — SERVER-SIDE RULES
+================================================================================
+
+Field                  Rule
+-----                  ----
+title                  required, string, max:255
+date                   optional, date format (Y-m-d)
+department_id          optional, exists:departments,id
+needed_by              optional, date format (Y-m-d)
+purchase_scenario      optional, in:Direct Purchase,Competitive Bidding,Framework Agreement,Emergency Purchase,Sole Source
+logistics_involved     optional, in:Yes,No
+boq                    optional, in:Yes,No
+currency               optional, in:NGN,USD,EUR — default: NGN
+exchange_rate          required_unless:currency,NGN | numeric | min:0
+priority               optional, in:low,medium,high,urgent — default: medium
+items                  required on create, array, min 1 item
+items.*.description    required, string, max:500
+items.*.quantity       optional, numeric, min:0 — default: 1
+items.*.estimated_unit_cost  optional, numeric, min:0 — default: 0
+items.*.unit           optional, string, max:50
+items.*.project_code   optional, string, max:100
+items.*.budget_line    optional, string, max:500
+items.*.inventory_item_id  optional, uuid, exists:inventory_items,id
+
+Error response shape (422) — matches what the frontend handles:
+{
+  "success": false,
+  "message": "The title field is required.",
+  "errors": {
+    "title": ["The title field is required."],
+    "items.0.description": ["The items.0.description field is required."]
+  }
+}
+
+
+================================================================================
+12. DELETE / CANCEL BEHAVIOUR
+================================================================================
+
+DELETE /procurement/requisitions/{id}
+
+This does NOT hard-delete the record. It sets status = 'cancelled'.
+The frontend confirmation dialog says "Cancel Purchase Request" — this is intentional.
+
+Response (200):
+{
+  "success": true,
+  "message": "Purchase request cancelled successfully",
+  "data": null
+}
+
+A hard delete should only be possible for super_admin via a separate admin interface,
+not through this endpoint.
+
+
+================================================================================
+13. RESPONSE ENVELOPE — STANDARD FORMAT
+================================================================================
+
+Follow the same response envelope used everywhere else in the API:
+
+Success:
+{
+  "success": true,
+  "message": "string",
+  "data": { ... }
+}
+
+Error (validation):
+{
+  "success": false,
+  "message": "string",
+  "errors": { "field": ["message"] }
+}
+
+Error (general):
+{
+  "success": false,
+  "message": "string"
+}
+
+The frontend's `extractItems(res)` helper tries the following paths in order:
+  res.data.requisitions → res.data.items → res.data.data → res.data → res
+
+Use `data.requisitions` for the list endpoint.
+Use `data.requisition` for single-item endpoints (create, get, update, submit, approval).
+
+
+================================================================================
+14. QUICK CHECKLIST
+================================================================================
+
+Backend tasks to complete for full PR module integration:
+
+  [ ] Table: requisitions (all fields above)
+  [ ] Table: requisition_items (line items, FK to requisitions)
+  [ ] Auto-generate requisition_number on create (PR-YYYY-NNNN)
+  [ ] Compute estimated_cost as SUM of line item totals
+  [ ] Enforce requested_by = authenticated user (ignore client-sent value)
+  [ ] GET /procurement/requisitions — paginated list with all display fields resolved
+  [ ] GET /procurement/requisitions/{id} — full record with items array
+  [ ] POST /procurement/requisitions — create with line items
+  [ ] PATCH /procurement/requisitions/{id} — update (replace items array)
+  [ ] DELETE /procurement/requisitions/{id} — soft cancel (status=cancelled)
+  [ ] POST /procurement/requisitions/{id}/submit — transition to submitted
+  [ ] GET /procurement/requisitions/{id}/approval-status
+  [ ] PATCH /procurement/requisitions/{id}/approval
+  [ ] GET /projects?per_page=0 — ensure project_code is in response
+  [ ] GET /projects/{id}/donors — ensure response shape matches above
+  [ ] GET /projects/{id}/budget-lines — ensure response has id, budget_category, description
+  [ ] Add procurement.requisitions.* permission keys to permissions system
+  [ ] Return department name (not just id) in list and detail responses
+  [ ] Return requested_by_name (resolved) in list and detail responses
+
+

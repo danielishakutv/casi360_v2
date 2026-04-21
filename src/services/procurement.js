@@ -89,7 +89,7 @@ export const purchaseRequestsApi = {
 /* ------------------------------------------------------------------ */
 
 export const approvalsApi = {
-  pending: () => api.get('/procurement/pending-approvals'),
+  pending: (params) => api.get('/procurement/pending-approvals', params),
 }
 
 /* ------------------------------------------------------------------ */
