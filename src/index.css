@@ -4803,6 +4803,23 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* Approvals history collapsible header                           */
+/* ─────────────────────────────────────────────────────────────── */
+.approvals-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-md);
+  transition: background 0.15s;
+}
+.approvals-history-header:hover {
+  background: var(--bg-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────── */
 /* PR Audit Log timeline                                          */
 /* ─────────────────────────────────────────────────────────────── */
 .pr-audit-log {
