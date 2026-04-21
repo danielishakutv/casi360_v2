@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -34,6 +34,8 @@ export default function HRPurchaseRequests() {
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [submitTarget, setSubmitTarget] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const fetchList = useCallback(async () => {
     setLoading(true)
@@ -57,6 +59,21 @@ export default function HRPurchaseRequests() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, priorityFilter])
+
+  async function confirmSubmit() {
+    if (!submitTarget) return
+    setSubmitting(true)
+    try {
+      await purchaseRequestsApi.submit(submitTarget.id)
+      setSubmitTarget(null)
+      fetchList()
+    } catch (err) {
+      setError(err.message || 'Failed to submit purchase request')
+      setSubmitTarget(null)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -148,6 +165,9 @@ export default function HRPurchaseRequests() {
                       {can('procurement.requisitions.edit') && (r.status === 'draft' || r.status === 'revision') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/hr/purchase-requests/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
                       )}
+                      {r.status === 'draft' && (
+                        <button className="hr-action-btn success" onClick={() => setSubmitTarget(r)} title="Submit for Approval"><Send size={15} /></button>
+                      )}
                       {can('procurement.requisitions.delete') && (
                         <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
                       )}
@@ -188,9 +208,25 @@ export default function HRPurchaseRequests() {
                   <Pencil size={14} /> Edit
                 </button>
               )}
+              {viewItem.status === 'draft' && (
+                <button className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} onClick={() => { setViewItem(null); setSubmitTarget(viewItem) }}><Send size={14} /> Submit for Approval</button>
+              )}
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Submit confirm */}
+      <Modal open={!!submitTarget} onClose={() => setSubmitTarget(null)} title="Submit for Approval" size="sm">
+        <div className="hr-confirm-delete">
+          <p>Submit <strong>{submitTarget?.title || submitTarget?.requisition_number}</strong> for approval? Once submitted it will enter the approval workflow and can no longer be edited.</p>
+          <div className="hr-form-actions">
+            <button className="hr-btn-secondary" onClick={() => setSubmitTarget(null)}>Cancel</button>
+            <button className="hr-btn-primary" onClick={confirmSubmit} disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Cancel Purchase Request" size="sm">

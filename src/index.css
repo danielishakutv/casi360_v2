@@ -2795,6 +2795,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   background: rgba(231, 76, 60, 0.06);
 }
 
+.hr-action-btn.success:hover {
+  border-color: #16a34a;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.06);
+}
+
 /* ─────────────────────────────────────────────────────────────── */
 /* Purchase Request form                                          */
 /* ─────────────────────────────────────────────────────────────── */
