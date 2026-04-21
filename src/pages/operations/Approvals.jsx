@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, CheckCheck, ChevronDown, Clock3, RefreshCw, RotateCcw, Search, X } from 'lucide-react'
 import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
 import { useDebounce } from '../../hooks/useDebounce'
@@ -40,7 +40,7 @@ export default function OperationsApprovals() {
   const [historySearch, setHistorySearch] = useState('')
   const debouncedHistorySearch = useDebounce(historySearch)
   const [historyPage, setHistoryPage] = useState(1)
-  const historyFetched = useRef(false)
+  const [historyMeta, setHistoryMeta] = useState(null)
 
   /* Action modal */
   const [target, setTarget] = useState(null)
@@ -68,34 +68,25 @@ export default function OperationsApprovals() {
     setHistoryLoading(true)
     setHistoryError('')
     try {
-      const res = await approvalsApi.pending({ scope: 'history' })
+      const res = await approvalsApi.pending({
+        scope: 'history',
+        page: historyPage,
+        per_page: HISTORY_PER_PAGE,
+        search: debouncedHistorySearch || undefined,
+      })
       const d = res?.data || res || {}
       setHistory(d.requisitions || [])
-      historyFetched.current = true
+      setHistoryMeta(d.meta || null)
     } catch (err) {
       setHistoryError(err.message || 'Failed to load history')
     } finally {
       setHistoryLoading(false)
     }
-  }, [])
+  }, [historyPage, debouncedHistorySearch])
 
   useEffect(() => {
-    if (historyOpen && !historyFetched.current) fetchHistory()
+    if (historyOpen) fetchHistory()
   }, [historyOpen, fetchHistory])
-
-  const filteredHistory = useMemo(() => {
-    if (!debouncedHistorySearch) return history
-    const q = debouncedHistorySearch.toLowerCase()
-    return history.filter((i) =>
-      [i.requisition_number, i.title, i.project_name, i.requested_by_name, i.department]
-        .filter(Boolean).join(' ').toLowerCase().includes(q)
-    )
-  }, [history, debouncedHistorySearch])
-
-  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PER_PAGE))
-  const safeHistoryPage   = Math.min(historyPage, historyTotalPages)
-  const pagedHistory      = filteredHistory.slice((safeHistoryPage - 1) * HISTORY_PER_PAGE, safeHistoryPage * HISTORY_PER_PAGE)
-  const historyMeta = { current_page: safeHistoryPage, last_page: historyTotalPages, per_page: HISTORY_PER_PAGE, total: filteredHistory.length, from: filteredHistory.length ? (safeHistoryPage - 1) * HISTORY_PER_PAGE + 1 : 0, to: Math.min(safeHistoryPage * HISTORY_PER_PAGE, filteredHistory.length) }
 
   const filtered = useMemo(() => {
     let items = [...reqs]
@@ -254,7 +245,7 @@ export default function OperationsApprovals() {
         <div className="approvals-history-header" onClick={() => setHistoryOpen((o) => !o)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Approval History</h3>
-            {historyFetched.current && <span className="card-badge gray">{history.length}</span>}
+            {historyMeta && <span className="card-badge gray">{historyMeta.total}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {historyOpen && (
@@ -262,7 +253,7 @@ export default function OperationsApprovals() {
                 type="button"
                 className="hr-action-btn"
                 style={{ width: 28, height: 28 }}
-                onClick={(e) => { e.stopPropagation(); historyFetched.current = false; fetchHistory() }}
+                onClick={(e) => { e.stopPropagation(); fetchHistory() }}
                 title="Refresh"
               >
                 <RefreshCw size={13} />
@@ -308,9 +299,9 @@ export default function OperationsApprovals() {
                 <tbody>
                   {historyLoading ? (
                     <tr><td colSpan={7} className="hr-empty-cell"><div className="auth-spinner" style={{ margin: '16px auto' }} /></td></tr>
-                  ) : pagedHistory.length === 0 ? (
+                  ) : history.length === 0 ? (
                     <tr><td colSpan={7} className="hr-empty-cell">No processed approvals yet.</td></tr>
-                  ) : pagedHistory.map((item) => (
+                  ) : history.map((item) => (
                     <tr key={item.id}>
                       <td>
                         <div className="approvals-meta">
@@ -339,7 +330,7 @@ export default function OperationsApprovals() {
                 </tbody>
               </table>
             </div>
-            {filteredHistory.length > HISTORY_PER_PAGE && <Pagination meta={historyMeta} onPageChange={setHistoryPage} />}
+            {historyMeta && historyMeta.last_page > 1 && <Pagination meta={historyMeta} onPageChange={setHistoryPage} />}
           </div>
         )}
       </div>
