@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AlertCircle, CheckCircle, Download, Eye, FileText, RotateCcw, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronDown, Download, Eye, FileText, RefreshCw, RotateCcw, Search, XCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { approvalsApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
 import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
+import { useDebounce } from '../../hooks/useDebounce'
 import Modal from '../../components/Modal'
+import Pagination from '../../components/Pagination'
 import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 function fmtStatus(s) { return capitalize((s || '').replace(/_/g, ' ')) }
@@ -29,13 +31,23 @@ export default function PendingApprovals() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  /* History section */
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [history, setHistory] = useState([])
+  const [historyMeta, setHistoryMeta] = useState(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [historySearch, setHistorySearch] = useState('')
+  const debouncedHistorySearch = useDebounce(historySearch)
+  const [historyPage, setHistoryPage] = useState(1)
+
   /* Detail view modal (PRs only) */
   const [viewTarget, setViewTarget] = useState(null)
   const [viewExtra, setViewExtra] = useState(null)
   const [viewExtraLoading, setViewExtraLoading] = useState(false)
   const [viewAuditLog, setViewAuditLog] = useState([])
   const [viewAuditLoading, setViewAuditLoading] = useState(false)
-  const [viewIsHistory] = useState(false)
+  const [viewIsHistory, setViewIsHistory] = useState(false)
 
   /* Action modal */
   const [target, setTarget] = useState(null) // { type: 'po'|'req', item }
@@ -60,8 +72,31 @@ export default function PendingApprovals() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  function openDetail(item) {
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    setHistoryError('')
+    try {
+      const res = await approvalsApi.pending({
+        scope: 'history',
+        page: historyPage,
+        per_page: 10,
+        search: debouncedHistorySearch || undefined,
+      })
+      const d = res?.data || res || {}
+      setHistory(d.requisitions || [])
+      setHistoryMeta(d.meta || null)
+    } catch (err) {
+      setHistoryError(err.message || 'Failed to load history')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [historyPage, debouncedHistorySearch])
+
+  useEffect(() => { if (historyOpen) fetchHistory() }, [historyOpen, fetchHistory])
+
+  function openDetail(item, isHistory = false) {
     setViewTarget(item)
+    setViewIsHistory(isHistory)
     setViewExtra(null)
     setViewAuditLog([])
     setViewExtraLoading(true)
@@ -251,6 +286,95 @@ export default function PendingApprovals() {
           </div>
         </div>
       )}
+
+      {/* ─── Approval History ─── */}
+      <div className="card animate-in" style={{ marginTop: 16 }}>
+        <div className="approvals-history-header" onClick={() => setHistoryOpen((o) => !o)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Approval History</h3>
+            {historyMeta && <span className="card-badge gray">{historyMeta.total}</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {historyOpen && (
+              <button
+                type="button"
+                className="hr-action-btn"
+                style={{ width: 28, height: 28 }}
+                onClick={(e) => { e.stopPropagation(); fetchHistory() }}
+                title="Refresh"
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
+            <ChevronDown size={16} style={{ color: 'var(--text-muted)', transition: 'transform 0.2s', transform: historyOpen ? 'rotate(180deg)' : 'none' }} />
+          </div>
+        </div>
+
+        {historyOpen && (
+          <div>
+            {historyError && (
+              <div className="hr-error-banner" style={{ margin: '0 16px 12px' }}>
+                <AlertCircle size={14} /><span>{historyError}</span>
+              </div>
+            )}
+            <div className="hr-toolbar" style={{ borderTop: '1px solid var(--border-color)', padding: '10px 16px' }}>
+              <div className="search-box">
+                <Search size={15} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search history…"
+                  value={historySearch}
+                  onChange={(e) => { setHistorySearch(e.target.value); setHistoryPage(1) }}
+                />
+              </div>
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Title / Project</th>
+                    <th>Requester</th>
+                    <th>Amount</th>
+                    <th>Approval Chain</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th style={{ width: 56 }}>View</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading ? (
+                    <tr><td colSpan={7} className="hr-empty-cell"><div className="auth-spinner" style={{ margin: '16px auto' }} /></td></tr>
+                  ) : history.length === 0 ? (
+                    <tr><td colSpan={7} className="hr-empty-cell">No processed approvals yet.</td></tr>
+                  ) : history.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="approvals-meta">
+                          <span className="approvals-meta-main">{item.title}</span>
+                          <span className="approvals-meta-sub" style={{ color: 'var(--primary)', fontSize: 11 }}>{item.requisition_number}</span>
+                          <span className="approvals-meta-sub">{item.project_name || item.project_code}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="approvals-meta">
+                          <span className="approvals-meta-main">{item.requested_by_name || '—'}</span>
+                          <span className="approvals-meta-sub">{item.department}</span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 700, fontSize: 13 }}>{naira(item.estimated_cost)}</td>
+                      <td><ApprovalChain chain={buildChainFromPR(item)} /></td>
+                      <td><span className={`status-badge ${item.status}`}><span className="status-dot" />{capitalize((item.status || '').replace(/_/g, ' '))}</span></td>
+                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(item.submitted_at || item.created_at)}</td>
+                      <td><button className="hr-action-btn" onClick={() => openDetail(item, true)} title="View details"><Eye size={13} /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {historyMeta && historyMeta.last_page > 1 && <Pagination meta={historyMeta} onPageChange={setHistoryPage} />}
+          </div>
+        )}
+      </div>
 
       {/* Detail Modal (PRs) */}
       <Modal open={!!viewTarget} onClose={closeDetail} title="Purchase Request Details" size="xl">
