@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle, Download, FileText } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -8,8 +8,10 @@ import { purchaseRequestsApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
+import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejected', 'revision', 'fulfilled', 'cancelled']
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
@@ -48,6 +50,8 @@ export default function HRPurchaseRequests() {
   const [page, setPage] = useState(1)
 
   const [viewItem, setViewItem] = useState(null)
+  const [viewExtra, setViewExtra] = useState(null)
+  const [viewExtraLoading, setViewExtraLoading] = useState(false)
   const [auditLog, setAuditLog] = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -79,8 +83,21 @@ export default function HRPurchaseRequests() {
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, priorityFilter])
 
   useEffect(() => {
-    if (!viewItem) { setAuditLog([]); return }
+    if (!viewItem) { setViewExtra(null); setAuditLog([]); return }
+    setViewExtraLoading(true)
     setAuditLoading(true)
+    purchaseRequestsApi.get(viewItem.id)
+      .then((res) => {
+        const d = res?.data?.data ?? res?.data?.requisition ?? res?.data ?? res ?? {}
+        setViewExtra({
+          justification: d?.justification ?? d?.notes ?? null,
+          item_count:    d?.item_count    ?? null,
+          needed_by:     d?.needed_by     ?? null,
+          items:         Array.isArray(d?.items) ? d.items : null,
+        })
+      })
+      .catch(() => setViewExtra({}))
+      .finally(() => setViewExtraLoading(false))
     purchaseRequestsApi.auditLog(viewItem.id)
       .then((res) => { const d = res?.data || res || {}; setAuditLog(d.audit_log || []) })
       .catch(() => setAuditLog([]))
@@ -208,63 +225,123 @@ export default function HRPurchaseRequests() {
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Purchase Request Details" size="lg">
-        {viewItem && (
-          <div className="note-detail">
-            <div className="note-detail-header">
-              <h3>{viewItem.requisition_number} — {viewItem.title}</h3>
-              <div className="note-detail-badges">
-                <span className={`card-badge ${viewItem.priority === 'high' || viewItem.priority === 'urgent' ? 'red' : 'orange'}`}>{capitalize(viewItem.priority)}</span>
-                <span className={`status-badge ${viewItem.status}`}><span className="status-dot" />{fmtStatus(viewItem.status)}</span>
+      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Purchase Request Details" size="xl">
+        {viewItem && (() => {
+          const pr = viewItem
+          const priorityCls = pr.priority === 'high' || pr.priority === 'urgent' ? 'red' : pr.priority === 'medium' ? 'orange' : 'green'
+          return (
+            <div className="note-detail">
+              <div className="note-detail-header">
+                <h3>{pr.requisition_number} — {pr.title}</h3>
+                <div className="note-detail-badges">
+                  <span className={`card-badge ${priorityCls}`}>{capitalize(pr.priority || 'normal')}</span>
+                  <span className={`status-badge ${pr.status}`}><span className="status-dot" />{fmtStatus(pr.status)}</span>
+                </div>
+              </div>
+
+              <div className="pr-detail-meta-grid">
+                <div><strong>Requester</strong><span>{pr.requested_by_name || '—'}</span></div>
+                <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
+                <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
+                <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
+                <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
+                <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>
+                {(viewExtra?.needed_by ?? pr.needed_by) && <div><strong>Needed By</strong><span>{fmtDate(viewExtra?.needed_by ?? pr.needed_by)}</span></div>}
+                {pr.purchase_order_number && <div><strong>PO</strong><span>{pr.purchase_order_number}</span></div>}
+                <div><strong>Created</strong><span>{fmtDate(pr.created_at)}</span></div>
+              </div>
+
+              {viewExtraLoading
+                ? <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}><div className="auth-spinner" /></div>
+                : <div className="note-detail-content">{viewExtra?.justification ?? pr.justification ?? pr.notes ?? 'No description provided.'}</div>
+              }
+
+              {!viewExtraLoading && (
+                <div className="pr-items-section">
+                  <p className="pr-audit-title">Line Items {viewExtra?.items?.length ? `(${viewExtra.items.length})` : ''}</p>
+                  {!viewExtra?.items || viewExtra.items.length === 0 ? (
+                    <p className="pr-audit-empty">No line items recorded.</p>
+                  ) : (
+                    <div className="pr-items-table-wrap">
+                      <table className="pr-items-table">
+                        <thead>
+                          <tr><th>#</th><th>Description</th><th>Unit</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr>
+                        </thead>
+                        <tbody>
+                          {viewExtra.items.map((it, i) => {
+                            const total = (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0)
+                            return (
+                              <tr key={i}>
+                                <td>{i + 1}</td>
+                                <td>{it.description || '—'}{it.budget_line ? <span className="pr-item-sub">{it.budget_line}</span> : null}</td>
+                                <td>{it.unit || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{it.quantity ?? '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{naira(it.estimated_unit_cost)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{naira(total)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>Grand Total</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                              {naira(viewExtra.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginBottom: 20 }}>
+                <p className="pr-audit-title">Approval Chain</p>
+                <ApprovalChain chain={buildChainFromPR(pr)} compact={false} />
+              </div>
+
+              <div className="pr-audit-log">
+                <p className="pr-audit-title">Activity Log</p>
+                {auditLoading
+                  ? <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><div className="auth-spinner" /></div>
+                  : auditLog.length === 0
+                    ? <p className="pr-audit-empty">No activity recorded yet.</p>
+                    : auditLog.map((entry) => (
+                      <div key={entry.id} className={`pr-audit-entry pr-audit-${entry.action}`}>
+                        <div className="pr-audit-dot" />
+                        <div className="pr-audit-body">
+                          <div className="pr-audit-row">
+                            <span className="pr-audit-action">{AUDIT_LABELS[entry.action] || entry.action}</span>
+                            {entry.stage && <span className="pr-audit-stage">{STAGE_LABELS[entry.stage] || entry.stage}</span>}
+                            <span className="pr-audit-actor">{entry.actor_name}</span>
+                            <span className="pr-audit-time">{fmtDate(entry.created_at)}</span>
+                          </div>
+                          {entry.comments && <div className="pr-audit-comments">"{entry.comments}"</div>}
+                        </div>
+                      </div>
+                    ))
+                }
+              </div>
+
+              <div className="hr-form-actions">
+                <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
+                <button className="hr-btn-secondary" onClick={() => exportPRtoCSV({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download CSV">
+                  <Download size={14} /> CSV
+                </button>
+                <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download PDF">
+                  <FileText size={14} /> PDF
+                </button>
+                {can('procurement.requisitions.edit') && (pr.status === 'draft' || pr.status === 'revision' || pr.status === 'rejected') && (
+                  <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/hr/purchase-requests/${pr.id}/edit`) }}><Pencil size={14} /> Edit</button>
+                )}
+                {(pr.status === 'draft' || pr.status === 'revision' || pr.status === 'rejected') && (
+                  <button className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} onClick={() => { setViewItem(null); setSubmitTarget(pr) }}><Send size={14} /> Submit</button>
+                )}
               </div>
             </div>
-            <div className="note-detail-meta">
-              <span><strong>Requester:</strong> {viewItem.requested_by_name || '—'}</span>
-              <span><strong>Department:</strong> {viewItem.department || '—'}</span>
-              <span><strong>Est. Cost:</strong> {naira(viewItem.estimated_cost)}</span>
-              <span><strong>Items:</strong> {viewItem.item_count ?? 0}</span>
-              {viewItem.needed_by && <span><strong>Needed by:</strong> {fmtDate(viewItem.needed_by)}</span>}
-              {viewItem.purchase_order_number && <span><strong>PO:</strong> {viewItem.purchase_order_number}</span>}
-              <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
-            </div>
-            <div className="note-detail-content">{viewItem.justification || viewItem.notes || 'No description'}</div>
-
-            {/* Audit log */}
-            <div className="pr-audit-log">
-              <p className="pr-audit-title">Activity Log</p>
-              {auditLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><div className="auth-spinner" /></div>
-              ) : auditLog.length === 0 ? (
-                <p className="pr-audit-empty">No activity recorded yet.</p>
-              ) : auditLog.map((entry) => (
-                <div key={entry.id} className={`pr-audit-entry pr-audit-${entry.action}`}>
-                  <div className="pr-audit-dot" />
-                  <div className="pr-audit-body">
-                    <div className="pr-audit-row">
-                      <span className="pr-audit-action">{AUDIT_LABELS[entry.action] || entry.action}</span>
-                      {entry.stage && <span className="pr-audit-stage">{STAGE_LABELS[entry.stage] || entry.stage}</span>}
-                      <span className="pr-audit-actor">{entry.actor_name}</span>
-                      <span className="pr-audit-time">{fmtDate(entry.created_at)}</span>
-                    </div>
-                    {entry.comments && <div className="pr-audit-comments">"{entry.comments}"</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="hr-form-actions">
-              <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-              {can('procurement.requisitions.edit') && (viewItem.status === 'draft' || viewItem.status === 'revision' || viewItem.status === 'rejected') && (
-                <button className="hr-btn-primary" onClick={() => { setViewItem(null); navigate(`/hr/purchase-requests/${viewItem.id}/edit`) }}>
-                  <Pencil size={14} /> Edit
-                </button>
-              )}
-              {(viewItem.status === 'draft' || viewItem.status === 'revision' || viewItem.status === 'rejected') && (
-                <button className="hr-btn-primary" style={{ background: 'var(--success, #16a34a)' }} onClick={() => { setViewItem(null); setSubmitTarget(viewItem) }}><Send size={14} /> Submit for Approval</button>
-              )}
-            </div>
-          </div>
-        )}
+          )
+        })()}
       </Modal>
 
       {/* Submit confirm */}
