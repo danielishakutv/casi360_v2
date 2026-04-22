@@ -43,6 +43,7 @@ function buildInitialForm() {
     purchase_scenario: '',
     logistics_involved: 'No',
     boq: 'No',
+    project_id: '',
     project_code: '',
     donor: '',
     currency: 'NGN',
@@ -93,6 +94,7 @@ export default function CreatePurchaseRequest() {
           purchase_scenario: pr.purchase_scenario || '',
           logistics_involved: (pr.logistics_involved === true || pr.logistics_involved === 'Yes') ? 'Yes' : 'No',
           boq: (pr.boq === true || pr.boq === 'Yes') ? 'Yes' : 'No',
+          project_id: pr.project_id ? String(pr.project_id) : '',
           project_code: pr.project_code || '',
           donor: pr.donor || '',
           currency: pr.currency || 'NGN',
@@ -119,11 +121,11 @@ export default function CreatePurchaseRequest() {
 
   /* Fetch donors when project changes */
   useEffect(() => {
-    if (!form.project_code) {
+    if (!form.project_id) {
       queueMicrotask(() => setDonorsForProject([]))
       return
     }
-    const proj = projects.find((p) => (p.project_code || p.id) === form.project_code)
+    const proj = projects.find((p) => String(p.id) === String(form.project_id))
     if (!proj) {
       queueMicrotask(() => setDonorsForProject([]))
       return
@@ -135,7 +137,7 @@ export default function CreatePurchaseRequest() {
         setDonorsForProject(donors)
       })
       .catch(() => setDonorsForProject([]))
-  }, [form.project_code, projects])
+  }, [form.project_id, projects])
 
   /* Fetch budget lines for all project codes in the form */
   const allProjectCodesKey = [form.project_code, ...form.items.map((li) => li.project_code)].filter(Boolean).join(',')
@@ -157,12 +159,17 @@ export default function CreatePurchaseRequest() {
   /* Form helpers */
   const updateField = useCallback((f, v) => setForm((p) => {
     const next = { ...p, [f]: v }
-    if (f === 'project_code') {
+    if (f === 'project_id') {
+      // server resolves project_code from project_id; we still mirror it locally
+      // so per-line project_code (used to look up budget lines) stays in sync
+      const proj = projects.find((pr) => String(pr.id) === String(v))
+      const code = proj?.project_code || ''
+      next.project_code = code
       next.donor = ''
-      next.items = p.items.map((li) => ({ ...li, project_code: v, budget_line: '' }))
+      next.items = p.items.map((li) => ({ ...li, project_code: code, budget_line: '' }))
     }
     return next
-  }), [])
+  }), [projects])
 
   const updateLineItem = useCallback((idx, field, value) => {
     setForm((p) => {
@@ -206,7 +213,8 @@ export default function CreatePurchaseRequest() {
       purchase_scenario: form.purchase_scenario || undefined,
       logistics_involved: form.logistics_involved === 'Yes',
       boq: form.boq === 'Yes',
-      project_code: form.project_code || undefined,
+      // Backend prefers project_id; project_code is server-derived
+      project_id: form.project_id ? Number(form.project_id) : undefined,
       donor: form.donor || undefined,
       currency: form.currency || undefined,
       exchange_rate: form.currency !== 'NGN' && form.exchange_rate ? Number(form.exchange_rate) : undefined,
@@ -380,16 +388,38 @@ export default function CreatePurchaseRequest() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>Project Code</label>
-              <select value={form.project_code} onChange={(e) => updateField('project_code', e.target.value)}>
+              <label>Project *</label>
+              <select value={form.project_id} onChange={(e) => updateField('project_id', e.target.value)}>
                 <option value="">Select project...</option>
-                {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{(p.project_code || p.id)} \u2014 {p.name}</option>)}
+                {projects.map((p) => {
+                  const code = p.project_code || p.id
+                  const mgr = p.project_manager_name || p.project_manager?.name || ''
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {code} \u2014 {p.name}{mgr ? ` \u2014 ${mgr}` : ''}
+                    </option>
+                  )
+                })}
               </select>
+              {!form.project_id && (
+                <span className="hr-form-hint" style={{ color: 'var(--warning, #b45309)', fontSize: 12, marginTop: 4, display: 'block' }}>
+                  Linking a project sets the Stage 1 (Budget Holder) approver. Unlinked PRs cannot be routed.
+                </span>
+              )}
+              {form.project_id && (() => {
+                const proj = projects.find((p) => String(p.id) === String(form.project_id))
+                const mgr = proj?.project_manager_name || proj?.project_manager?.name
+                return mgr ? (
+                  <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                    Stage 1 approver: <strong>{mgr}</strong>
+                  </span>
+                ) : null
+              })()}
             </div>
             <div className="hr-form-field">
               <label>Donor</label>
-              <select value={form.donor} onChange={(e) => updateField('donor', e.target.value)} disabled={!form.project_code}>
-                <option value="">{form.project_code ? 'Select donor...' : 'Select a project first'}</option>
+              <select value={form.donor} onChange={(e) => updateField('donor', e.target.value)} disabled={!form.project_id}>
+                <option value="">{form.project_id ? 'Select donor...' : 'Select a project first'}</option>
                 {donorsForProject.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
             </div>

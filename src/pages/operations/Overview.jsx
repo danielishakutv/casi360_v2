@@ -22,7 +22,7 @@ export default function OperationsOverview() {
         <div className="stat-card orange" style={{ cursor: 'pointer' }} onClick={() => navigate('/operations/approvals')}>
           <div className="stat-top"><div className="stat-icon orange"><Clock3 size={22} /></div></div>
           <div className="stat-value">{pendingCount}</div>
-          <div className="stat-label">Pending Operations Approvals</div>
+          <div className="stat-label">Pending Procurement Approvals</div>
         </div>
       </div>
 
@@ -31,9 +31,9 @@ export default function OperationsOverview() {
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <ClipboardCheck size={20} style={{ color: 'var(--primary)', marginTop: 2, flexShrink: 0 }} />
             <div>
-              <h4 style={{ margin: '0 0 6px', color: 'var(--text-secondary)' }}>Operations Module</h4>
+              <h4 style={{ margin: '0 0 6px', color: 'var(--text-secondary)' }}>Procurement Module</h4>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6 }}>
-                The Operations team handles the final logistics sign-off on purchase requests
+                The Procurement team handles the final sign-off on purchase requests
                 that Finance has reviewed and forwarded. Use the{' '}
                 <button
                   type="button"

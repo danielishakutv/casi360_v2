@@ -70,11 +70,11 @@ export function buildChainFromDemo(item) {
       actor_name: item.finance_actor || null,
     },
     {
-      stage: 'operations',
-      stage_label: 'Operations',
+      stage: 'procurement',
+      stage_label: 'Procurement',
       stage_order: 3,
       status: item.procurement_status || 'waiting',
-      actor_name: item.operations_actor || null,
+      actor_name: item.procurement_actor || item.operations_actor || null,
     },
   ]
 }
@@ -85,7 +85,7 @@ export function buildChainFromPR(pr) {
   const active = pr.active_stage
   return [
     { stage: 'budget_holder', stage_label: 'Budget Holder', stage_order: 1, status: active === 'budget_holder' ? 'pending' : (active ? 'approved' : 'waiting') },
-    { stage: 'finance',       stage_label: 'Finance',       stage_order: 2, status: active === 'finance'       ? 'pending' : (active === 'operations' ? 'approved' : 'waiting') },
-    { stage: 'operations',    stage_label: 'Operations',    stage_order: 3, status: active === 'operations'    ? 'pending' : 'waiting' },
+    { stage: 'finance',       stage_label: 'Finance',       stage_order: 2, status: active === 'finance'       ? 'pending' : (active === 'procurement' ? 'approved' : 'waiting') },
+    { stage: 'procurement',   stage_label: 'Procurement',   stage_order: 3, status: active === 'procurement'   ? 'pending' : 'waiting' },
   ]
 }

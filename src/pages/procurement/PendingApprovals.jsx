@@ -20,10 +20,10 @@ const ACTIONS = [
 
 const AUDIT_LABELS = {
   created: 'Created', updated: 'Updated', submitted: 'Submitted for Approval',
-  approved: 'Approved', forwarded: 'Forwarded to Operations',
+  approved: 'Approved', forwarded: 'Forwarded to Procurement',
   revision: 'Revision Requested', rejected: 'Rejected',
 }
-const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', operations: 'Operations' }
+const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
 
 export default function PendingApprovals() {
   const [pos, setPos] = useState([])
@@ -395,6 +395,7 @@ export default function PendingApprovals() {
                 <div><strong>Requester</strong><span>{pr.requested_by_name || '—'}</span></div>
                 <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
                 <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
+                {(pr.project_manager_name || pr.project_manager?.name) && <div><strong>Project Manager</strong><span>{pr.project_manager_name || pr.project_manager?.name}</span></div>}
                 <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
                 <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
                 <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>

@@ -27,10 +27,10 @@ const ACTIONS = [
 
 const AUDIT_LABELS = {
   created: 'Created', updated: 'Updated', submitted: 'Submitted for Approval',
-  approved: 'Approved', forwarded: 'Forwarded to Operations',
+  approved: 'Approved', forwarded: 'Forwarded to Procurement',
   revision: 'Revision Requested', rejected: 'Rejected',
 }
-const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', operations: 'Operations' }
+const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
 
 export default function OperationsApprovals() {
   const [reqs, setReqs] = useState([])
@@ -164,6 +164,7 @@ export default function OperationsApprovals() {
       closeAction()
       fetchData()
     } catch (err) {
+      // Show server-provided 403 (and other) messages verbatim so users see the exact authorization reason
       setError(err.message || 'Approval action failed')
     } finally {
       setSubmitting(false)
@@ -184,16 +185,16 @@ export default function OperationsApprovals() {
         <div className="stat-card orange animate-in">
           <div className="stat-top"><div className="stat-icon orange"><Clock3 size={22} /></div></div>
           <div className="stat-value">{reqs.length}</div>
-          <div className="stat-label">Awaiting Operations Sign-off</div>
+          <div className="stat-label">Awaiting Procurement Sign-off</div>
         </div>
       </div>
 
       <div className="card animate-in" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ padding: '12px 20px' }}>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-            <strong style={{ color: 'var(--text-secondary)' }}>Operations approval queue.</strong>{' '}
+            <strong style={{ color: 'var(--text-secondary)' }}>Procurement approval queue.</strong>{' '}
             These items have been approved by the Budget Holder and forwarded by Finance for
-            final logistics sign-off. Approve to complete the workflow, request revision, or reject.
+            final procurement sign-off. Approve to complete the workflow, request revision, or reject.
           </p>
         </div>
       </div>
@@ -221,7 +222,7 @@ export default function OperationsApprovals() {
           {/* Mobile cards */}
           <div className="approval-cards-mobile">
             {paged.length === 0 ? (
-              <p className="hr-empty-cell" style={{ textAlign: 'center', padding: 24 }}>No items awaiting Operations approval.</p>
+              <p className="hr-empty-cell" style={{ textAlign: 'center', padding: 24 }}>No items awaiting Procurement approval.</p>
             ) : paged.map((item) => (
               <div key={item.id} className="approval-card">
                 <div className="approval-card-header">
@@ -267,7 +268,7 @@ export default function OperationsApprovals() {
                 </thead>
                 <tbody>
                   {paged.length === 0 ? (
-                    <tr><td colSpan={6} className="hr-empty-cell">No items awaiting Operations approval.</td></tr>
+                    <tr><td colSpan={6} className="hr-empty-cell">No items awaiting Procurement approval.</td></tr>
                   ) : paged.map((item) => (
                     <tr key={item.id}>
                       <td>
@@ -420,6 +421,7 @@ export default function OperationsApprovals() {
                 <div><strong>Requester</strong><span>{pr.requested_by_name || '—'}</span></div>
                 <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
                 <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
+                {(pr.project_manager_name || pr.project_manager?.name) && <div><strong>Project Manager</strong><span>{pr.project_manager_name || pr.project_manager?.name}</span></div>}
                 <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
                 <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
                 <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>
@@ -532,7 +534,7 @@ export default function OperationsApprovals() {
       </Modal>
 
       {/* Action Modal */}
-      <Modal open={!!target} onClose={closeAction} title="Operations Approval Action" size="sm">
+      <Modal open={!!target} onClose={closeAction} title="Procurement Approval Action" size="sm">
         {target && (
           <form onSubmit={handleAction} className="hr-form">
             <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16 }}>
@@ -568,7 +570,7 @@ export default function OperationsApprovals() {
                 placeholder={
                   action === 'reject'   ? 'Reason for rejection (required)…' :
                   action === 'revision' ? 'What needs to be corrected? (required)…' :
-                  'Optional logistics notes…'
+                  'Optional procurement notes…'
                 }
                 required={action === 'reject' || action === 'revision'}
               />

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
-import { rfqApi } from '../../services/procurement'
+import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
@@ -33,8 +33,16 @@ export default function RequestForQuotation() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(INITIAL_FORM)
   const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [approvedPRs, setApprovedPRs] = useState([])
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+
+  useEffect(() => {
+    purchaseRequestsApi.list({ status: 'approved', per_page: 0 })
+      .then((res) => setApprovedPRs(extractItems(res)))
+      .catch(() => {})
+  }, [])
 
   const fetchList = useCallback(async () => {
     setLoading(true)
@@ -52,14 +60,16 @@ export default function RequestForQuotation() {
   function openEdit(item) {
     setEditing(item)
     setForm({ title: item.title, description: item.description || '', pr_reference: item.pr_reference || '', deadline: item.deadline || '', status: item.status, notes: item.notes || '' })
+    setFormError('')
     setModalOpen(true)
   }
-  function closeModal() { setModalOpen(false); setEditing(null) }
+  function closeModal() { setModalOpen(false); setEditing(null); setFormError('') }
   function updateField(f, v) { setForm((p) => ({ ...p, [f]: v })) }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSubmitting(true)
+    setFormError('')
     try {
       if (editing) {
         await rfqApi.update(editing.id, form)
@@ -68,7 +78,10 @@ export default function RequestForQuotation() {
       }
       closeModal()
       fetchList()
-    } catch { /* ignore */ }
+    } catch (err) {
+      // Show server-provided 403 (and other) messages verbatim
+      setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to save RFQ'))
+    }
     finally { setSubmitting(false) }
   }
 
@@ -159,9 +172,26 @@ export default function RequestForQuotation() {
 
       <Modal open={modalOpen} onClose={closeModal} title={editing ? 'Edit RFQ' : 'New Request for Quotation'} size="md">
         <form onSubmit={handleSubmit} className="hr-form">
+          {formError && (
+            <div className="hr-error-banner" style={{ margin: '0 0 16px' }}>
+              <AlertCircle size={16} />
+              <span>{formError}</span>
+              <button type="button" onClick={() => setFormError('')} className="hr-error-dismiss">&times;</button>
+            </div>
+          )}
           <div className="hr-form-field"><label>Title *</label><input type="text" value={form.title} onChange={(e) => updateField('title', e.target.value)} required placeholder="RFQ title" /></div>
           <div className="hr-form-row">
-            <div className="hr-form-field"><label>PR Reference</label><input type="text" value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)} placeholder="e.g. PR-2026-001" /></div>
+            <div className="hr-form-field">
+              <label>Approved Purchase Request</label>
+              <select value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)}>
+                <option value="">— None —</option>
+                {approvedPRs.map((pr) => (
+                  <option key={pr.id} value={pr.requisition_number || pr.id}>
+                    {(pr.requisition_number || `PR-${pr.id}`)} — {pr.title || pr.description || 'Untitled'}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="hr-form-field"><label>Deadline</label><input type="date" value={form.deadline} onChange={(e) => updateField('deadline', e.target.value)} /></div>
           </div>
           <div className="hr-form-field"><label>Status</label><select value={form.status} onChange={(e) => updateField('status', e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}</select></div>

@@ -8,7 +8,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
-const INITIAL_FORM = { name: '', head: '', description: '', color: '#4361ee', status: 'active' }
+const INITIAL_FORM = { name: '', code: '', head: '', description: '', color: '#4361ee', status: 'active' }
+const CODE_PATTERN = /^[A-Z0-9_]+$/
 
 export default function Departments() {
   const { can } = useAuth()
@@ -94,6 +95,7 @@ export default function Departments() {
     setEditing(dept)
     setForm({
       name:        dept.name || '',
+      code:        dept.code || '',
       head:        dept.head || '',
       description: dept.description || '',
       color:       dept.color || '#4361ee',
@@ -119,11 +121,21 @@ export default function Departments() {
     e.preventDefault()
     setSubmitting(true)
     setFormErrors({})
+
+    // Client-side validation: code is optional, but if present must match /^[A-Z0-9_]+$/
+    if (form.code && !CODE_PATTERN.test(form.code)) {
+      setFormErrors({ code: ['Code must contain only uppercase letters, digits, and underscores (e.g. FINANCE, OPS_2)'] })
+      setSubmitting(false)
+      return
+    }
+
+    const payload = { ...form, code: form.code ? form.code : undefined }
+
     try {
       if (editing) {
-        await departmentsApi.update(editing.id, form)
+        await departmentsApi.update(editing.id, payload)
       } else {
-        await departmentsApi.create(form)
+        await departmentsApi.create(payload)
       }
       closeModal()
       fetchList()
@@ -280,6 +292,22 @@ export default function Departments() {
               required
             />
             {formErrors.name && <span className="hr-field-error">{formErrors.name[0]}</span>}
+          </div>
+
+          <div className="hr-form-field">
+            <label>Code (for integrations)</label>
+            <input
+              type="text"
+              value={form.code}
+              onChange={(e) => updateField('code', e.target.value.toUpperCase())}
+              placeholder="e.g. FINANCE, PROCUREMENT, HR"
+              pattern="[A-Z0-9_]+"
+              title="Uppercase letters, digits, and underscores only"
+            />
+            <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+              Optional. Uppercase letters, digits, underscores (e.g. <code>FINANCE</code>, <code>PROCUREMENT</code>). Used by approval routing.
+            </small>
+            {formErrors.code && <span className="hr-field-error">{formErrors.code[0]}</span>}
           </div>
 
           <div className="hr-form-field">

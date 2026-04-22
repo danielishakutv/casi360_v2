@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { rfqApi } from '../../services/procurement'
+import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 
@@ -34,6 +34,8 @@ function generateRFQNumber() {
 function buildInitialForm() {
   return {
     rfq_number: generateRFQNumber(),
+    /* Optional source PR (must be approved) */
+    pr_reference: '',
     /* Supplier header */
     supplier_name: '',
     supplier_address: '',
@@ -64,11 +66,15 @@ export default function CreateRequestForQuotation() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
+  const [approvedPRs, setApprovedPRs] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+    purchaseRequestsApi.list({ status: 'approved', per_page: 0 })
+      .then((res) => setApprovedPRs(extractItems(res)))
+      .catch(() => {})
   }, [])
 
   /* ─── Form helpers ─── */
@@ -119,6 +125,7 @@ export default function CreateRequestForQuotation() {
     const payload = {
       title: form.supplier_name || 'RFQ',
       date: form.date,
+      pr_reference: form.pr_reference || undefined,
       supplier_name: form.supplier_name,
       supplier_address: form.supplier_address,
       contact_person: form.company_rep,
@@ -143,7 +150,8 @@ export default function CreateRequestForQuotation() {
 
     rfqApi.create(payload)
       .then(() => navigate('/procurement/rfq'))
-      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message))
+      // Show server-provided 403 (and other) messages verbatim
+      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to create RFQ')))
       .finally(() => setSubmitting(false))
   }
 
@@ -179,6 +187,20 @@ export default function CreateRequestForQuotation() {
             <div className="hr-form-field">
               <label>Date</label>
               <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Source Purchase Request</label>
+              <select value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)}>
+                <option value="">— None —</option>
+                {approvedPRs.map((pr) => (
+                  <option key={pr.id} value={pr.requisition_number || pr.id}>
+                    {(pr.requisition_number || `PR-${pr.id}`)} — {pr.title || pr.description || 'Untitled'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
