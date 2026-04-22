@@ -97,6 +97,7 @@ const navItems = [
     icon: Wallet,
     children: [
       { label: 'Overview',          icon: Eye,            path: '/finance' },
+      { label: 'Projects',          icon: Briefcase,      path: '/finance/projects' },
       { label: 'Budget',            icon: PieChart,       path: '/finance/budget' },
       { label: 'Approvals',         icon: ClipboardCheck, path: '/finance/approvals' },
       { label: 'Purchase Requests', icon: ClipboardList,  path: '/finance/purchase-requests' },

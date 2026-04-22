@@ -58,6 +58,7 @@ const FinanceBudget                = lazy(() => import('./pages/finance/Budget')
 const FinanceApprovals             = lazy(() => import('./pages/finance/Approvals'))
 const FinancePurchaseRequests      = lazy(() => import('./pages/finance/PurchaseRequests'))
 const FinanceCreatePurchaseRequest = lazy(() => import('./pages/finance/CreatePurchaseRequest'))
+const FinanceProjects              = lazy(() => import('./pages/finance/Projects'))
 
 // Projects
 const ProjectsOverview = lazy(() => import('./pages/projects/ProjectsOverview'))
@@ -189,6 +190,7 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/finance/purchase-requests" element={<FinancePurchaseRequests />} />
                 <Route path="/finance/purchase-requests/create" element={<FinanceCreatePurchaseRequest />} />
                 <Route path="/finance/purchase-requests/:id/edit" element={<FinanceCreatePurchaseRequest />} />
+                <Route path="/finance/projects" element={<FinanceProjects />} />
 
                 {/* Projects */}
                 <Route path="/projects" element={<ProjectsOverview />} />
