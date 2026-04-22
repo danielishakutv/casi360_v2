@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { authApi } from '../../services/api'
 
 export default function ForceChangePassword() {
   const { updateUser } = useAuth()
+  const navigate = useNavigate()
   const [form, setForm] = useState({ current_password: '', new_password: '', new_password_confirmation: '' })
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
@@ -28,8 +30,8 @@ export default function ForceChangePassword() {
     try {
       await authApi.changePassword(form.current_password, form.new_password, form.new_password_confirmation)
       setSuccess('Password changed successfully! Redirecting…')
-      // Update local user so force_password_change = false
       updateUser({ force_password_change: false })
+      setTimeout(() => navigate('/'), 1500)
     } catch (err) {
       if (err.errors) setFieldErrors(err.errors)
       else setError(err.message || 'Failed to change password.')
