@@ -4954,6 +4954,60 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* PR Line Items table (approval detail modal)                    */
+/* ─────────────────────────────────────────────────────────────── */
+.pr-items-section {
+  border-top: 1px solid var(--border-color);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+.pr-items-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+.pr-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pr-items-table thead th {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
+}
+.pr-items-table thead th:nth-child(n+4) { text-align: right; }
+.pr-items-table tbody tr:hover { background: var(--bg-secondary); }
+.pr-items-table tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+.pr-items-table tbody tr:last-child td { border-bottom: none; }
+.pr-items-table tfoot td {
+  padding: 7px 10px;
+  border-top: 2px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.pr-item-sub {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────── */
 /* PR Audit Log timeline                                          */
 /* ─────────────────────────────────────────────────────────────── */
 .pr-audit-log {

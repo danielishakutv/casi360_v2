@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCheck, ChevronDown, ChevronRight, Clock3, Eye, RefreshCw, RotateCcw, Search, X } from 'lucide-react'
+import { AlertCircle, CheckCheck, ChevronDown, ChevronRight, Clock3, Download, Eye, FileText, RefreshCw, RotateCcw, Search, X } from 'lucide-react'
 import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
 import { useDebounce } from '../../hooks/useDebounce'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { capitalize } from '../../utils/capitalize'
+import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
 import Pagination from '../../components/Pagination'
 import Modal from '../../components/Modal'
 import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
@@ -137,6 +138,7 @@ export default function FinanceApprovals() {
           justification: d?.justification ?? d?.notes ?? null,
           item_count:    d?.item_count    ?? null,
           needed_by:     d?.needed_by     ?? null,
+          items:         Array.isArray(d?.items) ? d.items : null,
         })
       })
       .catch(() => setViewExtra({}))
@@ -451,6 +453,54 @@ export default function FinanceApprovals() {
                   </div>
               }
 
+              {/* Line Items */}
+              {viewExtraLoading ? null : (
+                <div className="pr-items-section">
+                  <p className="pr-audit-title">Line Items {viewExtra?.items?.length ? `(${viewExtra.items.length})` : ''}</p>
+                  {!viewExtra?.items || viewExtra.items.length === 0 ? (
+                    <p className="pr-audit-empty">No line items recorded.</p>
+                  ) : (
+                    <div className="pr-items-table-wrap">
+                      <table className="pr-items-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Description</th>
+                            <th>Unit</th>
+                            <th>Qty</th>
+                            <th>Unit Cost</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewExtra.items.map((it, i) => {
+                            const total = (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0)
+                            return (
+                              <tr key={i}>
+                                <td>{i + 1}</td>
+                                <td>{it.description || '—'}{it.budget_line ? <span className="pr-item-sub">{it.budget_line}</span> : null}</td>
+                                <td>{it.unit || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{it.quantity ?? '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{naira(it.estimated_unit_cost)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{naira(total)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>Grand Total</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>
+                              {naira(viewExtra.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0))}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ marginBottom: 20 }}>
                 <p className="pr-audit-title">Approval Chain</p>
                 <ApprovalChain chain={buildChainFromPR(pr)} compact={false} />
@@ -481,6 +531,12 @@ export default function FinanceApprovals() {
 
               <div className="hr-form-actions">
                 <button className="hr-btn-secondary" onClick={closeDetail}>Close</button>
+                <button className="hr-btn-secondary" onClick={() => exportPRtoCSV({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download CSV">
+                  <Download size={14} /> CSV
+                </button>
+                <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download PDF">
+                  <FileText size={14} /> PDF
+                </button>
                 {!viewIsHistory && (
                   <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction(viewTarget, 'approve') }}>
                     Take Action
