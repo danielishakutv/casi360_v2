@@ -22,6 +22,33 @@ function fmtDate(d) {
   try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
   catch { return d }
 }
+function fmtDateOrBlank(d) {
+  if (!d) return ''
+  try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+  catch { return d }
+}
+
+/* ── approval-chain helpers ─────────────────────────────────────────── */
+const ACTED = ['approved', 'forwarded', 'rejected']
+
+function findStage(chain, stage) {
+  return (chain || []).find((s) => s.stage === stage) || null
+}
+const sName = (s) => s?.actor_name || s?.approver_name || ''
+const sPos  = (s) => s?.actor_position || s?.actor_role || s?.role || ''
+const sDate = (s) => (ACTED.includes(s?.status) ? fmtDateOrBlank(s?.decided_at || s?.acted_at) : '')
+function sStatusLabel(s) {
+  if (!s) return 'Not yet reached'
+  switch (s.status) {
+    case 'approved':  return 'Approved'
+    case 'forwarded': return 'Approved & Forwarded'
+    case 'pending':   return 'Awaiting approval'
+    case 'rejected':  return 'Rejected'
+    case 'revision':  return 'Sent back for revision'
+    case 'skipped':   return 'Skipped'
+    default:          return 'Not yet reached'
+  }
+}
 
 /* ── load logo from imported asset URL → base64 data URL ────────────── */
 async function loadLogoBase64(src) {
@@ -206,9 +233,64 @@ export async function exportPRtoPDF(pr, items = []) {
       showFoot: 'lastPage',
       showHead: 'everyPage',
     })
+    y = doc.lastAutoTable.finalY + 7
   }
 
-  /* ── 4. Stamp header + footer on every page ─────────────────────── */
+  /* ── 4. Approvals & Sign-off block ───────────────────────────────── */
+  const chain = pr.approval_chain || []
+  const bh   = findStage(chain, 'budget_holder')
+  const fin  = findStage(chain, 'finance')
+  const proc = findStage(chain, 'procurement') || findStage(chain, 'operations')
+
+  const reqName = pr.requested_by_name || ''
+  const reqPos  = pr.requested_by_position || pr.requested_by_role || pr.department || ''
+  const reqDate = fmtDateOrBlank(pr.submitted_at || pr.created_at)
+
+  const comments = (chain.map((s) => s.comment).filter(Boolean).join('\n') || '').trim()
+
+  if (y > 297 - MB - 55) { doc.addPage(); y = MT + 2 }
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(40)
+  doc.text('Approvals & Sign-off', ML, y)
+  doc.setTextColor(0)
+  y += 5
+
+  const labelCell = (t) => ({ content: t, styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } })
+  const sigCell   = { content: '', styles: { minCellHeight: 14 } }
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Comments / Special Validation', 'Validation', 'Requester', 'Budget Holder', 'Finance', 'Procurement']],
+    body: [
+      [
+        { content: comments, rowSpan: 4, styles: { valign: 'top', halign: 'left', fontSize: 7.5 } },
+        labelCell('Name'),
+        reqName, sName(bh), sName(fin), sName(proc),
+      ],
+      [labelCell('Position'), reqPos, sPos(bh), sPos(fin), sPos(proc)],
+      [labelCell('Date'),     reqDate, sDate(bh), sDate(fin), sDate(proc)],
+      [
+        { content: 'Signature', styles: { fontStyle: 'bold', fillColor: [245, 247, 250], minCellHeight: 14 } },
+        sigCell, sigCell, sigCell, sigCell,
+      ],
+    ],
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2.4, minCellHeight: 9, overflow: 'linebreak' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+    columnStyles: {
+      0: { cellWidth: 40 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 30 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 30 },
+    },
+    margin: TBL_MARGIN,
+  })
+
+  /* ── 5. Stamp header + footer on every page ─────────────────────── */
   const total = doc.internal.getNumberOfPages()
   for (let i = 1; i <= total; i++) {
     doc.setPage(i)
@@ -255,6 +337,31 @@ export function exportPRtoCSV(pr, items = []) {
       (s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0,
     )],
   ]
+
+  /* ── Approvals & Sign-off ─────────────────────────────────────────── */
+  const chain = pr.approval_chain || []
+  const bh   = findStage(chain, 'budget_holder')
+  const fin  = findStage(chain, 'finance')
+  const proc = findStage(chain, 'procurement') || findStage(chain, 'operations')
+
+  rows.push(
+    [],
+    ['Approvals & Sign-off'],
+    ['Role', 'Name', 'Position', 'Date', 'Status'],
+    ['Requester',
+      pr.requested_by_name || '',
+      pr.requested_by_position || pr.requested_by_role || pr.department || '',
+      fmtDateOrBlank(pr.submitted_at || pr.created_at),
+      'Submitted'],
+    ['Budget Holder', sName(bh),   sPos(bh),   sDate(bh),   sStatusLabel(bh)],
+    ['Finance',       sName(fin),  sPos(fin),  sDate(fin),  sStatusLabel(fin)],
+    ['Procurement',   sName(proc), sPos(proc), sDate(proc), sStatusLabel(proc)],
+  )
+
+  const comments = chain.map((s) => s.comment).filter(Boolean)
+  if (comments.length) {
+    rows.push([], ['Comments / Special Validation'], ...comments.map((c) => [c]))
+  }
 
   const csv = rows.map((row) => row.map(escape).join(',')).join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
