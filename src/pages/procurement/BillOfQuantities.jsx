@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, CheckCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, CheckCircle, Download, FileText } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -8,6 +8,7 @@ import { boqApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
+import { exportBOQtoPDF, exportBOQtoCSV } from '../../utils/boqExport'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
@@ -249,6 +250,26 @@ export default function BillOfQuantities() {
                 </div>
               </>
             )}
+
+            <div className="hr-form-actions">
+              <button className="hr-btn-secondary" onClick={() => { setViewItem(null); setViewDetail(null) }}>Close</button>
+              <button
+                className="hr-btn-secondary"
+                onClick={() => exportBOQtoCSV({ ...viewItem, ...(viewDetail || {}) }, viewDetail?.items || [], viewDetail?.signoffs || [])}
+                disabled={viewLoading}
+                title="Download CSV"
+              >
+                <Download size={14} /> CSV
+              </button>
+              <button
+                className="hr-btn-secondary"
+                onClick={() => exportBOQtoPDF({ ...viewItem, ...(viewDetail || {}) }, viewDetail?.items || [], viewDetail?.signoffs || [])}
+                disabled={viewLoading}
+                title="Download PDF"
+              >
+                <FileText size={14} /> PDF
+              </button>
+            </div>
           </div>
         )}
       </Modal>
