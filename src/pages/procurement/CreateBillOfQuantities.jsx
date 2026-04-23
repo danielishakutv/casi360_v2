@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { boqApi } from '../../services/procurement'
-import { projectsApi } from '../../services/projects'
+import { projectsApi, budgetCategoriesApi } from '../../services/projects'
 import { departmentsApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 
@@ -41,6 +41,7 @@ export default function CreateBillOfQuantities() {
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
+  const [categories, setCategories] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
@@ -49,6 +50,8 @@ export default function CreateBillOfQuantities() {
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
+    budgetCategoriesApi.list({ status: 'active', per_page: 0, sort_by: 'sort_order', sort_dir: 'asc' })
+      .then((res) => setCategories(extractItems(res))).catch(() => {})
   }, [])
 
   /* Load existing BOQ for edit mode */
@@ -249,7 +252,13 @@ export default function CreateBillOfQuantities() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Category</label>
-              <input type="text" value={form.category} onChange={(e) => updateField('category', e.target.value)} placeholder="e.g. Construction Materials" />
+              <select value={form.category} onChange={(e) => updateField('category', e.target.value)}>
+                <option value="">Select category...</option>
+                {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                {form.category && !categories.some((c) => c.name === form.category) && (
+                  <option value={form.category}>{form.category}</option>
+                )}
+              </select>
             </div>
             <div className="hr-form-field">
               <label>PR Reference</label>
