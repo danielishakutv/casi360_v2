@@ -39,7 +39,8 @@ export default function PendingApprovals() {
   const [boqView, setBoqView] = useState(null)
   const [boqDetail, setBoqDetail] = useState(null)
   const [boqDetailLoading, setBoqDetailLoading] = useState(false)
-  const [boqBusy, setBoqBusy] = useState(null) // { id, action }
+  const [boqAuditLog, setBoqAuditLog] = useState([])
+  const [boqAuditLoading, setBoqAuditLoading] = useState(false)
 
   /* History section */
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -60,7 +61,7 @@ export default function PendingApprovals() {
   const [viewIsHistory, setViewIsHistory] = useState(false)
 
   /* Action modal */
-  const [target, setTarget] = useState(null) // { type: 'po'|'req', item }
+  const [target, setTarget] = useState(null) // { type: 'po'|'req'|'boq', item }
   const [action, setAction] = useState('approve')
   const [comments, setComments] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -158,6 +159,8 @@ export default function PendingApprovals() {
       const payload = { action, comments: comments || undefined }
       if (target.type === 'po') {
         await purchaseOrdersApi.processApproval(target.item.id, payload)
+      } else if (target.type === 'boq') {
+        await boqApi.processApproval(target.item.id, payload)
       } else {
         await purchaseRequestsApi.processApproval(target.item.id, payload)
       }
@@ -173,7 +176,9 @@ export default function PendingApprovals() {
   function openBoqDetail(boq) {
     setBoqView(boq)
     setBoqDetail(null)
+    setBoqAuditLog([])
     setBoqDetailLoading(true)
+    setBoqAuditLoading(true)
     boqApi.get(boq.id)
       .then((res) => {
         const d = res?.data?.boq || res?.data || res
@@ -181,22 +186,12 @@ export default function PendingApprovals() {
       })
       .catch(() => setBoqDetail({}))
       .finally(() => setBoqDetailLoading(false))
+    boqApi.auditLog(boq.id)
+      .then((res) => { const d = res?.data || res || {}; setBoqAuditLog(d.audit_log || []) })
+      .catch(() => setBoqAuditLog([]))
+      .finally(() => setBoqAuditLoading(false))
   }
-  function closeBoqDetail() { setBoqView(null); setBoqDetail(null) }
-
-  async function handleBoqAction(boq, action) {
-    setBoqBusy({ id: boq.id, action })
-    setError('')
-    try {
-      if (action === 'approve') await boqApi.approve(boq.id)
-      else if (action === 'revise') await boqApi.setStatus(boq.id, 'revised')
-      fetchAll()
-    } catch (err) {
-      setError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to update BOQ'))
-    } finally {
-      setBoqBusy(null)
-    }
-  }
+  function closeBoqDetail() { setBoqView(null); setBoqDetail(null); setBoqAuditLog([]) }
 
   const canApproveBoq = can('procurement.boq.approve')
   const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0
@@ -363,8 +358,9 @@ export default function PendingApprovals() {
                     <button className="approval-card-view-btn" onClick={() => openBoqDetail(boq)}><Eye size={14} /> View Details</button>
                     {canApproveBoq && (
                       <div className="approval-card-quick">
-                        <button className="approval-action-btn approve" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'approve')}><CheckCircle size={12} /> Approve</button>
-                        <button className="approval-action-btn revision" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'revise')}><RotateCcw size={12} /></button>
+                        <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}><CheckCircle size={12} /> Approve</button>
+                        <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')}><RotateCcw size={12} /></button>
+                        <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}><XCircle size={12} /></button>
                       </div>
                     )}
                   </div>
@@ -396,8 +392,9 @@ export default function PendingApprovals() {
                             <button className="hr-action-btn" onClick={() => openBoqDetail(boq)} title="View full details"><Eye size={13} /></button>
                             {canApproveBoq && (
                               <>
-                                <button className="approval-action-btn approve" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'approve')} title="Approve"><CheckCircle size={13} /> Approve</button>
-                                <button className="approval-action-btn revision" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'revise')} title="Request Revision"><RotateCcw size={13} /></button>
+                                <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                                <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
+                                <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}   title="Reject"><XCircle size={13} /></button>
                               </>
                             )}
                           </div>
@@ -744,6 +741,28 @@ export default function PendingApprovals() {
                 </div>
               )}
 
+              <div className="pr-audit-log">
+                <p className="pr-audit-title">Activity Log</p>
+                {boqAuditLoading
+                  ? <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}><div className="auth-spinner" /></div>
+                  : boqAuditLog.length === 0
+                    ? <p className="pr-audit-empty">No activity recorded yet.</p>
+                    : boqAuditLog.map((entry) => (
+                      <div key={entry.id} className={`pr-audit-entry pr-audit-${entry.action}`}>
+                        <div className="pr-audit-dot" />
+                        <div className="pr-audit-body">
+                          <div className="pr-audit-row">
+                            <span className="pr-audit-action">{AUDIT_LABELS[entry.action] || entry.action}</span>
+                            <span className="pr-audit-actor">{entry.actor_name}</span>
+                            <span className="pr-audit-time">{fmtDate(entry.created_at)}</span>
+                          </div>
+                          {entry.comments && <div className="pr-audit-comments">"{entry.comments}"</div>}
+                        </div>
+                      </div>
+                    ))
+                }
+              </div>
+
               <div className="hr-form-actions">
                 <button className="hr-btn-secondary" onClick={closeBoqDetail}>Close</button>
                 <button className="hr-btn-secondary" disabled={boqDetailLoading}
@@ -752,17 +771,10 @@ export default function PendingApprovals() {
                 <button className="hr-btn-secondary" disabled={boqDetailLoading}
                   onClick={() => exportBOQtoPDF(merged, items, signoffs)}
                   title="Download PDF"><FileText size={14} /> PDF</button>
-                {canApproveBoq && (
-                  <>
-                    <button className="hr-btn-secondary" disabled={boqBusy?.id === boqView.id}
-                      onClick={() => handleBoqAction(boqView, 'revise')}>
-                      <RotateCcw size={14} /> Request Revision
-                    </button>
-                    <button className="hr-btn-primary" disabled={boqBusy?.id === boqView.id}
-                      onClick={() => { handleBoqAction(boqView, 'approve'); closeBoqDetail() }}>
-                      <CheckCircle size={14} /> Approve
-                    </button>
-                  </>
+                {canApproveBoq && merged.status === 'submitted' && (
+                  <button className="hr-btn-primary" onClick={() => { closeBoqDetail(); openAction('boq', boqView, 'approve') }}>
+                    Take Action
+                  </button>
                 )}
               </div>
             </div>
@@ -776,9 +788,11 @@ export default function PendingApprovals() {
           <form onSubmit={handleAction} className="hr-form">
             <div style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
-                {target.type === 'po' ? target.item.po_number : target.item.requisition_number}
+                {target.type === 'po' ? target.item.po_number
+                  : target.type === 'boq' ? target.item.boq_number
+                  : target.item.requisition_number}
               </div>
-              {target.type === 'req' && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.item.title}</div>}
+              {(target.type === 'req' || target.type === 'boq') && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.item.title}</div>}
             </div>
 
             {/* Action selector */}

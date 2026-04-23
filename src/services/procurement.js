@@ -98,17 +98,14 @@ export const approvalsApi = {
 /* ------------------------------------------------------------------ */
 
 export const boqApi = {
-  list:   (params)     => api.get('/procurement/boq', params),
-  get:    (id)         => api.get(`/procurement/boq/${id}`),
-  create: (data)       => api.post('/procurement/boq', data),
-  update: (id, data)   => api.patch(`/procurement/boq/${id}`, data),
-  delete: (id)         => api.delete(`/procurement/boq/${id}`),
-  /* Status transitions — PATCH /procurement/boq/:id with {status}.
-     If the backend later adds dedicated endpoints, swap the URL here. */
-  submit:  (id)        => api.patch(`/procurement/boq/${id}`, { status: 'submitted' }),
-  approve: (id)        => api.patch(`/procurement/boq/${id}`, { status: 'approved' }),
-  revise:  (id)        => api.patch(`/procurement/boq/${id}`, { status: 'revised' }),
-  setStatus: (id, status) => api.patch(`/procurement/boq/${id}`, { status }),
+  list:           (params)     => api.get('/procurement/boq', params),
+  get:            (id)         => api.get(`/procurement/boq/${id}`),
+  create:         (data)       => api.post('/procurement/boq', data),
+  update:         (id, data)   => api.patch(`/procurement/boq/${id}`, data),
+  delete:         (id)         => api.delete(`/procurement/boq/${id}`),
+  submit:         (id)         => api.post(`/procurement/boq/${id}/submit`),
+  processApproval:(id, data)   => api.patch(`/procurement/boq/${id}/approval`, data),
+  auditLog:       (id)         => api.get(`/procurement/boq/${id}/audit-log`),
 }
 
 /* ------------------------------------------------------------------ */
