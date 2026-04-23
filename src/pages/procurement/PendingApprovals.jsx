@@ -3,8 +3,10 @@ import { AlertCircle, CheckCircle, ChevronDown, Download, Eye, FileText, Refresh
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { approvalsApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
+import { approvalsApi, boqApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
 import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
+import { exportBOQtoPDF, exportBOQtoCSV } from '../../utils/boqExport'
+import { useAuth } from '../../contexts/AuthContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -26,10 +28,18 @@ const AUDIT_LABELS = {
 const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
 
 export default function PendingApprovals() {
+  const { can } = useAuth()
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
+  const [boqs, setBoqs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  /* BOQ detail modal */
+  const [boqView, setBoqView] = useState(null)
+  const [boqDetail, setBoqDetail] = useState(null)
+  const [boqDetailLoading, setBoqDetailLoading] = useState(false)
+  const [boqBusy, setBoqBusy] = useState(null) // { id, action }
 
   /* History section */
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -63,6 +73,18 @@ export default function PendingApprovals() {
       const d = res?.data || res || {}
       setPos(d.purchase_orders || [])
       setReqs(d.requisitions || [])
+      // Pending-approvals endpoint may already include BOQs. If not, fetch them separately.
+      if (Array.isArray(d.boqs)) {
+        setBoqs(d.boqs)
+      } else {
+        try {
+          const bres = await boqApi.list({ status: 'submitted', per_page: 0 })
+          const bd = bres?.data || bres || {}
+          setBoqs(bd.boqs || bd.items || [])
+        } catch {
+          setBoqs([])
+        }
+      }
     } catch (err) {
       setError(err.message || 'Failed to load pending approvals')
     } finally {
@@ -148,7 +170,36 @@ export default function PendingApprovals() {
     }
   }
 
-  const empty = !loading && pos.length === 0 && reqs.length === 0
+  function openBoqDetail(boq) {
+    setBoqView(boq)
+    setBoqDetail(null)
+    setBoqDetailLoading(true)
+    boqApi.get(boq.id)
+      .then((res) => {
+        const d = res?.data?.boq || res?.data || res
+        setBoqDetail(d)
+      })
+      .catch(() => setBoqDetail({}))
+      .finally(() => setBoqDetailLoading(false))
+  }
+  function closeBoqDetail() { setBoqView(null); setBoqDetail(null) }
+
+  async function handleBoqAction(boq, action) {
+    setBoqBusy({ id: boq.id, action })
+    setError('')
+    try {
+      if (action === 'approve') await boqApi.approve(boq.id)
+      else if (action === 'revise') await boqApi.setStatus(boq.id, 'revised')
+      fetchAll()
+    } catch (err) {
+      setError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to update BOQ'))
+    } finally {
+      setBoqBusy(null)
+    }
+  }
+
+  const canApproveBoq = can('procurement.boq.approve')
+  const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0
 
   return (
     <>
@@ -275,6 +326,80 @@ export default function PendingApprovals() {
                             <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
                             <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Revision"><RotateCcw size={13} /></button>
                             <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bill of Quantities */}
+      {boqs.length > 0 && (
+        <div className="card animate-in">
+          <div className="card-header">
+            <h3>Bills of Quantities</h3>
+            <span className="card-badge purple">{boqs.length} pending</span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            {/* Mobile cards */}
+            <div className="approval-cards-mobile">
+              {boqs.map((boq) => (
+                <div key={boq.id} className="approval-card">
+                  <div className="approval-card-header">
+                    <div className="approval-card-ref">{boq.boq_number}</div>
+                    <span className="card-badge blue">{capitalize(boq.category || 'boq')}</span>
+                  </div>
+                  <div className="approval-card-title">{boq.title}</div>
+                  <div className="approval-card-meta">
+                    <span>{boq.prepared_by || '—'}</span>
+                    <span className="approval-card-amount">{naira(boq.grand_total)}</span>
+                  </div>
+                  <div className="approval-card-actions">
+                    <button className="approval-card-view-btn" onClick={() => openBoqDetail(boq)}><Eye size={14} /> View Details</button>
+                    {canApproveBoq && (
+                      <div className="approval-card-quick">
+                        <button className="approval-action-btn approve" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'approve')}><CheckCircle size={12} /> Approve</button>
+                        <button className="approval-action-btn revision" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'revise')}><RotateCcw size={12} /></button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <div className="approval-table-desktop">
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>BOQ # / Title</th><th>Prepared By</th><th>Department</th><th>Grand Total</th><th>Date</th><th style={{ width: 180 }}>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {boqs.map((boq) => (
+                      <tr key={boq.id}>
+                        <td>
+                          <div className="approvals-meta">
+                            <span className="approvals-meta-main">{boq.title}</span>
+                            <span className="approvals-meta-sub" style={{ color: 'var(--primary)', fontSize: 11 }}>{boq.boq_number}</span>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 12 }}>{boq.prepared_by || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{boq.department || '—'}</td>
+                        <td style={{ fontWeight: 600 }}>{naira(boq.grand_total)}</td>
+                        <td style={{ fontSize: 12 }}>{fmtDate(boq.date || boq.created_at)}</td>
+                        <td>
+                          <div className="approvals-action-row">
+                            <button className="hr-action-btn" onClick={() => openBoqDetail(boq)} title="View full details"><Eye size={13} /></button>
+                            {canApproveBoq && (
+                              <>
+                                <button className="approval-action-btn approve" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'approve')} title="Approve"><CheckCircle size={13} /> Approve</button>
+                                <button className="approval-action-btn revision" disabled={boqBusy?.id === boq.id} onClick={() => handleBoqAction(boq, 'revise')} title="Request Revision"><RotateCcw size={13} /></button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -500,6 +625,144 @@ export default function PendingApprovals() {
                   <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction('req', viewTarget, 'approve') }}>
                     Take Action
                   </button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* BOQ Detail Modal */}
+      <Modal open={!!boqView} onClose={closeBoqDetail} title="Bill of Quantities Details" size="xl">
+        {boqView && (() => {
+          const merged = { ...boqView, ...(boqDetail || {}) }
+          const items = boqDetail?.items || []
+          const signoffs = boqDetail?.signoffs || []
+          const grandTotal = items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_rate) || 0), 0) || Number(merged.grand_total) || 0
+          return (
+            <div className="note-detail">
+              <div className="note-detail-header">
+                <h3>{merged.boq_number} — {merged.title}</h3>
+                <div className="note-detail-badges">
+                  <span className="card-badge blue">{capitalize(merged.category || 'boq')}</span>
+                  <span className={`status-badge ${merged.status}`}><span className="status-dot" />{capitalize((merged.status || '').replace(/_/g, ' '))}</span>
+                </div>
+              </div>
+
+              <div className="pr-detail-meta-grid">
+                <div><strong>Prepared By</strong><span>{merged.prepared_by || '—'}</span></div>
+                <div><strong>Department</strong><span>{merged.department || '—'}</span></div>
+                <div><strong>Project</strong><span>{merged.project_code || '—'}</span></div>
+                <div><strong>PR Reference</strong><span>{merged.pr_reference || '—'}</span></div>
+                <div><strong>Category</strong><span>{merged.category || '—'}</span></div>
+                <div><strong>Delivery Location</strong><span>{merged.delivery_location || '—'}</span></div>
+                <div><strong>Items</strong><span>{merged.item_count ?? items.length}</span></div>
+                <div><strong>Grand Total</strong><span style={{ fontWeight: 700 }}>{naira(grandTotal)}</span></div>
+                <div><strong>Date</strong><span>{fmtDate(merged.date || merged.created_at)}</span></div>
+              </div>
+
+              {merged.notes && (
+                <div className="note-detail-content">{merged.notes}</div>
+              )}
+
+              {boqDetailLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}><div className="auth-spinner" /></div>
+              ) : (
+                <div className="pr-items-section">
+                  <p className="pr-audit-title">Line Items {items.length ? `(${items.length})` : ''}</p>
+                  {items.length === 0 ? (
+                    <p className="pr-audit-empty">No line items recorded.</p>
+                  ) : (
+                    <div className="pr-items-table-wrap">
+                      <table className="pr-items-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Section</th>
+                            <th>Description</th>
+                            <th>Unit</th>
+                            <th>Qty</th>
+                            <th>Unit Rate</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((it, i) => {
+                            const total = (Number(it.quantity) || 0) * (Number(it.unit_rate) || 0)
+                            return (
+                              <tr key={i}>
+                                <td>{i + 1}</td>
+                                <td>{it.section || '—'}</td>
+                                <td>{it.description || '—'}{it.comment ? <span className="pr-item-sub">{it.comment}</span> : null}</td>
+                                <td>{it.unit || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{it.quantity ?? '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{naira(it.unit_rate)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{naira(total)}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: 'right', fontWeight: 700 }}>Grand Total</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{naira(grandTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {signoffs.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <p className="pr-audit-title">Sign-offs</p>
+                  <div className="pr-items-table-wrap">
+                    <table className="pr-items-table">
+                      <thead>
+                        <tr>
+                          <th>Type</th>
+                          <th>Name</th>
+                          <th>Position</th>
+                          <th>Email</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {signoffs.map((s, i) => (
+                          <tr key={i}>
+                            <td>{capitalize((s.type || '').replace(/_/g, ' '))}</td>
+                            <td>{s.name || '—'}</td>
+                            <td>{s.position || '—'}</td>
+                            <td>{s.email || '—'}</td>
+                            <td>{s.date ? fmtDate(s.date) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="hr-form-actions">
+                <button className="hr-btn-secondary" onClick={closeBoqDetail}>Close</button>
+                <button className="hr-btn-secondary" disabled={boqDetailLoading}
+                  onClick={() => exportBOQtoCSV(merged, items, signoffs)}
+                  title="Download CSV"><Download size={14} /> CSV</button>
+                <button className="hr-btn-secondary" disabled={boqDetailLoading}
+                  onClick={() => exportBOQtoPDF(merged, items, signoffs)}
+                  title="Download PDF"><FileText size={14} /> PDF</button>
+                {canApproveBoq && (
+                  <>
+                    <button className="hr-btn-secondary" disabled={boqBusy?.id === boqView.id}
+                      onClick={() => handleBoqAction(boqView, 'revise')}>
+                      <RotateCcw size={14} /> Request Revision
+                    </button>
+                    <button className="hr-btn-primary" disabled={boqBusy?.id === boqView.id}
+                      onClick={() => { handleBoqAction(boqView, 'approve'); closeBoqDetail() }}>
+                      <CheckCircle size={14} /> Approve
+                    </button>
+                  </>
                 )}
               </div>
             </div>

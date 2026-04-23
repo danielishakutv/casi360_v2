@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, CheckCircle, Download, FileText } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, Download, FileText } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -83,10 +83,8 @@ export default function BillOfQuantities() {
     setError('')
     try {
       if (action === 'submit') await boqApi.submit(item.id)
-      else if (action === 'approve') await boqApi.approve(item.id)
       fetchList()
     } catch (err) {
-      // Surface server message verbatim (likely a 403 or 422 for disallowed transitions)
       setError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to update BOQ status'))
     } finally {
       setStatusBusy(null)
@@ -164,17 +162,6 @@ export default function BillOfQuantities() {
                           title="Submit for approval"
                         >
                           <Send size={15} />
-                        </button>
-                      )}
-                      {can('procurement.boq.approve') && r.status === 'submitted' && (
-                        <button
-                          className="hr-action-btn"
-                          style={{ color: 'var(--success, #16a34a)' }}
-                          onClick={() => handleStatusChange(r, 'approve')}
-                          disabled={statusBusy?.id === r.id}
-                          title="Approve BOQ"
-                        >
-                          <CheckCircle size={15} />
                         </button>
                       )}
                       {can('procurement.boq.delete') && r.status !== 'approved' && (
