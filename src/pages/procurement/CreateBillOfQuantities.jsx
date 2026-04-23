@@ -110,17 +110,13 @@ export default function CreateBillOfQuantities() {
   const lineAmount = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.unit_rate) || 0), [])
   const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineAmount(li), 0), [form.items, lineAmount])
 
-  function handleSubmit(e) {
-    e.preventDefault()
-    setSubmitting(true)
-    setFormError('')
-
+  function buildPayload() {
     const signoffs = []
     if (form.market_survey_1.name) signoffs.push({ type: 'market_survey', ...form.market_survey_1, date: form.market_survey_1.date || todayStr() })
     if (form.market_survey_2.name) signoffs.push({ type: 'market_survey', ...form.market_survey_2, date: form.market_survey_2.date || todayStr() })
     if (form.budget_holder.name) signoffs.push({ type: 'budget_holder', ...form.budget_holder, date: form.budget_holder.date || todayStr() })
 
-    const payload = {
+    return {
       title: form.title,
       date: form.date,
       department_id: form.department_id || undefined,
@@ -142,13 +138,41 @@ export default function CreateBillOfQuantities() {
           comment: li.comment || undefined,
         })),
     }
+  }
 
+  function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    setFormError('')
+
+    const payload = buildPayload()
     const apiCall = isEdit ? boqApi.update(id, payload) : boqApi.create(payload)
 
     apiCall
       .then(() => navigate('/procurement/boq'))
       .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : err.message))
       .finally(() => setSubmitting(false))
+  }
+
+  async function handleSaveAndSubmit() {
+    setSubmitting(true)
+    setFormError('')
+    try {
+      const payload = buildPayload()
+      let boqId = id
+      if (isEdit) {
+        await boqApi.update(id, payload)
+      } else {
+        const res = await boqApi.create(payload)
+        const data = res?.data?.boq || res?.data || res
+        boqId = data?.id
+      }
+      if (boqId) await boqApi.submit(boqId)
+      navigate('/procurement/boq')
+    } catch (err) {
+      setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to submit BOQ'))
+      setSubmitting(false)
+    }
   }
 
   /* Signoff block renderer */
@@ -326,7 +350,16 @@ export default function CreateBillOfQuantities() {
           {/* Actions */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/boq')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving...' : isEdit ? 'Update BOQ' : 'Submit BOQ'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Save as Draft'}</button>
+            <button
+              type="button"
+              className="hr-btn-primary"
+              style={{ background: 'var(--success, #16a34a)' }}
+              disabled={submitting}
+              onClick={handleSaveAndSubmit}
+            >
+              {submitting ? 'Submitting...' : isEdit ? 'Save & Submit for Approval' : 'Submit for Approval'}
+            </button>
           </div>
         </form>
       </div>

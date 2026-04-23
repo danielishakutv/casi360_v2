@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
-import { purchaseRequestsApi } from '../../services/procurement'
+import { purchaseRequestsApi, boqApi } from '../../services/procurement'
 import { projectsApi, projectDonorsApi, projectBudgetApi } from '../../services/projects'
 import { departmentsApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
@@ -42,6 +42,7 @@ function buildInitialForm() {
     purchase_scenario: '',
     logistics_involved: 'No',
     boq: 'No',
+    boq_id: '',
     project_id: '',
     project_code: '',
     donor: '',
@@ -70,12 +71,19 @@ export default function FinanceCreatePurchaseRequest() {
   const [departments, setDepartments] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
   const [budgetLinesByProject, setBudgetLinesByProject] = useState({})
+  const [approvedBOQs, setApprovedBOQs] = useState([])
   const fetchedProjectIds = useRef(new Set())
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
+    boqApi.list({ status: 'approved', per_page: 0 })
+      .then((res) => {
+        const data = res?.data || res
+        setApprovedBOQs(data?.boqs || extractItems(res))
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -93,6 +101,7 @@ export default function FinanceCreatePurchaseRequest() {
           purchase_scenario: pr.purchase_scenario || '',
           logistics_involved: (pr.logistics_involved === true || pr.logistics_involved === 'Yes') ? 'Yes' : 'No',
           boq: (pr.boq === true || pr.boq === 'Yes') ? 'Yes' : 'No',
+          boq_id: pr.boq_id ? String(pr.boq_id) : '',
           project_id: pr.project_id ? String(pr.project_id) : '',
           project_code: pr.project_code || '',
           donor: pr.donor || '',
@@ -186,6 +195,32 @@ export default function FinanceCreatePurchaseRequest() {
     setForm((p) => ({ ...p, items: p.items.length > 1 ? p.items.filter((_, i) => i !== idx) : p.items }))
   }, [])
 
+  const handleBOQChange = useCallback((boqId) => {
+    setForm((p) => ({ ...p, boq_id: boqId }))
+    if (!boqId) return
+    boqApi.get(boqId)
+      .then((res) => {
+        const boq = res?.data?.boq || res?.data || res
+        const boqItems = boq?.items || []
+        if (!boqItems.length) return
+        setForm((p) => ({
+          ...p,
+          title: p.title || boq.title || '',
+          delivery_location: p.delivery_location || boq.delivery_location || '',
+          items: boqItems.map((it) => ({
+            description: it.description || '',
+            unit: it.unit || '',
+            quantity: it.quantity != null ? String(it.quantity) : '',
+            estimated_unit_cost: it.unit_rate != null ? String(it.unit_rate) : '',
+            project_code: p.project_code || '',
+            budget_line: '',
+            inventory_item_id: '',
+          })),
+        }))
+      })
+      .catch(() => {})
+  }, [])
+
   const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.estimated_unit_cost) || 0), [])
   const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineTotal(li), 0), [form.items, lineTotal])
   const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
@@ -207,6 +242,7 @@ export default function FinanceCreatePurchaseRequest() {
       purchase_scenario: form.purchase_scenario || undefined,
       logistics_involved: form.logistics_involved === 'Yes',
       boq: form.boq === 'Yes',
+      boq_id: form.boq === 'Yes' && form.boq_id ? Number(form.boq_id) : undefined,
       project_id: form.project_id ? Number(form.project_id) : undefined,
       donor: form.donor || undefined,
       currency: form.currency || undefined,
@@ -378,6 +414,26 @@ export default function FinanceCreatePurchaseRequest() {
               </select>
             </div>
           </div>
+
+          {form.boq === 'Yes' && (
+            <div className="hr-form-row">
+              <div className="hr-form-field">
+                <label>Select Approved BOQ</label>
+                <select value={form.boq_id} onChange={(e) => handleBOQChange(e.target.value)}>
+                  <option value="">None (enter items manually)</option>
+                  {approvedBOQs.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {(b.boq_number || ('BOQ-' + b.id)) + ': ' + (b.title || 'Untitled')}
+                    </option>
+                  ))}
+                </select>
+                <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Selecting a BOQ will auto-fill the line items below.
+                </span>
+              </div>
+              <div className="hr-form-field" />
+            </div>
+          )}
 
           <div className="hr-form-row">
             <div className="hr-form-field">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, CheckCircle } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -38,6 +38,7 @@ export default function BillOfQuantities() {
   const [viewLoading, setViewLoading] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(null) // { id, action }
 
   const fetchList = useCallback(async () => {
     setLoading(true); setError('')
@@ -74,6 +75,21 @@ export default function BillOfQuantities() {
     try { await boqApi.delete(deleteTarget.id); setDeleteTarget(null); fetchList() }
     catch (err) { setError(err.message || 'Failed to delete BOQ'); setDeleteTarget(null) }
     finally { setDeleting(false) }
+  }
+
+  async function handleStatusChange(item, action) {
+    setStatusBusy({ id: item.id, action })
+    setError('')
+    try {
+      if (action === 'submit') await boqApi.submit(item.id)
+      else if (action === 'approve') await boqApi.approve(item.id)
+      fetchList()
+    } catch (err) {
+      // Surface server message verbatim (likely a 403 or 422 for disallowed transitions)
+      setError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to update BOQ status'))
+    } finally {
+      setStatusBusy(null)
+    }
   }
 
   const SortTh = ({ col, children }) => (
@@ -138,6 +154,27 @@ export default function BillOfQuantities() {
                       <button className="hr-action-btn" onClick={() => openView(r)} title="View"><Eye size={15} /></button>
                       {can('procurement.boq.edit') && (r.status === 'draft' || r.status === 'revised') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/procurement/boq/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
+                      )}
+                      {can('procurement.boq.edit') && (r.status === 'draft' || r.status === 'revised') && (
+                        <button
+                          className="hr-action-btn"
+                          onClick={() => handleStatusChange(r, 'submit')}
+                          disabled={statusBusy?.id === r.id}
+                          title="Submit for approval"
+                        >
+                          <Send size={15} />
+                        </button>
+                      )}
+                      {can('procurement.boq.approve') && r.status === 'submitted' && (
+                        <button
+                          className="hr-action-btn"
+                          style={{ color: 'var(--success, #16a34a)' }}
+                          onClick={() => handleStatusChange(r, 'approve')}
+                          disabled={statusBusy?.id === r.id}
+                          title="Approve BOQ"
+                        >
+                          <CheckCircle size={15} />
+                        </button>
                       )}
                       {can('procurement.boq.delete') && r.status !== 'approved' && (
                         <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>

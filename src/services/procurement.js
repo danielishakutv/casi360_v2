@@ -94,7 +94,7 @@ export const approvalsApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Bill of Quantities (BOQ)  ⏳ STUB — awaiting backend                */
+/* Bill of Quantities (BOQ)  ✅ LIVE                                   */
 /* ------------------------------------------------------------------ */
 
 export const boqApi = {
@@ -103,6 +103,12 @@ export const boqApi = {
   create: (data)       => api.post('/procurement/boq', data),
   update: (id, data)   => api.patch(`/procurement/boq/${id}`, data),
   delete: (id)         => api.delete(`/procurement/boq/${id}`),
+  /* Status transitions — PATCH /procurement/boq/:id with {status}.
+     If the backend later adds dedicated endpoints, swap the URL here. */
+  submit:  (id)        => api.patch(`/procurement/boq/${id}`, { status: 'submitted' }),
+  approve: (id)        => api.patch(`/procurement/boq/${id}`, { status: 'approved' }),
+  revise:  (id)        => api.patch(`/procurement/boq/${id}`, { status: 'revised' }),
+  setStatus: (id, status) => api.patch(`/procurement/boq/${id}`, { status }),
 }
 
 /* ------------------------------------------------------------------ */
