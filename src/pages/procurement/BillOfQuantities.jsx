@@ -231,7 +231,11 @@ export default function BillOfQuantities() {
                   {viewDetail.signoffs.map((s, i) => (
                     <div key={i} className="view-modal-field">
                       <label>{capitalize((s.type || '').replace(/_/g, ' '))}</label>
-                      <p>{s.name || '\u2014'} {s.position ? `(${s.position})` : ''}</p>
+                      <p>
+                        <strong>{s.name || '\u2014'}</strong>
+                        {s.position ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.position}</span></> : null}
+                        {s.email ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.email}</span></> : null}
+                      </p>
                     </div>
                   ))}
                 </div>

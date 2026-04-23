@@ -1,17 +1,109 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle, User, ChevronDown } from 'lucide-react'
 import { boqApi } from '../../services/procurement'
 import { projectsApi, budgetCategoriesApi } from '../../services/projects'
-import { departmentsApi } from '../../services/hr'
+import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
+
+function employeePosition(emp) {
+  return emp?.position || emp?.designation?.title || (typeof emp?.designation === 'string' ? emp.designation : '') || ''
+}
+
+/* Searchable employee picker — filters by name/email/position as the user types.
+   Falls back to free-text entry so names outside the HR list can still be used. */
+function EmployeePicker({ employees, value, onSelect, onTextChange, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState(value || '')
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    queueMicrotask(() => setQuery(value || ''))
+  }, [value])
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = (query || '').trim().toLowerCase()
+    const list = employees || []
+    if (!q) return list.slice(0, 50)
+    return list.filter((e) => {
+      const hay = `${e.name || ''} ${e.email || ''} ${employeePosition(e)}`.toLowerCase()
+      return hay.includes(q)
+    }).slice(0, 50)
+  }, [employees, query])
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={query}
+          placeholder={placeholder || 'Search employee by name...'}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+            if (onTextChange) onTextChange(e.target.value)
+          }}
+          style={{ paddingRight: 28 }}
+        />
+        <ChevronDown
+          size={14}
+          style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
+        />
+      </div>
+      {open && filtered.length > 0 && (
+        <div
+          style={{
+            position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 20,
+            background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #e5e7eb)',
+            borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+            maxHeight: 240, overflowY: 'auto',
+          }}
+        >
+          {filtered.map((emp) => (
+            <button
+              type="button"
+              key={emp.id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onSelect(emp)
+                setQuery(emp.name || '')
+                setOpen(false)
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px',
+                background: 'transparent', border: 'none', borderBottom: '1px solid var(--border, #f1f5f9)',
+                cursor: 'pointer', fontSize: 13,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-secondary, #f8fafc)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>{emp.name || '—'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, #64748b)' }}>
+                {employeePosition(emp) || '—'}{emp.email ? ` · ${emp.email}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const EMPTY_LINE_ITEM = {
   section: '', unit: '', quantity: '', description: '', unit_rate: '', comment: '',
 }
 
 const EMPTY_SIGNOFF_MS = { name: '', position: '', email: '', signature: '', date: '' }
-const EMPTY_SIGNOFF_BH = { name: '', position: '', email: '', signature: '', date: '', budget_available: '' }
 
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
@@ -28,7 +120,6 @@ function buildInitialForm() {
     notes: '',
     market_survey_1: { ...EMPTY_SIGNOFF_MS },
     market_survey_2: { ...EMPTY_SIGNOFF_MS },
-    budget_holder: { ...EMPTY_SIGNOFF_BH },
     items: [{ ...EMPTY_LINE_ITEM }],
   }
 }
@@ -37,11 +128,13 @@ export default function CreateBillOfQuantities() {
   const navigate = useNavigate()
   const { id } = useParams()
   const isEdit = !!id
+  const { user } = useAuth()
 
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
   const [categories, setCategories] = useState([])
+  const [employees, setEmployees] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
@@ -52,7 +145,30 @@ export default function CreateBillOfQuantities() {
     departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
     budgetCategoriesApi.list({ status: 'active', per_page: 0, sort_by: 'sort_order', sort_dir: 'asc' })
       .then((res) => setCategories(extractItems(res))).catch(() => {})
+    employeesApi.list({ status: 'active', per_page: 0 })
+      .then((res) => setEmployees(extractItems(res))).catch(() => {})
   }, [])
+
+  /* Auto-fill fields from the logged-in user (new mode only) */
+  useEffect(() => {
+    if (isEdit || !user) return
+    queueMicrotask(() => {
+      setForm((p) => ({
+        ...p,
+        prepared_by: p.prepared_by || user.name || '',
+      }))
+    })
+  }, [user, isEdit])
+
+  /* Auto-select the user's department once departments have loaded (new mode only) */
+  useEffect(() => {
+    if (isEdit || !user?.department || !departments.length) return
+    const match = departments.find((d) => d.name === user.department)
+    if (!match) return
+    queueMicrotask(() => {
+      setForm((p) => (p.department_id ? p : { ...p, department_id: match.id }))
+    })
+  }, [user, departments, isEdit])
 
   /* Load existing BOQ for edit mode */
   useEffect(() => {
@@ -63,7 +179,6 @@ export default function CreateBillOfQuantities() {
         const signoffs = boq.signoffs || []
         const ms1 = signoffs.find((s) => s.type === 'market_survey' && !signoffs.slice(0, signoffs.indexOf(s)).some((p) => p.type === 'market_survey')) || {}
         const ms2 = signoffs.filter((s) => s.type === 'market_survey')[1] || {}
-        const bh = signoffs.find((s) => s.type === 'budget_holder') || {}
 
         setForm({
           title: boq.title || '',
@@ -77,7 +192,6 @@ export default function CreateBillOfQuantities() {
           notes: boq.notes || '',
           market_survey_1: { name: ms1.name || '', position: ms1.position || '', email: ms1.email || '', signature: ms1.signature || '', date: ms1.date || '' },
           market_survey_2: { name: ms2.name || '', position: ms2.position || '', email: ms2.email || '', signature: ms2.signature || '', date: ms2.date || '' },
-          budget_holder: { name: bh.name || '', position: bh.position || '', email: bh.email || '', signature: bh.signature || '', date: bh.date || '', budget_available: bh.budget_available || '' },
           items: (boq.items || []).length > 0
             ? boq.items.map((it) => ({ section: it.section || '', unit: it.unit || '', quantity: it.quantity || '', description: it.description || '', unit_rate: it.unit_rate || '', comment: it.comment || '' }))
             : [{ ...EMPTY_LINE_ITEM }],
@@ -117,7 +231,6 @@ export default function CreateBillOfQuantities() {
     const signoffs = []
     if (form.market_survey_1.name) signoffs.push({ type: 'market_survey', ...form.market_survey_1, date: form.market_survey_1.date || todayStr() })
     if (form.market_survey_2.name) signoffs.push({ type: 'market_survey', ...form.market_survey_2, date: form.market_survey_2.date || todayStr() })
-    if (form.budget_holder.name) signoffs.push({ type: 'budget_holder', ...form.budget_holder, date: form.budget_holder.date || todayStr() })
 
     return {
       title: form.title,
@@ -178,13 +291,35 @@ export default function CreateBillOfQuantities() {
     }
   }
 
+  /* When an employee is picked in a signoff section, fill name/position/email together. */
+  const handleSignoffEmployeePick = useCallback((section, emp) => {
+    setForm((p) => ({
+      ...p,
+      [section]: {
+        ...p[section],
+        name: emp.name || '',
+        position: employeePosition(emp),
+        email: emp.email || '',
+      },
+    }))
+  }, [])
+
   /* Signoff block renderer */
   function renderMarketSurvey(label, which) {
     return (
       <div className="pr-signoff-block" key={which}>
         <h4 className="pr-signoff-title">{label}</h4>
         <div className="hr-form-row">
-          <div className="hr-form-field"><label>Staff Name</label><input type="text" value={form[which].name} onChange={(e) => updateSignoff(which, 'name', e.target.value)} placeholder="Full name" /></div>
+          <div className="hr-form-field">
+            <label>Staff Name</label>
+            <EmployeePicker
+              employees={employees}
+              value={form[which].name}
+              onSelect={(emp) => handleSignoffEmployeePick(which, emp)}
+              onTextChange={(v) => updateSignoff(which, 'name', v)}
+              placeholder="Search employee by name..."
+            />
+          </div>
           <div className="hr-form-field"><label>Staff Position</label><input type="text" value={form[which].position} onChange={(e) => updateSignoff(which, 'position', e.target.value)} placeholder="Position / title" /></div>
         </div>
         <div className="hr-form-row">
@@ -269,7 +404,10 @@ export default function CreateBillOfQuantities() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Prepared By</label>
-              <input type="text" value={form.prepared_by} onChange={(e) => updateField('prepared_by', e.target.value)} placeholder="Staff name" />
+              <div className="pr-requester-field">
+                <User size={14} />
+                {form.prepared_by || user?.name || '—'}
+              </div>
             </div>
             <div className="hr-form-field">
               <label>Delivery Location</label>
@@ -289,24 +427,11 @@ export default function CreateBillOfQuantities() {
             {renderMarketSurvey('Staff 2', 'market_survey_2')}
           </div>
 
-          {/* Budget Holder Check */}
+          {/* Budget Holder Check is captured automatically when the BOQ is approved. */}
           <p className="hr-form-section-title">Budget Holder Check</p>
-          <div className="hr-form-row">
-            <div className="hr-form-field"><label>Staff Name</label><input type="text" value={form.budget_holder.name} onChange={(e) => updateSignoff('budget_holder', 'name', e.target.value)} placeholder="Full name" /></div>
-            <div className="hr-form-field"><label>Staff Position</label><input type="text" value={form.budget_holder.position} onChange={(e) => updateSignoff('budget_holder', 'position', e.target.value)} placeholder="Position / title" /></div>
-          </div>
-          <div className="hr-form-row">
-            <div className="hr-form-field"><label>Staff Email</label><input type="email" value={form.budget_holder.email} onChange={(e) => updateSignoff('budget_holder', 'email', e.target.value)} placeholder="email@example.com" /></div>
-            <div className="hr-form-field"><label>Sign</label><input type="text" value={form.budget_holder.signature} onChange={(e) => updateSignoff('budget_holder', 'signature', e.target.value)} placeholder="Type name as signature" /></div>
-          </div>
-          <div className="hr-form-field" style={{ maxWidth: 300 }}>
-            <label>Availability of Budget *</label>
-            <select value={form.budget_holder.budget_available} onChange={(e) => updateSignoff('budget_holder', 'budget_available', e.target.value)}>
-              <option value="">Select...</option>
-              <option value="YES">Yes</option>
-              <option value="NO">No</option>
-            </select>
-          </div>
+          <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+            The Budget Holder sign-off is captured automatically when the BOQ is approved from the Pending Approvals page by a manager or admin (typically the linked project&apos;s manager).
+          </p>
 
           {/* Itemized List */}
           <p className="hr-form-section-title">Itemized List</p>

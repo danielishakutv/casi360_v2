@@ -28,7 +28,7 @@ const AUDIT_LABELS = {
 const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
 
 export default function PendingApprovals() {
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
   const [boqs, setBoqs] = useState([])
@@ -160,6 +160,27 @@ export default function PendingApprovals() {
       if (target.type === 'po') {
         await purchaseOrdersApi.processApproval(target.item.id, payload)
       } else if (target.type === 'boq') {
+        // When approving a BOQ, stamp the Budget Holder sign-off with the approver's details.
+        if (action === 'approve' && user) {
+          try {
+            const cur = await boqApi.get(target.item.id)
+            const boq = cur?.data?.boq || cur?.data || cur || {}
+            const existing = (boq.signoffs || []).filter((s) => s.type !== 'budget_holder')
+            const today = new Date().toISOString().slice(0, 10)
+            const bhSignoff = {
+              type: 'budget_holder',
+              name: user.name || '',
+              position: user.department || (user.role ? user.role.replace(/_/g, ' ') : ''),
+              email: user.email || '',
+              signature: user.name || '',
+              date: today,
+              budget_available: 'YES',
+            }
+            await boqApi.update(target.item.id, { signoffs: [...existing, bhSignoff] })
+          } catch {
+            // Non-fatal: approval still proceeds even if signoff write fails
+          }
+        }
         await boqApi.processApproval(target.item.id, payload)
       } else {
         await purchaseRequestsApi.processApproval(target.item.id, payload)
