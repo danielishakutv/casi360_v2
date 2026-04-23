@@ -35,6 +35,9 @@ function findMarketSurveys(signoffs) {
 function findBudgetHolder(signoffs) {
   return (signoffs || []).find((s) => s.type === 'budget_holder') || null
 }
+function findPreparedBy(signoffs) {
+  return (signoffs || []).find((s) => s.type === 'prepared_by') || null
+}
 
 /* ── load logo from imported asset URL → base64 data URL ────────────── */
 async function loadLogoBase64(src) {
@@ -224,6 +227,7 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
   const ms1 = surveys[0] || {}
   const ms2 = surveys[1] || {}
   const bh  = findBudgetHolder(signoffs) || {}
+  const pb  = findPreparedBy(signoffs) || {}
 
   if (y > 297 - MB - 60) { doc.addPage(); y = MT + 2 }
 
@@ -235,23 +239,18 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
   y += 5
 
   const labelCell = (t) => ({ content: t, styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } })
-  const sigCell   = { content: '', styles: { minCellHeight: 14 } }
 
   autoTable(doc, {
     startY: y,
     head: [['', 'Prepared By', 'Market Survey 1', 'Market Survey 2', 'Budget Holder']],
     body: [
-      [labelCell('Name'),      boq.prepared_by || '', ms1.name || '',     ms2.name || '',     bh.name || ''],
-      [labelCell('Position'),  '',                    ms1.position || '', ms2.position || '', bh.position || ''],
-      [labelCell('Email'),     '',                    ms1.email || '',    ms2.email || '',    bh.email || ''],
-      [labelCell('Date'),      fmtDateOrBlank(boq.date || boq.created_at),
+      [labelCell('Name'),      pb.name || boq.prepared_by || '', ms1.name || '',     ms2.name || '',     bh.name || ''],
+      [labelCell('Position'),  pb.position || '',                ms1.position || '', ms2.position || '', bh.position || ''],
+      [labelCell('Email'),     pb.email || '',                   ms1.email || '',    ms2.email || '',    bh.email || ''],
+      [labelCell('Date'),      fmtDateOrBlank(pb.date || boq.date || boq.created_at),
                                fmtDateOrBlank(ms1.date),
                                fmtDateOrBlank(ms2.date),
                                fmtDateOrBlank(bh.date)],
-      [
-        { content: 'Signature', styles: { fontStyle: 'bold', fillColor: [245, 247, 250], minCellHeight: 14 } },
-        sigCell, sigCell, sigCell, sigCell,
-      ],
     ],
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2.4, minCellHeight: 9, overflow: 'linebreak' },
@@ -265,7 +264,24 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
     },
     margin: TBL_MARGIN,
   })
-  y = doc.lastAutoTable.finalY + 5
+  y = doc.lastAutoTable.finalY + 4
+
+  /* Signatures are not required — the document is digitally generated and system-verified. */
+  if (y + 10 > 297 - MB) { doc.addPage(); y = MT + 2 }
+  doc.setFillColor(239, 246, 255)
+  doc.setDrawColor(191, 219, 254)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(ML, y, CW, 8, 1.5, 1.5, 'FD')
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(30, 64, 175)
+  doc.text(
+    'Handwritten signature not required — this document is digitally generated and system-verified by casi360.com.',
+    ML + CW / 2, y + 5.2, { align: 'center' },
+  )
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(0)
+  y += 12
 
   if (bh.budget_available) {
     if (y + 6 > 297 - MB) { doc.addPage(); y = MT + 2 }
@@ -297,6 +313,7 @@ export function exportBOQtoCSV(boq, items = [], signoffs = []) {
   const ms1 = surveys[0] || {}
   const ms2 = surveys[1] || {}
   const bh  = findBudgetHolder(signoffs) || {}
+  const pb  = findPreparedBy(signoffs) || {}
 
   const rows = [
     ['Bill of Quantities'],
@@ -332,22 +349,22 @@ export function exportBOQtoCSV(boq, items = [], signoffs = []) {
     ), ''],
     [],
     ['Sign-offs'],
-    ['Role', 'Name', 'Position', 'Email', 'Date', 'Signature'],
+    ['Note', 'Handwritten signature not required — this document is digitally generated and system-verified by casi360.com.'],
+    ['Role', 'Name', 'Position', 'Email', 'Date'],
     ['Prepared By',
-      boq.prepared_by || '',
-      '',
-      '',
-      fmtDateOrBlank(boq.date || boq.created_at),
-      ''],
+      pb.name || boq.prepared_by || '',
+      pb.position || '',
+      pb.email || '',
+      fmtDateOrBlank(pb.date || boq.date || boq.created_at)],
     ['Market Survey 1',
       ms1.name || '', ms1.position || '', ms1.email || '',
-      fmtDateOrBlank(ms1.date), ms1.signature || ''],
+      fmtDateOrBlank(ms1.date)],
     ['Market Survey 2',
       ms2.name || '', ms2.position || '', ms2.email || '',
-      fmtDateOrBlank(ms2.date), ms2.signature || ''],
+      fmtDateOrBlank(ms2.date)],
     ['Budget Holder',
       bh.name || '', bh.position || '', bh.email || '',
-      fmtDateOrBlank(bh.date), bh.signature || ''],
+      fmtDateOrBlank(bh.date)],
   ]
 
   if (bh.budget_available) {

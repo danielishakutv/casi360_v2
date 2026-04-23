@@ -116,6 +116,8 @@ function buildInitialForm() {
     category: '',
     pr_reference: '',
     prepared_by: '',
+    prepared_by_position: '',
+    prepared_by_email: '',
     delivery_location: '',
     notes: '',
     market_survey_1: { ...EMPTY_SIGNOFF_MS },
@@ -156,6 +158,10 @@ export default function CreateBillOfQuantities() {
       setForm((p) => ({
         ...p,
         prepared_by: p.prepared_by || user.name || '',
+        prepared_by_position: p.prepared_by_position
+          || user.department
+          || (user.role ? user.role.replace(/_/g, ' ') : ''),
+        prepared_by_email: p.prepared_by_email || user.email || '',
       }))
     })
   }, [user, isEdit])
@@ -179,6 +185,7 @@ export default function CreateBillOfQuantities() {
         const signoffs = boq.signoffs || []
         const ms1 = signoffs.find((s) => s.type === 'market_survey' && !signoffs.slice(0, signoffs.indexOf(s)).some((p) => p.type === 'market_survey')) || {}
         const ms2 = signoffs.filter((s) => s.type === 'market_survey')[1] || {}
+        const pb = signoffs.find((s) => s.type === 'prepared_by') || {}
 
         setForm({
           title: boq.title || '',
@@ -187,7 +194,9 @@ export default function CreateBillOfQuantities() {
           project_code: boq.project_code || '',
           category: boq.category || '',
           pr_reference: boq.pr_reference || '',
-          prepared_by: boq.prepared_by || '',
+          prepared_by: boq.prepared_by || pb.name || '',
+          prepared_by_position: pb.position || '',
+          prepared_by_email: pb.email || '',
           delivery_location: boq.delivery_location || '',
           notes: boq.notes || '',
           market_survey_1: { name: ms1.name || '', position: ms1.position || '', email: ms1.email || '', signature: ms1.signature || '', date: ms1.date || '' },
@@ -229,6 +238,16 @@ export default function CreateBillOfQuantities() {
 
   function buildPayload() {
     const signoffs = []
+    const preparedByName = form.prepared_by || user?.name || ''
+    if (preparedByName) {
+      signoffs.push({
+        type: 'prepared_by',
+        name: preparedByName,
+        position: form.prepared_by_position || '',
+        email: form.prepared_by_email || '',
+        date: form.date || todayStr(),
+      })
+    }
     if (form.market_survey_1.name) signoffs.push({ type: 'market_survey', ...form.market_survey_1, date: form.market_survey_1.date || todayStr() })
     if (form.market_survey_2.name) signoffs.push({ type: 'market_survey', ...form.market_survey_2, date: form.market_survey_2.date || todayStr() })
 
