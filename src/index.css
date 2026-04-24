@@ -4830,6 +4830,22 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   white-space: normal;
 }
 
+/* Mini-stat variant for currency values inside project-mini-stats grids.
+   Keeps multi-million naira amounts from overflowing on narrow cards. */
+.project-mini-stat .value.value-amount {
+  font-size: clamp(14px, 2.8vw, 22px);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+/* Ensure mini-stat cards never burst their grid column and stay tidy on phones. */
+.project-mini-stat {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
 /* ─────────────────────────────────────────────────────────────── */
 /* Approval pages — mobile/desktop toggle                         */
 /* ─────────────────────────────────────────────────────────────── */
