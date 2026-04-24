@@ -155,22 +155,14 @@ function saveToStorage(key, value) {
   }
 }
 
-export function makeDemoId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-}
-
-/** Returns the demo projects list with their budget lines. */
-export function getDemoProjectsWithBudgets() {
+/** Returns the demo projects list with their budget lines. Internal helper. */
+function getDemoProjectsWithBudgets() {
   return clone(demoProjectsWithBudgets)
 }
 
-/** Returns the persisted finance overlays (financial tracking per project budget line). */
-export function getDemoFinanceOverlays() {
+/** Returns the persisted finance overlays (financial tracking per project budget line). Internal helper. */
+function getDemoFinanceOverlays() {
   return loadFromStorage(OVERLAYS_KEY, defaultFinanceOverlays)
-}
-
-export function setDemoFinanceOverlays(items) {
-  saveToStorage(OVERLAYS_KEY, items)
 }
 
 /**
@@ -178,7 +170,7 @@ export function setDemoFinanceOverlays(items) {
  * Lines without an overlay default to zero financial values.
  * Used by Overview.jsx for aggregate stats.
  */
-export function getMergedFinanceBudgetLines() {
+function getMergedFinanceBudgetLines() {
   const projects = getDemoProjectsWithBudgets()
   const overlays = getDemoFinanceOverlays()
 
@@ -211,15 +203,12 @@ export function getMergedFinanceBudgetLines() {
 }
 
 /**
- * Backward-compatible alias used by Overview.jsx.
  * Returns merged finance budget lines from the projects + overlays sources.
+ * Used by Overview.jsx.
  */
 export function getDemoBudgetLines() {
   return getMergedFinanceBudgetLines()
 }
-
-/** No-op: budget lines now derive from projects. Kept for backward compatibility. */
-export function setDemoBudgetLines() {}
 
 export function getDemoApprovals() {
   return loadFromStorage(APPROVALS_KEY, demoFinanceApprovals)
