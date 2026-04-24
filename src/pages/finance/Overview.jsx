@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ClipboardCheck, Info, PieChart, ShieldAlert, Wallet } from 'lucide-react'
 import { projectsApi, projectReportsApi } from '../../services/projects'
 import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
+import { financeApi } from '../../services/finance'
 import { extractStats } from '../../utils/apiHelpers'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -29,6 +30,11 @@ export default function FinanceOverview() {
   const [approvedCount, setApprovedCount] = useState(null)
   const [rejectedCount, setRejectedCount] = useState(null)
 
+  // Opportunistic: populated if the consolidated finance endpoints are live.
+  const [financeStats, setFinanceStats] = useState(null)
+  const [flaggedLines, setFlaggedLines] = useState([])
+  const [recentActions, setRecentActions] = useState([])
+
   const [loading, setLoading] = useState(true)
   const [partialErrors, setPartialErrors] = useState([])
 
@@ -43,11 +49,16 @@ export default function FinanceOverview() {
       approvalsApi.pending({ scope: 'history', per_page: HISTORY_LIMIT }),
       purchaseRequestsApi.list({ status: 'approved', per_page: 1 }),
       purchaseRequestsApi.list({ status: 'rejected', per_page: 1 }),
+      // Consolidated finance endpoints — silently skipped if BE hasn't shipped them yet.
+      financeApi.stats(),
+      financeApi.flaggedBudgetLines({ per_page: 25 }),
+      financeApi.recentActions({ per_page: HISTORY_LIMIT }),
     ]).then((results) => {
       if (cancelled) return
 
       const errs = []
-      const [statsRes, budgetRes, pendingRes, historyRes, approvedRes, rejectedRes] = results
+      const [statsRes, budgetRes, pendingRes, historyRes, approvedRes, rejectedRes,
+             fStatsRes, fFlaggedRes, fActionsRes] = results
 
       if (statsRes.status === 'fulfilled') setProjectStats(extractStats(statsRes.value))
       else errs.push('project stats')
@@ -81,6 +92,19 @@ export default function FinanceOverview() {
       setApprovedCount(countFromList(approvedRes))
       setRejectedCount(countFromList(rejectedRes))
 
+      if (fStatsRes.status === 'fulfilled') {
+        const d = fStatsRes.value?.data ?? fStatsRes.value
+        if (d && typeof d === 'object') setFinanceStats(d)
+      }
+      if (fFlaggedRes.status === 'fulfilled') {
+        const d = fFlaggedRes.value?.data ?? fFlaggedRes.value ?? {}
+        setFlaggedLines(d.budget_lines || d.flagged_lines || [])
+      }
+      if (fActionsRes.status === 'fulfilled') {
+        const d = fActionsRes.value?.data ?? fActionsRes.value ?? {}
+        setRecentActions(d.actions || d.recent_actions || [])
+      }
+
       setPartialErrors(errs)
       setLoading(false)
     })
@@ -89,22 +113,37 @@ export default function FinanceOverview() {
   }, [])
 
   const aggregates = useMemo(() => {
-    const allocated = budgetRows.reduce((s, r) => s + toNumber(r.total_budget ?? r.budget ?? r.allocated_amount), 0)
-    const spent = budgetRows.reduce((s, r) => s + toNumber(r.amount_spent ?? r.spent ?? r.actual_spent_amount), 0)
-    const pendingAmount = pending.reduce((s, r) => s + toNumber(r.estimated_cost), 0)
-    return {
-      allocated,
-      spent,
-      pendingAmount,
+    const composed = {
+      allocated: budgetRows.reduce((s, r) => s + toNumber(r.total_budget ?? r.budget ?? r.allocated_amount), 0),
+      spent: budgetRows.reduce((s, r) => s + toNumber(r.amount_spent ?? r.spent ?? r.actual_spent_amount), 0),
+      pendingAmount: pending.reduce((s, r) => s + toNumber(r.estimated_cost), 0),
       projects: toNumber(projectStats?.total_projects ?? projectStats?.total ?? budgetRows.length),
     }
-  }, [budgetRows, pending, projectStats])
+    if (!financeStats) return { ...composed, committed: null, available: null, budgetLines: null, flaggedCount: null }
+    return {
+      allocated: toNumber(financeStats.total_allocated ?? composed.allocated),
+      spent: toNumber(financeStats.total_actual_spent ?? composed.spent),
+      pendingAmount: toNumber(financeStats.total_pending_request_amount ?? composed.pendingAmount),
+      projects: toNumber(financeStats.total_projects ?? composed.projects),
+      committed: toNumber(financeStats.total_committed),
+      available: toNumber(financeStats.total_available),
+      budgetLines: toNumber(financeStats.total_budget_lines),
+      flaggedCount: toNumber(financeStats.flagged_lines_count),
+    }
+  }, [budgetRows, pending, projectStats, financeStats])
 
   const statCards = [
     { label: 'Allocated Budget', value: naira(aggregates.allocated), icon: PieChart, color: 'blue' },
-    { label: 'Actual Spent', value: naira(aggregates.spent), icon: Wallet, color: 'green' },
-    { label: 'Pending Finance Approvals', value: pending.length, icon: ClipboardCheck, color: 'orange' },
-    { label: 'Projects Tracked', value: aggregates.projects, icon: ShieldAlert, color: 'red' },
+    {
+      label: aggregates.committed != null ? 'Committed' : 'Actual Spent',
+      value: naira(aggregates.committed != null ? aggregates.committed : aggregates.spent),
+      icon: Wallet,
+      color: 'green',
+    },
+    { label: 'Pending Finance Approvals', value: financeStats?.pending_approvals_count ?? pending.length, icon: ClipboardCheck, color: 'orange' },
+    { label: aggregates.flaggedCount != null ? 'Flagged Budget Lines' : 'Projects Tracked',
+      value: aggregates.flaggedCount != null ? aggregates.flaggedCount : aggregates.projects,
+      icon: ShieldAlert, color: 'red' },
   ]
 
   if (loading) {
@@ -174,7 +213,7 @@ export default function FinanceOverview() {
         <div className="card">
           <div className="card-header">
             <h3>Approval Pipeline</h3>
-            <span className="card-badge orange">{pending.length} pending</span>
+            <span className="card-badge orange">{financeStats?.pending_approvals_count ?? pending.length} pending</span>
           </div>
           <div className="card-body">
             <div className="project-mini-stats">
@@ -183,21 +222,60 @@ export default function FinanceOverview() {
                 <div className="label">Awaiting Finance Decision</div>
               </div>
               <div className="project-mini-stat">
-                <div className="value">{approvedCount ?? '—'}</div>
-                <div className="label">Approved PRs</div>
+                <div className="value">{financeStats?.approved_finance_count ?? approvedCount ?? '—'}</div>
+                <div className="label">{financeStats?.approved_finance_count != null ? 'Approved by Finance' : 'Approved PRs'}</div>
               </div>
               <div className="project-mini-stat">
-                <div className="value">{rejectedCount ?? '—'}</div>
-                <div className="label">Rejected PRs</div>
+                <div className="value">{financeStats?.rejected_finance_count ?? rejectedCount ?? '—'}</div>
+                <div className="label">{financeStats?.rejected_finance_count != null ? 'Rejected by Finance' : 'Rejected PRs'}</div>
               </div>
             </div>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-              Pending items come from the shared approvals endpoint. Approved/rejected counts reflect all purchase requests at those statuses,
-              not just finance-stage actions (the API doesn't yet filter by approver stage).
-            </p>
+            {!financeStats && (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
+                Pending items come from the shared approvals endpoint. Approved/rejected counts reflect all purchase requests at those statuses,
+                not just finance-stage actions (the API doesn't yet filter by approver stage).
+              </p>
+            )}
           </div>
         </div>
       </div>
+
+      {flaggedLines.length > 0 && (
+        <div className="card animate-in" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <h3>Flagged Budget Lines</h3>
+            <span className="card-badge red">{flaggedLines.length} flagged</span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Budget Line</th>
+                    <th>Status</th>
+                    <th>Allocated</th>
+                    <th>Available</th>
+                    <th>Utilization</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flaggedLines.map((line) => (
+                    <tr key={line.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{line.project_name || line.project_code || '—'}</td>
+                      <td>{line.description || line.line_name || '—'}</td>
+                      <td><span className={`status-badge ${line.status}`}><span className="status-dot" />{capitalize(line.status || '')}</span></td>
+                      <td style={{ fontWeight: 600 }}>{naira(line.allocated_amount)}</td>
+                      <td style={{ fontWeight: 600 }}>{naira(line.available_amount)}</td>
+                      <td>{toNumber(line.utilization_percent)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card animate-in" style={{ marginTop: 16 }}>
         <div className="card-header">
@@ -254,7 +332,7 @@ export default function FinanceOverview() {
       <div className="card animate-in" style={{ marginTop: 16 }}>
         <div className="card-header">
           <h3>Recent Finance Actions</h3>
-          <span className="card-badge gray">Latest {history.length}</span>
+          <span className="card-badge gray">Latest {recentActions.length || history.length}</span>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <div className="table-wrapper">
@@ -263,14 +341,27 @@ export default function FinanceOverview() {
                 <tr>
                   <th>Reference</th>
                   <th>Project</th>
-                  <th>Requester</th>
-                  <th>Status</th>
+                  {recentActions.length > 0 ? <th>Actor</th> : <th>Requester</th>}
+                  <th>{recentActions.length > 0 ? 'Action' : 'Status'}</th>
                   <th>Amount</th>
-                  <th>Submitted</th>
+                  <th>When</th>
                 </tr>
               </thead>
               <tbody>
-                {history.length === 0 ? (
+                {recentActions.length > 0 ? recentActions.map((a) => (
+                  <tr key={a.id}>
+                    <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{a.requisition_number || '—'}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{a.project_name || a.project_code || '—'}</td>
+                    <td>{a.actor_name || '—'}</td>
+                    <td>
+                      <span className={`status-badge ${a.action}`}>
+                        <span className="status-dot" />{capitalize((a.action || '').replace(/_/g, ' '))}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{naira(a.amount)}</td>
+                    <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(a.created_at)}</td>
+                  </tr>
+                )) : history.length === 0 ? (
                   <tr><td colSpan={6} className="hr-empty-cell">No processed approvals yet.</td></tr>
                 ) : history.map((item) => (
                   <tr key={item.id}>
@@ -292,21 +383,23 @@ export default function FinanceOverview() {
         </div>
       </div>
 
-      <div className="card animate-in" style={{ marginTop: 16 }}>
-        <div className="card-header">
-          <h3>Implementation Note</h3>
-        </div>
-        <div className="card-body">
-          <div className="hr-error-banner" style={{ margin: 0, background: 'var(--badge-blue-bg, #eff6ff)', color: 'var(--badge-blue-fg, #1e40af)', border: '1px solid #bfdbfe' }}>
-            <Info size={16} />
-            <span>
-              Finance Overview is wired to live endpoints where available. The following metrics still require backend work:
-              committed-amount tracking, per-budget-line pending-request totals, utilization status per line (healthy / low / critical / overdrawn),
-              and a &ldquo;flagged budget lines&rdquo; list. See the changelog for the proposed endpoints.
-            </span>
+      {!financeStats && (
+        <div className="card animate-in" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <h3>Implementation Note</h3>
+          </div>
+          <div className="card-body">
+            <div className="hr-error-banner" style={{ margin: 0, background: 'var(--badge-blue-bg, #eff6ff)', color: 'var(--badge-blue-fg, #1e40af)', border: '1px solid #bfdbfe' }}>
+              <Info size={16} />
+              <span>
+                Finance Overview is wired to live endpoints where available. Committed-amount tracking, per-budget-line pending-request totals,
+                utilization status per line, and a &ldquo;flagged budget lines&rdquo; list need the new <code>/finance/stats</code>,
+                <code>/finance/budget-lines/flagged</code>, and <code>/finance/recent-actions</code> endpoints. Once those ship, this panel auto-fills and this note disappears.
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   )
 }
