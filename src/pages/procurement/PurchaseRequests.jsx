@@ -228,6 +228,7 @@ export default function PurchaseRequests() {
                 <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
                 <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
                 {(pr.project_manager_name || pr.project_manager?.name) && <div><strong>Project Manager</strong><span>{pr.project_manager_name || pr.project_manager?.name}</span></div>}
+                {pr.budget_holder_name && <div><strong>Budget Holder</strong><span>{pr.budget_holder_name}</span></div>}
                 <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
                 <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
                 <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>

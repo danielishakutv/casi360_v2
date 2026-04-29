@@ -1,103 +1,13 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle, User, ChevronDown } from 'lucide-react'
+import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
 import { boqApi } from '../../services/procurement'
 import { projectsApi, budgetCategoriesApi } from '../../services/projects'
 import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
-
-function employeePosition(emp) {
-  return emp?.position || emp?.designation?.title || (typeof emp?.designation === 'string' ? emp.designation : '') || ''
-}
-
-/* Searchable employee picker — filters by name/email/position as the user types.
-   Falls back to free-text entry so names outside the HR list can still be used. */
-function EmployeePicker({ employees, value, onSelect, onTextChange, placeholder }) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(value || '')
-  const wrapperRef = useRef(null)
-
-  useEffect(() => {
-    queueMicrotask(() => setQuery(value || ''))
-  }, [value])
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const filtered = useMemo(() => {
-    const q = (query || '').trim().toLowerCase()
-    const list = employees || []
-    if (!q) return list.slice(0, 50)
-    return list.filter((e) => {
-      const hay = `${e.name || ''} ${e.email || ''} ${employeePosition(e)}`.toLowerCase()
-      return hay.includes(q)
-    }).slice(0, 50)
-  }, [employees, query])
-
-  return (
-    <div ref={wrapperRef} style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          type="text"
-          value={query}
-          placeholder={placeholder || 'Search employee by name...'}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setOpen(true)
-            if (onTextChange) onTextChange(e.target.value)
-          }}
-          style={{ paddingRight: 28 }}
-        />
-        <ChevronDown
-          size={14}
-          style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
-        />
-      </div>
-      {open && filtered.length > 0 && (
-        <div
-          style={{
-            position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 20,
-            background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #e5e7eb)',
-            borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-            maxHeight: 240, overflowY: 'auto',
-          }}
-        >
-          {filtered.map((emp) => (
-            <button
-              type="button"
-              key={emp.id}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onSelect(emp)
-                setQuery(emp.name || '')
-                setOpen(false)
-              }}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px',
-                background: 'transparent', border: 'none', borderBottom: '1px solid var(--border, #f1f5f9)',
-                cursor: 'pointer', fontSize: 13,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-secondary, #f8fafc)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <div style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>{emp.name || '—'}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted, #64748b)' }}>
-                {employeePosition(emp) || '—'}{emp.email ? ` · ${emp.email}` : ''}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+import EmployeePicker from '../../components/EmployeePicker'
+import { employeePosition } from '../../utils/employees'
 
 const EMPTY_LINE_ITEM = {
   section: '', unit: '', quantity: '', description: '', unit_rate: '', comment: '',

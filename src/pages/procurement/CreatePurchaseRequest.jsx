@@ -4,9 +4,10 @@ import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { purchaseRequestsApi, boqApi } from '../../services/procurement'
 import { projectsApi, projectDonorsApi, projectBudgetApi } from '../../services/projects'
-import { departmentsApi } from '../../services/hr'
+import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
+import EmployeePicker from '../../components/EmployeePicker'
 
 /* ─── Constants ─── */
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
@@ -46,6 +47,8 @@ function buildInitialForm() {
     boq_id: '',
     project_id: '',
     project_code: '',
+    budget_holder_id: '',
+    budget_holder_name: '',
     donor: '',
     currency: 'NGN',
     exchange_rate: '',
@@ -68,6 +71,7 @@ export default function CreatePurchaseRequest() {
   const [prStatus, setPrStatus] = useState('')
   const [projects, setProjects] = useState([])
   const [departments, setDepartments] = useState([])
+  const [employees, setEmployees] = useState([])
   const [donorsForProject, setDonorsForProject] = useState([])
   const [budgetLinesByProject, setBudgetLinesByProject] = useState({})
   const [approvedBOQs, setApprovedBOQs] = useState([])
@@ -78,6 +82,9 @@ export default function CreatePurchaseRequest() {
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((res) => setDepartments(extractItems(res))).catch(() => {})
+    employeesApi.list({ status: 'active', per_page: 0 })
+      .then((res) => setEmployees(extractItems(res)))
+      .catch(() => {})
     boqApi.list({ status: 'approved', per_page: 0 })
       .then((res) => {
         const data = res?.data || res
@@ -105,6 +112,8 @@ export default function CreatePurchaseRequest() {
           boq_id: pr.boq_id ? String(pr.boq_id) : '',
           project_id: pr.project_id ? String(pr.project_id) : '',
           project_code: pr.project_code || '',
+          budget_holder_id: pr.budget_holder_id ? String(pr.budget_holder_id) : '',
+          budget_holder_name: pr.budget_holder_name || '',
           donor: pr.donor || '',
           currency: pr.currency || 'NGN',
           exchange_rate: pr.exchange_rate || '',
@@ -176,9 +185,36 @@ export default function CreatePurchaseRequest() {
       next.project_code = code
       next.donor = ''
       next.items = p.items.map((li) => ({ ...li, project_code: code, budget_line: '' }))
+      // Default the budget holder to the project's manager unless the user has
+      // already chosen someone else explicitly. Override remains possible via
+      // the EmployeePicker below.
+      if (!p.budget_holder_id || p.budget_holder_id === p.project_id) {
+        next.budget_holder_id = proj?.project_manager_id ? String(proj.project_manager_id) : ''
+        next.budget_holder_name = proj?.project_manager_name || proj?.project_manager?.name || ''
+      }
     }
     return next
   }), [projects])
+
+  const handleBudgetHolderSelect = useCallback((emp) => {
+    setForm((p) => ({
+      ...p,
+      budget_holder_id: emp?.id ? String(emp.id) : '',
+      budget_holder_name: emp?.name || '',
+    }))
+  }, [])
+
+  const handleBudgetHolderTextChange = useCallback((text) => {
+    /* If the user clears or rewrites the field freehand, drop the locked
+       selection so we don't send a stale id with a different visible name. */
+    setForm((p) => {
+      if (!text) return { ...p, budget_holder_id: '', budget_holder_name: '' }
+      if (p.budget_holder_name && text !== p.budget_holder_name) {
+        return { ...p, budget_holder_id: '', budget_holder_name: text }
+      }
+      return { ...p, budget_holder_name: text }
+    })
+  }, [])
 
   const updateLineItem = useCallback((idx, field, value) => {
     setForm((p) => {
@@ -250,7 +286,8 @@ export default function CreatePurchaseRequest() {
       boq: form.boq === 'Yes',
       boq_id: form.boq === 'Yes' && form.boq_id ? Number(form.boq_id) : undefined,
       // Backend prefers project_id; project_code is server-derived
-      project_id: form.project_id ? Number(form.project_id) : undefined,
+      project_id: form.project_id || undefined,
+      budget_holder_id: form.budget_holder_id || undefined,
       donor: form.donor || undefined,
       currency: form.currency || undefined,
       exchange_rate: form.currency !== 'NGN' && form.exchange_rate ? Number(form.exchange_rate) : undefined,
@@ -458,19 +495,10 @@ export default function CreatePurchaseRequest() {
                 })}
               </select>
               {!form.project_id && (
-                <span className="hr-form-hint" style={{ color: 'var(--warning, #b45309)', fontSize: 12, marginTop: 4, display: 'block' }}>
-                  Linking a project sets the Stage 1 (Budget Holder) approver. Unlinked PRs cannot be routed.
+                <span className="hr-form-hint" style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4, display: 'block' }}>
+                  Linking a project pre-fills the budget holder with the project manager. You can still override below.
                 </span>
               )}
-              {form.project_id && (() => {
-                const proj = projects.find((p) => String(p.id) === String(form.project_id))
-                const mgr = proj?.project_manager_name || proj?.project_manager?.name
-                return mgr ? (
-                  <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                    Stage 1 approver: <strong>{mgr}</strong>
-                  </span>
-                ) : null
-              })()}
             </div>
             <div className="hr-form-field">
               <label>Donor</label>
@@ -479,6 +507,28 @@ export default function CreatePurchaseRequest() {
                 {donorsForProject.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </select>
             </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Budget Holder *</label>
+              <EmployeePicker
+                employees={employees}
+                value={form.budget_holder_name}
+                onSelect={handleBudgetHolderSelect}
+                onTextChange={handleBudgetHolderTextChange}
+                placeholder="Search employee by name…"
+              />
+              <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                The Budget Holder is the Stage 1 approver for this purchase request. Defaults to the linked project&apos;s manager — change to any active employee.
+              </span>
+              {form.budget_holder_name && !form.budget_holder_id && (
+                <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--warning, #b45309)', marginTop: 4, display: 'block' }}>
+                  Pick a name from the suggestion list — typing a name freehand won&apos;t route the approval.
+                </span>
+              )}
+            </div>
+            <div className="hr-form-field" />
           </div>
 
           <div className="hr-form-field" style={{ maxWidth: 250 }}>
