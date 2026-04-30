@@ -7,9 +7,11 @@ import { fmtDate } from '../../utils/formatDate'
 import { grnApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePersistedScope } from '../../hooks/usePersistedScope'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import MineToggle from '../../components/MineToggle'
 
 const STATUSES = ['draft', 'pending_inspection', 'inspected', 'accepted', 'rejected', 'partial']
 const PER_PAGE = 15
@@ -24,6 +26,8 @@ const INITIAL_FORM = {
 export default function GoodsReceivedNote() {
   const navigate = useNavigate()
   const { can } = useAuth()
+  const canViewAll = can('procurement.grn.view_all')
+  const [mine, setMine] = usePersistedScope('casi360.scope.grn', true)
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -42,15 +46,15 @@ export default function GoodsReceivedNote() {
   const fetchList = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await grnApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE })
+      const res = await grnApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE, mine: mine ? 1 : 0 })
       setItems(extractItems(res))
       setMeta(extractMeta(res))
     } catch { /* keep current */ }
     finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, page])
+  }, [debouncedSearch, statusFilter, page, mine])
 
   useEffect(() => { fetchList() }, [fetchList])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
 
   function openEdit(item) {
     setEditing(item)
@@ -91,6 +95,7 @@ export default function GoodsReceivedNote() {
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
             <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search GRNs…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
+            <MineToggle value={mine} onChange={setMine} canViewAll={canViewAll} />
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>

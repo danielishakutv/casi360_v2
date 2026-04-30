@@ -7,10 +7,12 @@ import { fmtDate } from '../../utils/formatDate'
 import { purchaseRequestsApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePersistedScope } from '../../hooks/usePersistedScope'
 import { useAuth } from '../../contexts/AuthContext'
 import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import MineToggle from '../../components/MineToggle'
 import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejected', 'revision', 'fulfilled', 'cancelled']
@@ -39,6 +41,9 @@ function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 export default function FinancePurchaseRequests() {
   const navigate = useNavigate()
   const { can } = useAuth()
+
+  const canViewAll = can('procurement.requisitions.view_all')
+  const [mine, setMine] = usePersistedScope('casi360.scope.requisitions', true)
 
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
@@ -70,6 +75,7 @@ export default function FinancePurchaseRequests() {
         priority: priorityFilter || undefined,
         page,
         per_page: PER_PAGE,
+        mine: mine ? 1 : 0,
       })
       setItems(extractItems(res))
       setMeta(extractMeta(res))
@@ -78,10 +84,10 @@ export default function FinancePurchaseRequests() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, statusFilter, priorityFilter, page])
+  }, [debouncedSearch, statusFilter, priorityFilter, page, mine])
 
   useEffect(() => { fetchList() }, [fetchList])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, priorityFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, priorityFilter, mine])
 
   useEffect(() => {
     if (!viewItem) { setViewExtra(null); setAuditLog([]); return }
@@ -152,6 +158,7 @@ export default function FinancePurchaseRequests() {
               <Search size={16} className="search-icon" />
               <input type="text" placeholder="Search purchase requests…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
+            <MineToggle value={mine} onChange={setMine} canViewAll={canViewAll} />
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

@@ -7,9 +7,11 @@ import { fmtDate } from '../../utils/formatDate'
 import { rfpApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePersistedScope } from '../../hooks/usePersistedScope'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import MineToggle from '../../components/MineToggle'
 
 const STATUSES = ['draft', 'pending', 'submitted', 'approved', 'paid', 'rejected', 'on_hold']
 const PER_PAGE = 15
@@ -18,6 +20,8 @@ function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 export default function RequestForPayment() {
   const navigate = useNavigate()
   const { can } = useAuth()
+  const canViewAll = can('procurement.rfp.view_all')
+  const [mine, setMine] = usePersistedScope('casi360.scope.rfp', true)
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -32,15 +36,15 @@ export default function RequestForPayment() {
   const fetchList = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await rfpApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE })
+      const res = await rfpApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, page, per_page: PER_PAGE, mine: mine ? 1 : 0 })
       setItems(extractItems(res))
       setMeta(extractMeta(res))
     } catch { /* keep current */ }
     finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, page])
+  }, [debouncedSearch, statusFilter, page, mine])
 
   useEffect(() => { fetchList() }, [fetchList])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -57,6 +61,7 @@ export default function RequestForPayment() {
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
             <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search payment requests…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
+            <MineToggle value={mine} onChange={setMine} canViewAll={canViewAll} />
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>

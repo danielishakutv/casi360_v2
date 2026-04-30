@@ -7,9 +7,11 @@ import { fmtDate } from '../../utils/formatDate'
 import { purchaseOrdersApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePersistedScope } from '../../hooks/usePersistedScope'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import MineToggle from '../../components/MineToggle'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'revision', 'partially_received', 'received', 'cancelled']
 const PAYMENT_STATUSES = ['unpaid', 'partially_paid', 'paid']
@@ -19,6 +21,9 @@ function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }
 export default function PurchaseOrders() {
   const navigate = useNavigate()
   const { can } = useAuth()
+
+  const canViewAll = can('procurement.purchase_orders.view_all')
+  const [mine, setMine] = usePersistedScope('casi360.scope.purchase_orders', true)
 
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
@@ -101,6 +106,7 @@ export default function PurchaseOrders() {
         status: statusFilter || undefined,
         page,
         per_page: PER_PAGE,
+        mine: mine ? 1 : 0,
       })
       setItems(extractItems(res))
       setMeta(extractMeta(res))
@@ -109,10 +115,10 @@ export default function PurchaseOrders() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, statusFilter, page])
+  }, [debouncedSearch, statusFilter, page, mine])
 
   useEffect(() => { fetchList() }, [fetchList])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -143,6 +149,7 @@ export default function PurchaseOrders() {
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
             <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search purchase orders…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <MineToggle value={mine} onChange={setMine} canViewAll={canViewAll} />
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

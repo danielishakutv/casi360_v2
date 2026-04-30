@@ -7,10 +7,12 @@ import { fmtDate } from '../../utils/formatDate'
 import { boqApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePersistedScope } from '../../hooks/usePersistedScope'
 import { useAuth } from '../../contexts/AuthContext'
 import { exportBOQtoPDF, exportBOQtoCSV } from '../../utils/boqExport'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import MineToggle from '../../components/MineToggle'
 
 const STATUSES = ['draft', 'submitted', 'approved', 'revised']
 const PER_PAGE = 25
@@ -23,6 +25,8 @@ function statusColor(s) {
 export default function BillOfQuantities() {
   const navigate = useNavigate()
   const { can } = useAuth()
+  const canViewAll = can('procurement.boq.view_all')
+  const [mine, setMine] = usePersistedScope('casi360.scope.boq', true)
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -44,16 +48,16 @@ export default function BillOfQuantities() {
   const fetchList = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const res = await boqApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, sort_by: sortBy, sort_dir: sortDir, page, per_page: PER_PAGE })
+      const res = await boqApi.list({ search: debouncedSearch || undefined, status: statusFilter || undefined, sort_by: sortBy, sort_dir: sortDir, page, per_page: PER_PAGE, mine: mine ? 1 : 0 })
       const data = res?.data || res
       setItems(data?.boqs || extractItems(res))
       setMeta(data?.meta || extractMeta(res))
     } catch (err) { setError(err.message || 'Failed to load BOQs') }
     finally { setLoading(false) }
-  }, [debouncedSearch, statusFilter, sortBy, sortDir, page])
+  }, [debouncedSearch, statusFilter, sortBy, sortDir, page, mine])
 
   useEffect(() => { fetchList() }, [fetchList])
-  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
 
   function toggleSort(col) {
     if (sortBy === col) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
@@ -110,6 +114,7 @@ export default function BillOfQuantities() {
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
             <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search BOQs..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <MineToggle value={mine} onChange={setMine} canViewAll={canViewAll} />
           </div>
           <div className="hr-toolbar-right">
             <select className="hr-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
