@@ -1,43 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Mail, Phone, Briefcase, Calendar, Shield,
   Clock, Edit3, Save, X, AlertCircle, CheckCircle2,
-  Lock, Eye, EyeOff, Trash2, ShieldAlert
+  Lock, Eye, EyeOff, Trash2, ShieldAlert,
+  ClipboardList, ClipboardCheck, FileText
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { authApi } from '../services/api'
+import { purchaseRequestsApi, approvalsApi } from '../services/procurement'
+import { extractItems, extractMeta } from '../utils/apiHelpers'
 import { capitalize } from '../utils/capitalize'
-
-const stats = [
-  { label: 'Programs Managed', value: '12' },
-  { label: 'Projects Completed', value: '45' },
-  { label: 'Reports Generated', value: '156' },
-  { label: 'Team Members', value: '34' },
-]
-
-const recentActivity = [
-  { action: 'Approved requisition REQ-1042 for Medical Supplies', time: '2 hours ago', color: 'blue' },
-  { action: 'Published Clean Water Initiative Q1 report', time: '4 hours ago', color: 'green' },
-  { action: 'Added 15 beneficiaries to Education for All program', time: '1 day ago', color: 'purple' },
-  { action: 'Updated vendor rating for MedSupply Co.', time: '1 day ago', color: 'orange' },
-  { action: 'Sent monthly staff meeting notice to all departments', time: '2 days ago', color: 'blue' },
-]
-
-const skills = [
-  'Program Management', 'M&E', 'Data Analysis', 'Donor Relations',
-  'Budget Planning', 'Team Leadership', 'Report Writing', 'Stakeholder Engagement',
-]
-
-const permissions = [
-  { module: 'Dashboard', access: 'Full Access' },
-  { module: 'HR Management', access: 'Full Access' },
-  { module: 'Procurement', access: 'Full Access' },
-  { module: 'Programs', access: 'Full Access' },
-  { module: 'Communication', access: 'Full Access' },
-  { module: 'Reports', access: 'Full Access' },
-  { module: 'Settings', access: 'Full Access' },
-]
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -51,9 +24,81 @@ function formatDateTime(iso) {
     ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
+function relativeTime(iso) {
+  if (!iso) return '—'
+  const now = Date.now()
+  const then = new Date(iso).getTime()
+  const diffSec = Math.max(0, Math.floor((now - then) / 1000))
+  if (diffSec < 60) return 'just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
+  return formatDate(iso)
+}
+
+const PR_STATUS_DOT = {
+  draft: 'orange',
+  pending_approval: 'blue',
+  approved: 'green',
+  rejected: 'red',
+  revision: 'orange',
+  cancelled: 'red',
+  fulfilled: 'green',
+}
+
+/**
+ * Reduce the live permission map into a per-module access summary.
+ *
+ * Looks at every key like "module.feature.action" the user is granted (true)
+ * and aggregates by the first segment so each row shows the access level
+ * for an entire module rather than a long flat table.
+ */
+const MODULE_LABELS = {
+  auth: 'User Management',
+  hr: 'HR Management',
+  procurement: 'Procurement',
+  projects: 'Projects',
+  communication: 'Communication',
+  programs: 'Programs',
+  reports: 'Reports',
+  settings: 'Settings',
+}
+
+function summarisePermissionsByModule(permissions, isAdminLike) {
+  const byModule = {}
+  for (const [key, allowed] of Object.entries(permissions || {})) {
+    if (!allowed) continue
+    const [module, , action] = key.split('.')
+    if (!module) continue
+    if (!byModule[module]) byModule[module] = { actions: new Set() }
+    if (action) byModule[module].actions.add(action)
+  }
+
+  const ranking = (actions) => {
+    if (actions.has('delete') || actions.has('manage') || actions.has('manage_roles')) return 'Full Access'
+    if (actions.has('edit') || actions.has('create')) return 'Edit'
+    if (actions.has('view')) return 'View Only'
+    if (actions.has('approve') || actions.has('budget_holder') || actions.has('finance') || actions.has('procurement')) return 'Approver'
+    return 'Limited'
+  }
+
+  const rows = Object.entries(byModule)
+    .filter(([, v]) => v.actions.size > 0)
+    .map(([module, v]) => ({
+      module: MODULE_LABELS[module] || capitalize(module),
+      access: isAdminLike ? 'Full Access' : ranking(v.actions),
+    }))
+    .sort((a, b) => a.module.localeCompare(b.module))
+
+  return rows
+}
+
 export default function Profile() {
   const navigate = useNavigate()
-  const { user, updateUser, logout } = useAuth()
+  const { user, permissions, updateUser, logout } = useAuth()
 
   // --- Profile edit state ---
   const [editing, setEditing] = useState(false)
@@ -74,10 +119,69 @@ export default function Profile() {
   const [deactivating, setDeactivating] = useState(false)
   const [deactivateMsg, setDeactivateMsg] = useState(null)
 
+  // --- Live profile data ---
+  const [loadingData, setLoadingData] = useState(true)
+  const [recentPRs, setRecentPRs] = useState([])
+  const [counts, setCounts] = useState({
+    prTotal: 0,
+    prApproved: 0,
+    prPending: 0,
+    pendingApprovals: 0,
+  })
+
+  /* Fetch the user's own PRs and pending-approval queue.
+     Approvals call may 403 for non-approver roles — treat that as 0. */
+  useEffect(() => {
+    if (!user?.id) return
+    let cancelled = false
+
+    async function load() {
+      setLoadingData(true)
+      try {
+        const [allMineRes, approvedRes, pendingRes, recentRes, approvalsRes] = await Promise.allSettled([
+          purchaseRequestsApi.list({ requested_by: user.id, per_page: 1 }),
+          purchaseRequestsApi.list({ requested_by: user.id, status: 'approved', per_page: 1 }),
+          purchaseRequestsApi.list({ requested_by: user.id, status: 'pending_approval', per_page: 1 }),
+          purchaseRequestsApi.list({ requested_by: user.id, per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
+          approvalsApi.pending({ scope: 'mine', per_page: 1 }),
+        ])
+
+        if (cancelled) return
+
+        const total = allMineRes.status === 'fulfilled' ? (extractMeta(allMineRes.value)?.total ?? 0) : 0
+        const approved = approvedRes.status === 'fulfilled' ? (extractMeta(approvedRes.value)?.total ?? 0) : 0
+        const pending = pendingRes.status === 'fulfilled' ? (extractMeta(pendingRes.value)?.total ?? 0) : 0
+        const pendingApprovals = approvalsRes.status === 'fulfilled' ? (extractMeta(approvalsRes.value)?.total ?? 0) : 0
+        const items = recentRes.status === 'fulfilled' ? extractItems(recentRes.value) : []
+
+        setCounts({ prTotal: total, prApproved: approved, prPending: pending, pendingApprovals })
+        setRecentPRs(items)
+      } finally {
+        if (!cancelled) setLoadingData(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [user?.id])
+
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     : '??'
   const displayRole = user?.role ? capitalize(user.role.replace('_', ' ')) : ''
+  const isAdminLike = user?.role === 'super_admin' || user?.role === 'admin'
+
+  const permissionRows = useMemo(
+    () => summarisePermissionsByModule(permissions, isAdminLike),
+    [permissions, isAdminLike]
+  )
+
+  const stats = [
+    { label: 'PRs Raised',         value: counts.prTotal,        icon: ClipboardList },
+    { label: 'PRs Approved',       value: counts.prApproved,     icon: CheckCircle2 },
+    { label: 'Awaiting Approval',  value: counts.prPending,      icon: Clock },
+    { label: 'My Approval Queue',  value: counts.pendingApprovals, icon: ClipboardCheck },
+  ]
 
   const startEdit = () => {
     setForm({ name: user?.name || '', phone: user?.phone || '', department: user?.department || '' })
@@ -201,7 +305,7 @@ export default function Profile() {
       <div className="profile-stats-row animate-in">
         {stats.map((s) => (
           <div className="profile-stat" key={s.label}>
-            <div className="profile-stat-value">{s.value}</div>
+            <div className="profile-stat-value">{loadingData ? '…' : s.value}</div>
             <div className="profile-stat-label">{s.label}</div>
           </div>
         ))}
@@ -285,48 +389,66 @@ export default function Profile() {
               </div>
             </div>
           </div>
-
-          {/* Skills */}
-          <div className="card">
-            <div className="card-header">
-              <h3>Skills & Expertise</h3>
-            </div>
-            <div className="card-body">
-              <div className="profile-skills">
-                {skills.map((skill) => (
-                  <span className="profile-skill-tag" key={skill}>{skill}</span>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Right Column — Activity + Permissions */}
+        {/* Right Column — My PRs + Permissions */}
         <div className="profile-details-stack">
-          {/* Recent Activity */}
+          {/* Recent Purchase Requests (mine) */}
           <div className="card">
             <div className="card-header">
-              <h3>Recent Activity</h3>
+              <h3>My Recent Purchase Requests</h3>
+              {counts.prTotal > 0 && (
+                <span className="card-badge blue">{counts.prTotal} total</span>
+              )}
             </div>
             <div className="card-body">
-              <div className="activity-list">
-                {recentActivity.map((a) => (
-                  <div className="activity-item" key={a.action}>
-                    <div className={`activity-dot ${a.color}`} />
-                    <div className="activity-content">
-                      <p>{a.action}</p>
-                      <span>{a.time}</span>
-                    </div>
+              {loadingData ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+                  <div className="auth-spinner" />
+                </div>
+              ) : recentPRs.length === 0 ? (
+                <div className="activity-list">
+                  <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <FileText size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
+                    <p style={{ margin: 0, fontSize: 13 }}>You haven&apos;t raised any purchase requests yet.</p>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="activity-list">
+                  {recentPRs.map((pr) => {
+                    const dot = PR_STATUS_DOT[pr.status] || 'blue'
+                    return (
+                      <div
+                        className="activity-item"
+                        key={pr.id}
+                        onClick={() => navigate('/procurement/purchase-requests')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/procurement/purchase-requests') } }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className={`activity-dot ${dot}`} />
+                        <div className="activity-content">
+                          <p>
+                            <strong>{pr.requisition_number}</strong> — {pr.title || 'Untitled'}
+                            <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                              · {capitalize((pr.status || '').replace(/_/g, ' '))}
+                            </span>
+                          </p>
+                          <span>{relativeTime(pr.created_at)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Permissions */}
           <div className="card">
             <div className="card-header">
-              <h3>Access & Permissions</h3>
+              <h3>Access &amp; Permissions</h3>
               <span className="card-badge green">{displayRole}</span>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
@@ -339,7 +461,13 @@ export default function Profile() {
                     </tr>
                   </thead>
                   <tbody>
-                    {permissions.map((p) => (
+                    {permissionRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16 }}>
+                          No permissions granted.
+                        </td>
+                      </tr>
+                    ) : permissionRows.map((p) => (
                       <tr key={p.module}>
                         <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{p.module}</td>
                         <td>
