@@ -67,17 +67,22 @@ const navItems = [
     label: 'Procurement',
     icon: ShoppingCart,
     children: [
+      // Cross-cutting views first
       { label: 'Overview',              icon: Eye,           path: '/procurement' },
-      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.requisitions.view' },
+      { label: 'Pending Approvals',     icon: ClipboardCheck,path: '/procurement/pending-approvals' },
+
+      // Procurement workflow — ordered by document flow
       { label: 'Bill of Quantities',    icon: ListOrdered,   path: '/procurement/boq',              permission: 'procurement.boq.view' },
+      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.requisitions.view' },
       { label: 'Request for Quotation', icon: FileText,      path: '/procurement/rfq',              permission: 'procurement.rfq.view' },
       { label: 'Purchase Orders',       icon: Store,         path: '/procurement/purchase-orders',  permission: 'procurement.purchase_orders.view' },
       { label: 'Goods Received',        icon: Truck,         path: '/procurement/grn',              permission: 'procurement.grn.view' },
       { label: 'Request for Payment',   icon: CreditCard,    path: '/procurement/rfp',              permission: 'procurement.rfp.view' },
+
+      // Master data last
       { label: 'Vendors',               icon: Building2,     path: '/procurement/vendors',          permission: 'procurement.vendors.view' },
       { label: 'Vendor Categories',     icon: Tag,           path: '/procurement/vendor-categories', permission: 'procurement.vendor_categories.view' },
       { label: 'Inventory',             icon: PackageCheck,  path: '/procurement/inventory',        permission: 'procurement.inventory.view' },
-      { label: 'Pending Approvals',      icon: ClipboardCheck,path: '/procurement/pending-approvals' },
     ],
   },
   {

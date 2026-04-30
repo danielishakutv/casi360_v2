@@ -54,9 +54,11 @@ export default function ProcOverview() {
   const rfpTotal = stats?.rfp?.total ?? 0
   const rfpPending = stats?.rfp?.by_status?.pending ?? 0
 
+  /* Ordered to mirror the procurement document flow:
+     BOQ → PR → RFQ → PO → GRN → RFP. */
   const statCards = [
-    { key: 'pr',  label: 'Purchase Requests', value: prTotal,    sub: '',                      icon: ClipboardList, color: 'blue' },
     { key: 'boq', label: 'Bill of Quantities', value: boqTotal,  sub: '',                      icon: ListOrdered,   color: 'indigo' },
+    { key: 'pr',  label: 'Purchase Requests', value: prTotal,    sub: '',                      icon: ClipboardList, color: 'blue' },
     { key: 'rfq', label: 'RFQs',              value: rfqTotal,   sub: rfqOpen ? `${rfqOpen} open` : '', icon: FileText, color: 'orange' },
     { key: 'po',  label: 'Purchase Orders',   value: poTotal,    sub: '',                      icon: Store,         color: 'green' },
     { key: 'grn', label: 'Goods Received',    value: grnTotal,   sub: '',                      icon: Truck,         color: 'purple' },
