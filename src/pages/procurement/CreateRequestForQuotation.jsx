@@ -112,17 +112,13 @@ export default function CreateRequestForQuotation() {
   const grandTotal = useMemo(() => form.line_items.reduce((s, li) => s + lineTotal(li), 0), [form.line_items, lineTotal])
   const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
 
-  function handleSubmit(e) {
-    e.preventDefault()
-    setSubmitting(true)
-    setFormError('')
-
+  function buildPayload() {
     const signoffs = []
     if (form.received_by_name) {
       signoffs.push({ type: 'Logistics Officer', name: form.received_by_name, position: 'Logistics', date: form.received_by_date || todayStr(), signature: form.received_by_signature })
     }
 
-    const payload = {
+    return {
       title: form.supplier_name || 'RFQ',
       date: form.date,
       pr_reference: form.pr_reference || undefined,
@@ -147,12 +143,42 @@ export default function CreateRequestForQuotation() {
           unit_cost: Number(li.unit_cost) || 0,
         })),
     }
+  }
 
-    rfqApi.create(payload)
+  function handleErr(err, fallback) {
+    setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || fallback))
+  }
+
+  /* "Save as Draft" — creates the RFQ in draft status and exits. */
+  function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitting(true)
+    setFormError('')
+
+    rfqApi.create(buildPayload())
       .then(() => navigate('/procurement/rfq'))
-      // Show server-provided 403 (and other) messages verbatim
-      .catch((err) => setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || 'Failed to create RFQ')))
+      .catch((err) => handleErr(err, 'Failed to create RFQ'))
       .finally(() => setSubmitting(false))
+  }
+
+  /* "Save & Send to Vendor" — creates the RFQ then transitions it from
+     draft → sent via the dedicated submit endpoint, marking it live. */
+  async function handleSaveAndSend() {
+    setSubmitting(true)
+    setFormError('')
+    try {
+      const res = await rfqApi.create(buildPayload())
+      const data = res?.data?.rfq || res?.data || res
+      const newId = data?.id
+      if (newId) {
+        await rfqApi.submit(newId)
+      }
+      navigate('/procurement/rfq')
+    } catch (err) {
+      handleErr(err, 'Failed to send RFQ')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -367,7 +393,18 @@ export default function CreateRequestForQuotation() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/rfq')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit RFQ'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save as Draft'}
+            </button>
+            <button
+              type="button"
+              className="hr-btn-primary"
+              style={{ background: 'var(--success, #16a34a)' }}
+              disabled={submitting}
+              onClick={handleSaveAndSend}
+            >
+              {submitting ? 'Sending…' : 'Save & Send to Vendor'}
+            </button>
           </div>
         </form>
       </div>

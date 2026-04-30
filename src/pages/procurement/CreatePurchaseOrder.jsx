@@ -140,39 +140,69 @@ export default function CreatePurchaseOrder() {
   const sym = currencyInfo.symbol
   const fmt = (n) => sym + n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+  function buildPayload() {
+    return {
+      vendor_id: form.vendor_id || undefined,
+      department_id: form.department_id || undefined,
+      requested_by: form.requested_by || user?.employee_id || user?.id || undefined,
+      order_date: form.date,
+      expected_delivery_date: form.delivery_date || undefined,
+      tax_amount: Number(form.sales_tax) || 0,
+      discount_amount: 0,
+      currency: form.currency,
+      notes: form.remarks || undefined,
+      items: form.line_items
+        .filter((li) => li.description.trim())
+        .map((li) => ({
+          description: li.description,
+          quantity: Number(li.quantity) || 1,
+          unit: li.unit || undefined,
+          unit_price: Number(li.unit_price) || 0,
+        })),
+    }
+  }
+
+  function handleErr(err, fallback) {
+    if (err.status === 422 && err.data?.errors) {
+      setFormErrors(err.data.errors)
+    } else {
+      setFormErrors({ general: [err.message || fallback] })
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /* "Save as Draft" — creates the PO and leaves it in draft. */
   async function handleSubmit(e) {
     e.preventDefault()
     setSubmitting(true)
     setFormErrors(null)
     try {
-      const payload = {
-        vendor_id: form.vendor_id || undefined,
-        department_id: form.department_id || undefined,
-        requested_by: form.requested_by || user?.employee_id || user?.id || undefined,
-        order_date: form.date,
-        expected_delivery_date: form.delivery_date || undefined,
-        tax_amount: Number(form.sales_tax) || 0,
-        discount_amount: 0,
-        currency: form.currency,
-        notes: form.remarks || undefined,
-        items: form.line_items
-          .filter((li) => li.description.trim())
-          .map((li) => ({
-            description: li.description,
-            quantity: Number(li.quantity) || 1,
-            unit: li.unit || undefined,
-            unit_price: Number(li.unit_price) || 0,
-          })),
-      }
-      await purchaseOrdersApi.create(payload)
+      await purchaseOrdersApi.create(buildPayload())
       navigate('/procurement/purchase-orders')
     } catch (err) {
-      if (err.status === 422 && err.data?.errors) {
-        setFormErrors(err.data.errors)
-      } else {
-        setFormErrors({ general: [err.message || 'Failed to create purchase order'] })
+      handleErr(err, 'Failed to create purchase order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /* "Save & Submit for Approval" — creates the PO then transitions it from
+     draft → submitted via the dedicated submit endpoint. If creation succeeds
+     but the submit step fails we still leave the user on the list page;
+     the PO is saved as a draft they can submit later from the list. */
+  async function handleSaveAndSubmit() {
+    setSubmitting(true)
+    setFormErrors(null)
+    try {
+      const res = await purchaseOrdersApi.create(buildPayload())
+      const data = res?.data?.purchase_order || res?.data || res
+      const newId = data?.id
+      if (newId) {
+        await purchaseOrdersApi.submit(newId)
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      navigate('/procurement/purchase-orders')
+    } catch (err) {
+      handleErr(err, 'Failed to submit purchase order')
     } finally {
       setSubmitting(false)
     }
@@ -451,7 +481,18 @@ export default function CreatePurchaseOrder() {
           {/* ── Actions ── */}
           <div className="hr-form-actions">
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-orders')} disabled={submitting}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Submit PO'}</button>
+            <button type="submit" className="hr-btn-primary" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save as Draft'}
+            </button>
+            <button
+              type="button"
+              className="hr-btn-primary"
+              style={{ background: 'var(--success, #16a34a)' }}
+              disabled={submitting}
+              onClick={handleSaveAndSubmit}
+            >
+              {submitting ? 'Submitting…' : 'Save & Submit for Approval'}
+            </button>
           </div>
         </form>
       </div>

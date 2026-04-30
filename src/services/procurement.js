@@ -118,6 +118,7 @@ export const rfqApi = {
   create: (data)       => api.post('/procurement/rfq', data),
   update: (id, data)   => api.patch(`/procurement/rfq/${id}`, data),
   delete: (id)         => api.delete(`/procurement/rfq/${id}`),
+  submit: (id)         => api.post(`/procurement/rfq/${id}/submit`),
 }
 
 /* ------------------------------------------------------------------ */
