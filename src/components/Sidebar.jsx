@@ -42,6 +42,15 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
 
+/* Department codes used for menu narrowing.
+   Match the canonical `code` column from the backend's departments table.
+   The matcher below also accepts the department NAME (case-insensitive) for
+   users whose `department` field was set before department codes existed. */
+const DEPT = {
+  FINANCE: { code: 'FINANCE', names: ['Finance'] },
+  OPERATIONS: { code: 'OPERATIONS', names: ['Operations', 'Operations & Logistics'] },
+}
+
 const navItems = [
   {
     id: 'dashboard',
@@ -54,12 +63,12 @@ const navItems = [
     label: 'HR Management',
     icon: Users,
     children: [
-      { label: 'Overview',     icon: Eye,          path: '/hr' },
-      { label: 'Staff List',   icon: UserCheck,    path: '/hr/staff',        permission: 'hr.employees.view' },
-      { label: 'Departments',  icon: Building2,    path: '/hr/departments',  permission: 'hr.departments.view' },
-      { label: 'Designations', icon: Award,        path: '/hr/designations', permission: 'hr.designations.view' },
+      { label: 'Overview',           icon: Eye,           path: '/hr',                       permission: 'hr.employees.view' },
+      { label: 'Staff List',         icon: UserCheck,     path: '/hr/staff',                 permission: 'hr.employees.view' },
+      { label: 'Departments',        icon: Building2,     path: '/hr/departments',           permission: 'hr.departments.view' },
+      { label: 'Designations',       icon: Award,         path: '/hr/designations',          permission: 'hr.designations.view' },
       { label: 'Notes',              icon: StickyNote,    path: '/hr/notes',                 permission: 'hr.notes.view' },
-      { label: 'Purchase Requests',  icon: ClipboardList, path: '/hr/purchase-requests' },
+      { label: 'Purchase Requests',  icon: ClipboardList, path: '/hr/purchase-requests',     permission: 'procurement.requisitions.view' },
     ],
   },
   {
@@ -68,8 +77,8 @@ const navItems = [
     icon: ShoppingCart,
     children: [
       // Cross-cutting views first
-      { label: 'Overview',              icon: Eye,           path: '/procurement' },
-      { label: 'Pending Approvals',     icon: ClipboardCheck,path: '/procurement/pending-approvals' },
+      { label: 'Overview',              icon: Eye,           path: '/procurement',                  permission: 'procurement.requisitions.view' },
+      { label: 'Pending Approvals',     icon: ClipboardCheck,path: '/procurement/pending-approvals', permission: 'procurement.approvals.view' },
 
       // Procurement workflow — ordered by document flow
       { label: 'Bill of Quantities',    icon: ListOrdered,   path: '/procurement/boq',              permission: 'procurement.boq.view' },
@@ -97,9 +106,12 @@ const navItems = [
     ],
   },
   {
+    /* Finance section is operational tooling for the Finance department.
+       Department-narrowed: only Finance-dept users (or admins) see it. */
     id: 'finance',
     label: 'Finance',
     icon: Wallet,
+    department: DEPT.FINANCE,
     children: [
       { label: 'Overview',          icon: Eye,            path: '/finance' },
       { label: 'Projects',          icon: Briefcase,      path: '/finance/projects' },
@@ -108,9 +120,15 @@ const navItems = [
     ],
   },
   {
+    /* Operations section drives executive-level approvals (RFP final sign-off).
+       Restricted to admins by default; a department gate is also applied so an
+       Operations-dept manager (e.g. Operations Director) sees it without needing
+       the admin role. */
     id: 'operations',
     label: 'Operations',
     icon: Forklift,
+    roleRequired: 'admin',
+    department: DEPT.OPERATIONS,
     children: [
       { label: 'Overview',  icon: Eye,           path: '/operations' },
       { label: 'Approvals', icon: ClipboardCheck, path: '/operations/approvals' },
@@ -121,10 +139,10 @@ const navItems = [
     label: 'Communication',
     icon: MessageSquare,
     children: [
-      { label: 'Overview',     icon: Eye,            path: '/communication' },
+      { label: 'Overview',     icon: Eye,            path: '/communication',          permission: 'communication.notices.view' },
       { label: 'Messages',     icon: Inbox,          path: '/communication/messages', permission: 'communication.messages.view' },
       { label: 'Forums',       icon: MessagesSquare, path: '/communication/forums',   permission: 'communication.forums.view' },
-      { label: 'Notices',       icon: Bell,           path: '/communication/notices',  permission: 'communication.notices.view' },
+      { label: 'Notices',      icon: Bell,           path: '/communication/notices',  permission: 'communication.notices.view' },
     ],
   },
   {
@@ -132,7 +150,7 @@ const navItems = [
     label: 'Reports',
     icon: BarChart3,
     path: '/reports',
-    permission: 'reports.view',
+    permission: 'reports.reports.view',
   },
   {
     id: 'settings',
@@ -162,33 +180,48 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
   const [openMenus, setOpenMenus] = useState({})
 
   const userRole = user?.role
+  const userDept = (user?.department || '').toString().trim()
+  const isAdminLike = userRole === 'super_admin' || userRole === 'admin'
 
   function hasRole(required) {
     if (!required) return true
-    if (required === 'admin') return userRole === 'super_admin' || userRole === 'admin'
+    if (required === 'admin') return isAdminLike
     if (required === 'super_admin') return userRole === 'super_admin'
     return false
   }
 
-  // Filter nav items based on user permissions and role requirements
-  const visibleItems = navItems.reduce((acc, item) => {
-    // Check role requirement at the group level
-    if (item.roleRequired && !hasRole(item.roleRequired)) return acc
+  /* Department gate. Admins always pass. Otherwise the user's stored
+     department string must case-insensitively match either the canonical
+     code (e.g. "FINANCE") or any of the configured display names. */
+  function inDepartment(dept) {
+    if (!dept) return true
+    if (isAdminLike) return true
+    if (!userDept) return false
+    if (userDept.toLowerCase() === dept.code.toLowerCase()) return true
+    return (dept.names || []).some((n) => n.toLowerCase() === userDept.toLowerCase())
+  }
 
-    // Top-level item with a direct path — check its permission
+  function passesGates(item) {
+    if (item.roleRequired && !hasRole(item.roleRequired)) return false
+    if (item.department && !inDepartment(item.department)) return false
+    if (item.permission && !can(item.permission)) return false
+    return true
+  }
+
+  // Filter nav items based on user permissions, role and department gates
+  const visibleItems = navItems.reduce((acc, item) => {
+    // Group-level role / department gates
+    if (item.roleRequired && !hasRole(item.roleRequired)) return acc
+    if (item.department && !inDepartment(item.department)) return acc
+
+    // Top-level item with a direct path — check its permission too
     if (item.path) {
       if (!item.permission || can(item.permission)) acc.push(item)
       return acc
     }
-    // Section with children — filter children, keep section if any children remain
+    // Section with children — filter children, keep section if any survive
     if (item.children) {
-      const visibleChildren = item.children.filter(
-        (child) => {
-          if (child.roleRequired && !hasRole(child.roleRequired)) return false
-          if (child.permission && !can(child.permission)) return false
-          return true
-        }
-      )
+      const visibleChildren = item.children.filter(passesGates)
       if (visibleChildren.length > 0) {
         acc.push({ ...item, children: visibleChildren })
       }
