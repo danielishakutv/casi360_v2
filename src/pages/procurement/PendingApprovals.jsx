@@ -29,6 +29,11 @@ const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procu
 
 export default function PendingApprovals() {
   const { can, user } = useAuth()
+  // Org-wide history is gated on procurement.approvals.view_all.
+  // Without it, send mine=1 so the backend scopes results to records that
+  // concern the current user (created, named on, acted on, or department-mate).
+  const canViewAllHistory = can('procurement.approvals.view_all')
+
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
   const [boqs, setBoqs] = useState([])
@@ -104,6 +109,7 @@ export default function PendingApprovals() {
         page: historyPage,
         per_page: 10,
         search: debouncedHistorySearch || undefined,
+        mine: canViewAllHistory ? undefined : 1,
       })
       const d = res?.data || res || {}
       setHistory(d.requisitions || [])
@@ -113,7 +119,7 @@ export default function PendingApprovals() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [historyPage, debouncedHistorySearch])
+  }, [historyPage, debouncedHistorySearch, canViewAllHistory])
 
   useEffect(() => { if (historyOpen) fetchHistory() }, [historyOpen, fetchHistory])
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, CheckCheck, ChevronDown, ChevronRight, Clock3, Download, Eye, FileText, RefreshCw, RotateCcw, Search, X } from 'lucide-react'
 import { approvalsApi, purchaseRequestsApi } from '../../services/procurement'
+import { useAuth } from '../../contexts/AuthContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -34,6 +35,12 @@ const AUDIT_LABELS = {
 const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
 
 export default function FinanceApprovals() {
+  const { can } = useAuth()
+  // Org-wide history is gated on procurement.approvals.view_all.
+  // Without it, send mine=1 so the backend scopes results to records that
+  // concern the current user (created, named on, acted on, or department-mate).
+  const canViewAllHistory = can('procurement.approvals.view_all')
+
   const [reqs, setReqs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -90,6 +97,7 @@ export default function FinanceApprovals() {
         page: historyPage,
         per_page: HISTORY_PER_PAGE,
         search: debouncedHistorySearch || undefined,
+        mine: canViewAllHistory ? undefined : 1,
       })
       const d = res?.data || res || {}
       setHistory(d.requisitions || [])
@@ -99,7 +107,7 @@ export default function FinanceApprovals() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [historyPage, debouncedHistorySearch])
+  }, [historyPage, debouncedHistorySearch, canViewAllHistory])
 
   useEffect(() => {
     if (historyOpen) fetchHistory()
