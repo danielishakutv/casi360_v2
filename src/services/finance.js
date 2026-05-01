@@ -2,8 +2,7 @@
  * CASI360 — Finance Module API service
  *
  * Consolidated endpoints that power the Finance Overview dashboard.
- * Until the backend ships these, the FE falls back to composing the
- * same numbers from projects + approvals endpoints.
+ * The frontend reads these directly — no fallback composition.
  */
 
 import { api } from './api'

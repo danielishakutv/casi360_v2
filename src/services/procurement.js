@@ -29,7 +29,7 @@ export const vendorsApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Vendor Categories  ⏳ STUB — awaiting backend                       */
+/* Vendor Categories  ✅ LIVE                                          */
 /* ------------------------------------------------------------------ */
 
 export const vendorCategoriesApi = {
@@ -109,7 +109,7 @@ export const boqApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Request for Quotation (RFQ)  ⏳ STUB — awaiting backend             */
+/* Request for Quotation (RFQ)  ✅ LIVE                                */
 /* ------------------------------------------------------------------ */
 
 export const rfqApi = {
@@ -122,7 +122,7 @@ export const rfqApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Goods Received Note (GRN)  ⏳ STUB — awaiting backend               */
+/* Goods Received Note (GRN)  ✅ LIVE                                  */
 /* ------------------------------------------------------------------ */
 
 export const grnApi = {
@@ -134,7 +134,7 @@ export const grnApi = {
 }
 
 /* ------------------------------------------------------------------ */
-/* Request for Payment (RFP)  ⏳ STUB — awaiting backend               */
+/* Request for Payment (RFP)  ✅ LIVE                                  */
 /* ------------------------------------------------------------------ */
 
 export const rfpApi = {
