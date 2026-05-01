@@ -126,6 +126,10 @@ export const authApi = {
 
   getPermissions: () =>
     api.get('/auth/permissions'),
+
+  /** Unified recent activity feed for the current user (procurement docs). */
+  activity: (params) =>
+    api.get('/auth/activity', params),
 }
 
 /* ------------------------------------------------------------------ */

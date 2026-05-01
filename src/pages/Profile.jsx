@@ -4,12 +4,13 @@ import {
   Mail, Phone, Briefcase, Calendar, Shield,
   Clock, Edit3, Save, X, AlertCircle, CheckCircle2,
   Lock, Eye, EyeOff, Trash2, ShieldAlert,
-  ClipboardList, ClipboardCheck, FileText
+  ClipboardList, ClipboardCheck, FileText,
+  ShoppingCart, FileSpreadsheet, FileQuestion, Receipt, PackageCheck, Activity
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { authApi } from '../services/api'
 import { purchaseRequestsApi, approvalsApi } from '../services/procurement'
-import { extractItems, extractMeta } from '../utils/apiHelpers'
+import { extractMeta } from '../utils/apiHelpers'
 import { capitalize } from '../utils/capitalize'
 
 function formatDate(iso) {
@@ -39,14 +40,61 @@ function relativeTime(iso) {
   return formatDate(iso)
 }
 
-const PR_STATUS_DOT = {
+const STATUS_DOT = {
   draft: 'orange',
+  pending: 'blue',
   pending_approval: 'blue',
+  submitted: 'blue',
   approved: 'green',
   rejected: 'red',
   revision: 'orange',
   cancelled: 'red',
   fulfilled: 'green',
+  paid: 'green',
+  on_hold: 'orange',
+  open: 'blue',
+  closed: 'green',
+  awarded: 'green',
+  inspected: 'blue',
+  accepted: 'green',
+  partial: 'orange',
+  pending_inspection: 'blue',
+  partially_received: 'orange',
+  received: 'green',
+  partially_paid: 'orange',
+  unpaid: 'orange',
+}
+
+/* Document type → display config (icon, friendly label, list page URL). */
+const DOC_TYPE_META = {
+  requisition:    { label: 'Purchase Request', icon: ClipboardList,   path: '/procurement/purchase-requests' },
+  purchase_order: { label: 'Purchase Order',   icon: ShoppingCart,    path: '/procurement/purchase-orders' },
+  boq:            { label: 'Bill of Quantities', icon: FileSpreadsheet, path: '/procurement/bill-of-quantities' },
+  rfq:            { label: 'Quotation Request', icon: FileQuestion,   path: '/procurement/request-for-quotation' },
+  rfp:            { label: 'Payment Request',  icon: Receipt,         path: '/procurement/request-for-payment' },
+  grn:            { label: 'Goods Received',   icon: PackageCheck,    path: '/procurement/goods-received-note' },
+}
+
+/* Strip the entity prefix and humanise the action verb. */
+function actionVerb(action, entityType) {
+  if (!action) return 'Activity'
+  let raw = action
+  if (entityType && raw.startsWith(`${entityType}_`)) {
+    raw = raw.slice(entityType.length + 1)
+  }
+  const map = {
+    created: 'Created',
+    updated: 'Updated',
+    deleted: 'Deleted',
+    submitted: 'Submitted',
+    approved: 'Approved',
+    forwarded: 'Forwarded',
+    revision: 'Sent for revision',
+    rejected: 'Rejected',
+    cancelled: 'Cancelled',
+    step_approved: 'Step approved',
+  }
+  return map[raw] || capitalize(raw.replace(/_/g, ' '))
 }
 
 /**
@@ -121,7 +169,7 @@ export default function Profile() {
 
   // --- Live profile data ---
   const [loadingData, setLoadingData] = useState(true)
-  const [recentPRs, setRecentPRs] = useState([])
+  const [activity, setActivity] = useState([])
   const [counts, setCounts] = useState({
     prTotal: 0,
     prApproved: 0,
@@ -129,8 +177,8 @@ export default function Profile() {
     pendingApprovals: 0,
   })
 
-  /* Fetch the user's own PRs and pending-approval queue.
-     Approvals call may 403 for non-approver roles — treat that as 0. */
+  /* Fetch unified activity, PR counts, and pending-approval queue.
+     The approvals call may 403 for non-approver roles — treat as 0. */
   useEffect(() => {
     if (!user?.id) return
     let cancelled = false
@@ -138,11 +186,11 @@ export default function Profile() {
     async function load() {
       setLoadingData(true)
       try {
-        const [allMineRes, approvedRes, pendingRes, recentRes, approvalsRes] = await Promise.allSettled([
+        const [activityRes, allMineRes, approvedRes, pendingRes, approvalsRes] = await Promise.allSettled([
+          authApi.activity({ per_page: 10 }),
           purchaseRequestsApi.list({ requested_by: user.id, per_page: 1 }),
           purchaseRequestsApi.list({ requested_by: user.id, status: 'approved', per_page: 1 }),
           purchaseRequestsApi.list({ requested_by: user.id, status: 'pending_approval', per_page: 1 }),
-          purchaseRequestsApi.list({ requested_by: user.id, per_page: 5, sort_by: 'created_at', sort_dir: 'desc' }),
           approvalsApi.pending({ scope: 'mine', per_page: 1 }),
         ])
 
@@ -152,10 +200,10 @@ export default function Profile() {
         const approved = approvedRes.status === 'fulfilled' ? (extractMeta(approvedRes.value)?.total ?? 0) : 0
         const pending = pendingRes.status === 'fulfilled' ? (extractMeta(pendingRes.value)?.total ?? 0) : 0
         const pendingApprovals = approvalsRes.status === 'fulfilled' ? (extractMeta(approvalsRes.value)?.total ?? 0) : 0
-        const items = recentRes.status === 'fulfilled' ? extractItems(recentRes.value) : []
+        const feed = activityRes.status === 'fulfilled' ? (activityRes.value?.data?.activity || []) : []
 
         setCounts({ prTotal: total, prApproved: approved, prPending: pending, pendingApprovals })
-        setRecentPRs(items)
+        setActivity(feed)
       } finally {
         if (!cancelled) setLoadingData(false)
       }
@@ -391,51 +439,66 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Right Column — My PRs + Permissions */}
+        {/* Right Column — Recent Activity + Permissions */}
         <div className="profile-details-stack">
-          {/* Recent Purchase Requests (mine) */}
+          {/* Unified recent activity across PR/PO/BOQ/RFQ/RFP/GRN */}
           <div className="card">
             <div className="card-header">
-              <h3>My Recent Purchase Requests</h3>
-              {counts.prTotal > 0 && (
-                <span className="card-badge blue">{counts.prTotal} total</span>
-              )}
+              <h3>My Recent Activity</h3>
+              <span className="card-badge blue">
+                <Activity size={12} style={{ marginRight: 4 }} />
+                {activity.length} recent
+              </span>
             </div>
             <div className="card-body">
               {loadingData ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
                   <div className="auth-spinner" />
                 </div>
-              ) : recentPRs.length === 0 ? (
-                <div className="activity-list">
-                  <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <FileText size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
-                    <p style={{ margin: 0, fontSize: 13 }}>You haven&apos;t raised any purchase requests yet.</p>
-                  </div>
+              ) : activity.length === 0 ? (
+                <div className="profile-activity-empty">
+                  <Activity size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
+                  <p>No procurement activity yet.</p>
+                  <span>Documents you create, edit, or act on will show up here.</span>
                 </div>
               ) : (
-                <div className="activity-list">
-                  {recentPRs.map((pr) => {
-                    const dot = PR_STATUS_DOT[pr.status] || 'blue'
+                <div className="profile-activity-list">
+                  {activity.map((item) => {
+                    const meta = DOC_TYPE_META[item.entity_type] || { label: capitalize(item.entity_type || ''), icon: FileText, path: '/' }
+                    const Icon = meta.icon
+                    const verb = actionVerb(item.action, item.entity_type)
+                    const dot = STATUS_DOT[item.status] || 'blue'
+                    const handleClick = () => { if (!item.deleted) navigate(meta.path) }
+                    const clickable = !item.deleted
                     return (
                       <div
-                        className="activity-item"
-                        key={pr.id}
-                        onClick={() => navigate('/procurement/purchase-requests')}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/procurement/purchase-requests') } }}
-                        style={{ cursor: 'pointer' }}
+                        key={item.id}
+                        className={`profile-activity-item ${clickable ? 'clickable' : ''}`}
+                        onClick={clickable ? handleClick : undefined}
+                        role={clickable ? 'button' : undefined}
+                        tabIndex={clickable ? 0 : undefined}
+                        onKeyDown={(e) => { if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleClick() } }}
                       >
-                        <div className={`activity-dot ${dot}`} />
-                        <div className="activity-content">
-                          <p>
-                            <strong>{pr.requisition_number}</strong> — {pr.title || 'Untitled'}
-                            <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-                              · {capitalize((pr.status || '').replace(/_/g, ' '))}
-                            </span>
+                        <div className="profile-activity-icon">
+                          <Icon size={16} />
+                        </div>
+                        <div className="profile-activity-body">
+                          <p className="profile-activity-line">
+                            <span className="profile-activity-verb">{verb}</span>
+                            <span className="profile-activity-type">{meta.label}</span>
+                            {item.number && <span className="profile-activity-number">{item.number}</span>}
                           </p>
-                          <span>{relativeTime(pr.created_at)}</span>
+                          {item.title && <p className="profile-activity-title">{item.title}</p>}
+                          <div className="profile-activity-meta">
+                            {item.status && (
+                              <span className="profile-activity-status">
+                                <span className={`activity-dot ${dot}`} />
+                                {capitalize((item.status || '').replace(/_/g, ' '))}
+                              </span>
+                            )}
+                            {item.deleted && <span className="profile-activity-deleted">Removed</span>}
+                            <span className="profile-activity-time">{relativeTime(item.occurred_at)}</span>
+                          </div>
                         </div>
                       </div>
                     )
