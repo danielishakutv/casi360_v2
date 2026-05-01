@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search, Plus, Pencil, Trash2, Eye, AlertCircle, Check, X,
-  CheckCheck, FileText,
+  CheckCheck, FileText, CreditCard,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
@@ -40,6 +41,8 @@ const INITIAL_FORM = {
 
 export default function Invoices() {
   const { can } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const canViewAll = can('procurement.invoices.view_all')
   const [mine, setMine] = usePersistedScope('casi360.scope.invoices', true)
 
@@ -97,6 +100,26 @@ export default function Invoices() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
+
+  /* Deep-link: when arriving with ?po_id=… (typically clicked from a PO
+     row's "Record Invoice" button), auto-open the create modal with the
+     PO pre-selected. We only do this once per landing — subsequent
+     navigations clear the query string so the user doesn't re-open the
+     modal every time they come back to the page. */
+  const incomingPoId = searchParams.get('po_id')
+  useEffect(() => {
+    if (!incomingPoId) return
+    setEditing(null)
+    setForm({ ...INITIAL_FORM, po_id: incomingPoId })
+    setFormErrors({})
+    setModalOpen(true)
+    ensurePoOptions()
+    // Clear the param so reloading the page doesn't keep popping the modal
+    const next = new URLSearchParams(searchParams)
+    next.delete('po_id')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingPoId])
 
   function showToast(msg, type = 'success') {
     setToast({ msg, type })
@@ -325,6 +348,15 @@ export default function Invoices() {
                               <X size={12} />
                             </button>
                           </>
+                        )}
+                        {can('procurement.rfp.create') && inv.status === 'approved' && (
+                          <button
+                            className="approval-action-btn approve"
+                            onClick={() => navigate(`/procurement/rfp/create?invoice_id=${inv.id}`)}
+                            title="Create payment request for this invoice"
+                          >
+                            <CreditCard size={12} /> Pay
+                          </button>
                         )}
                         {can('procurement.invoices.edit') && inv.status === 'pending' && (
                           <button className="hr-action-btn" onClick={() => openEdit(inv)} title="Edit"><Pencil size={15} /></button>

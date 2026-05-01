@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, DollarSign } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, DollarSign, Receipt } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -182,6 +182,15 @@ export default function PurchaseOrders() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => openView(r)} title="View"><Eye size={15} /></button>
+                      {can('procurement.invoices.create') && r.status === 'approved' && (
+                        <button
+                          className="hr-action-btn"
+                          onClick={() => navigate(`/procurement/invoices?po_id=${r.id}`)}
+                          title="Record vendor invoice for this PO"
+                        >
+                          <Receipt size={15} />
+                        </button>
+                      )}
                       {can('procurement.purchase_orders.edit') && (r.status === 'draft' || r.status === 'revision') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/procurement/purchase-orders/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
                       )}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { rfpApi, invoicesApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
@@ -88,6 +88,9 @@ function buildInitialForm() {
 
 export default function CreateRequestForPayment() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const incomingInvoiceId = searchParams.get('invoice_id')
+
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [approvedInvoices, setApprovedInvoices] = useState([])
@@ -102,6 +105,17 @@ export default function CreateRequestForPayment() {
       .then((res) => setApprovedInvoices(extractItems(res)))
       .catch(() => {})
   }, [])
+
+  /* If we landed here from an invoice's "Pay" button, pre-select it. We
+     wait until the invoice list has loaded so the dropdown actually
+     contains the option (otherwise the value won't render). */
+  useEffect(() => {
+    if (!incomingInvoiceId) return
+    if (form.invoice_id === incomingInvoiceId) return
+    if (!approvedInvoices.some((inv) => inv.id === incomingInvoiceId)) return
+    setForm((p) => ({ ...p, invoice_id: incomingInvoiceId }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingInvoiceId, approvedInvoices])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
