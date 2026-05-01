@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Save, AlertCircle, Check, RotateCcw, Search,
   Building2, Globe, Palette, Server, ShoppingCart, Settings as SettingsIcon,
-  ExternalLink,
+  ExternalLink, Image as ImageIcon, Eye,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { settingsApi } from '../../services/api'
@@ -275,6 +275,262 @@ function splitByKind(list) {
   return { toggles, fields }
 }
 
+/* ─────────────────────── Appearance panel ─────────────────────── */
+/* Bespoke layout for the appearance group — large colour swatches,
+   live preview of how the colours render on real UI elements, and
+   image-thumbnail previews for the favicon + login background. */
+
+function isHex(v) {
+  return typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.trim())
+}
+
+function BrandColorCard({ setting, value, isModified, onChange, role, helper }) {
+  const safe = isHex(value) ? value : '#000000'
+  return (
+    <div className={`syss-app-color-card ${isModified ? 'modified' : ''}`}>
+      <input
+        type="color"
+        className="syss-app-swatch"
+        value={safe}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={`${role} colour picker`}
+      />
+      <div className="syss-app-color-meta">
+        <div className="syss-app-color-role">
+          <strong>{role}</strong>
+          {isModified && <span className="syss-modified-dot" aria-label="modified" />}
+        </div>
+        <input
+          type="text"
+          className="syss-app-color-hex"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#000000"
+          maxLength={9}
+          spellCheck={false}
+        />
+        {(helper || setting.description) && (
+          <p className="syss-app-color-help">{helper || setting.description}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LivePreview({ primary, accent }) {
+  const safePrimary = isHex(primary) ? primary : '#1E40AF'
+  const safeAccent  = isHex(accent)  ? accent  : '#F59E0B'
+  return (
+    <div className="syss-app-preview">
+      <div className="syss-app-preview-head">
+        <Eye size={14} />
+        <strong>Live preview</strong>
+        <span>How these colours render across the app</span>
+      </div>
+      <div className="syss-app-preview-body">
+        <button type="button" className="syss-app-preview-btn" style={{ background: safePrimary }}>
+          Primary action
+        </button>
+        <button
+          type="button"
+          className="syss-app-preview-btn outline"
+          style={{ color: safePrimary, borderColor: safePrimary }}
+        >
+          Secondary
+        </button>
+        <span
+          className="syss-app-preview-badge"
+          style={{ background: `${safeAccent}1f`, color: safeAccent, borderColor: `${safeAccent}40` }}
+        >
+          Accent badge
+        </span>
+        <a
+          href="#preview"
+          className="syss-app-preview-link"
+          style={{ color: safePrimary }}
+          onClick={(e) => e.preventDefault()}
+        >
+          A sample link →
+        </a>
+        <div
+          className="syss-app-preview-tile"
+          style={{ background: `linear-gradient(135deg, ${safePrimary}, ${safeAccent})` }}
+        >
+          <span>Aa</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BrandAssetCard({ setting, value, isModified, onChange, role, helper, aspect = 'wide' }) {
+  const hasValue = typeof value === 'string' && value.trim().length > 0
+  // Track which URL failed to load. When `value` changes, this naturally
+  // becomes stale and we retry the image — no useEffect reset needed.
+  const [failedUrl, setFailedUrl] = useState(null)
+  const showImage = hasValue && failedUrl !== value
+
+  return (
+    <div className={`syss-app-asset-card ${isModified ? 'modified' : ''}`}>
+      <div className="syss-app-asset-head">
+        <strong>{role}</strong>
+        {isModified && <span className="syss-modified-dot" aria-label="modified" />}
+      </div>
+      <div className={`syss-app-thumb aspect-${aspect}`}>
+        {showImage ? (
+          <img key={value} src={value} alt={role} onError={() => setFailedUrl(value)} />
+        ) : (
+          <div className="syss-app-thumb-empty">
+            <ImageIcon size={22} />
+            <span>{hasValue ? 'Could not load image' : 'No image set'}</span>
+          </div>
+        )}
+      </div>
+      <div className="syss-url-wrap">
+        <input
+          type="url"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://…"
+        />
+        {hasValue && (
+          <a href={value} target="_blank" rel="noreferrer" className="syss-url-open" title="Open in new tab">
+            <ExternalLink size={14} />
+          </a>
+        )}
+      </div>
+      {(helper || setting.description) && (
+        <p className="syss-app-asset-help">{helper || setting.description}</p>
+      )}
+    </div>
+  )
+}
+
+function AppearancePanel({ list, getValue, isEdited, onChange }) {
+  const byKey = useMemo(() => {
+    const m = {}
+    list.forEach((s) => { m[s.key] = s })
+    return m
+  }, [list])
+
+  const primary  = byKey.primary_color
+  const accent   = byKey.accent_color
+  const logoUrl  = byKey.organization_logo_url || byKey.logo_url
+  const favicon  = byKey.favicon_url
+  const loginBg  = byKey.login_bg_url
+
+  // Anything not handled by the bespoke cards falls back to the generic
+  // FieldRow grid so future seeded keys don't disappear from the UI.
+  const handledKeys = new Set([
+    'primary_color', 'accent_color',
+    'favicon_url', 'login_bg_url',
+    'organization_logo_url', 'logo_url',
+  ].filter(Boolean))
+  const rest = list.filter((s) => !handledKeys.has(s.key))
+
+  const primaryValue = primary ? getValue(primary) : null
+  const accentValue  = accent  ? getValue(accent)  : null
+
+  return (
+    <div className="syss-app-panel">
+      {(primary || accent) && (
+        <div className="syss-app-section">
+          <div className="syss-app-section-head">
+            <Palette size={15} />
+            <h4>Brand colours</h4>
+            <span>Used for primary actions, accents, and badges across the app.</span>
+          </div>
+
+          <div className="syss-app-color-grid">
+            {primary && (
+              <BrandColorCard
+                setting={primary}
+                value={primaryValue}
+                isModified={isEdited(primary.key)}
+                onChange={(v) => onChange(primary.key, v)}
+                role="Primary"
+                helper="Buttons, links, and active selections."
+              />
+            )}
+            {accent && (
+              <BrandColorCard
+                setting={accent}
+                value={accentValue}
+                isModified={isEdited(accent.key)}
+                onChange={(v) => onChange(accent.key, v)}
+                role="Accent"
+                helper="Highlights, badges, and secondary callouts."
+              />
+            )}
+          </div>
+
+          <LivePreview primary={primaryValue} accent={accentValue} />
+        </div>
+      )}
+
+      {(logoUrl || favicon || loginBg) && (
+        <div className="syss-app-section">
+          <div className="syss-app-section-head">
+            <ImageIcon size={15} />
+            <h4>Brand assets</h4>
+            <span>Image URLs used on the login screen and browser tab.</span>
+          </div>
+
+          <div className="syss-app-asset-grid">
+            {logoUrl && (
+              <BrandAssetCard
+                setting={logoUrl}
+                value={getValue(logoUrl)}
+                isModified={isEdited(logoUrl.key)}
+                onChange={(v) => onChange(logoUrl.key, v)}
+                role="Organization logo"
+                helper="Shown in the sidebar header and login card."
+                aspect="square"
+              />
+            )}
+            {favicon && (
+              <BrandAssetCard
+                setting={favicon}
+                value={getValue(favicon)}
+                isModified={isEdited(favicon.key)}
+                onChange={(v) => onChange(favicon.key, v)}
+                role="Favicon"
+                helper="Small icon shown on the browser tab. PNG or ICO, 32×32 recommended."
+                aspect="square"
+              />
+            )}
+            {loginBg && (
+              <BrandAssetCard
+                setting={loginBg}
+                value={getValue(loginBg)}
+                isModified={isEdited(loginBg.key)}
+                onChange={(v) => onChange(loginBg.key, v)}
+                role="Login background"
+                helper="Full-bleed image behind the sign-in form. 1920×1080 or larger."
+                aspect="wide"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <div className="syss-fields">
+          {rest.map((s) => (
+            <FieldRow
+              key={s.key}
+              setting={s}
+              value={getValue(s)}
+              isModified={isEdited(s.key)}
+              onChange={(v) => onChange(s.key, v)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─────────────────────── Main page ─────────────────────── */
 
 export default function SystemSettings() {
@@ -539,32 +795,43 @@ export default function SystemSettings() {
                   </div>
                 </div>
 
-                {activeToggles.length > 0 && (
-                  <div className="syss-toggles">
-                    {activeToggles.map((s) => (
-                      <FieldRow
-                        key={s.key}
-                        setting={s}
-                        value={getValue(s)}
-                        isModified={s.key in edited}
-                        onChange={(v) => handleChange(s.key, v)}
-                      />
-                    ))}
-                  </div>
-                )}
+                {activeGroup === 'appearance' ? (
+                  <AppearancePanel
+                    list={activeList}
+                    getValue={getValue}
+                    isEdited={(k) => k in edited}
+                    onChange={handleChange}
+                  />
+                ) : (
+                  <>
+                    {activeToggles.length > 0 && (
+                      <div className="syss-toggles">
+                        {activeToggles.map((s) => (
+                          <FieldRow
+                            key={s.key}
+                            setting={s}
+                            value={getValue(s)}
+                            isModified={s.key in edited}
+                            onChange={(v) => handleChange(s.key, v)}
+                          />
+                        ))}
+                      </div>
+                    )}
 
-                {activeFields.length > 0 && (
-                  <div className="syss-fields">
-                    {activeFields.map((s) => (
-                      <FieldRow
-                        key={s.key}
-                        setting={s}
-                        value={getValue(s)}
-                        isModified={s.key in edited}
-                        onChange={(v) => handleChange(s.key, v)}
-                      />
-                    ))}
-                  </div>
+                    {activeFields.length > 0 && (
+                      <div className="syss-fields">
+                        {activeFields.map((s) => (
+                          <FieldRow
+                            key={s.key}
+                            setting={s}
+                            value={getValue(s)}
+                            isModified={s.key in edited}
+                            onChange={(v) => handleChange(s.key, v)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {activeList.length === 0 && (
