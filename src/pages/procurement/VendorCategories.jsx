@@ -1,97 +1,177 @@
-import { useState, useMemo } from 'react'
-import { Search, Plus, Pencil, Trash2, Tag } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Search, Plus, Pencil, Trash2, Tag, AlertCircle, Check } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
-import { demoVendorCategories, nextId } from '../../data/procurementDemo'
+import { vendorCategoriesApi } from '../../services/procurement'
+import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 
 const STATUSES = ['active', 'inactive']
 const PER_PAGE = 15
-
 const INITIAL_FORM = { name: '', description: '', status: 'active' }
 
 export default function VendorCategories() {
   const { can } = useAuth()
-  const [items, setItems] = useState(demoVendorCategories)
+
+  const [items, setItems] = useState([])
+  const [meta, setMeta] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [toast, setToast] = useState(null)
+
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search)
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(INITIAL_FORM)
+  const [saving, setSaving] = useState(false)
+  const [formErrors, setFormErrors] = useState({})
+
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState(null)
 
-  /* ─── Filter & paginate ─── */
-  const filtered = useMemo(() => {
-    let r = items
-    if (search) {
-      const q = search.toLowerCase()
-      r = r.filter((c) => (c.name + c.description).toLowerCase().includes(q))
+  /* ─── Fetch list ─── */
+  const fetchList = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await vendorCategoriesApi.list({
+        search: debouncedSearch || undefined,
+        status: statusFilter || undefined,
+        page,
+        per_page: PER_PAGE,
+      })
+      setItems(extractItems(res))
+      setMeta(extractMeta(res))
+    } catch (err) {
+      setError(err.message || 'Failed to load vendor categories')
+    } finally {
+      setLoading(false)
     }
-    if (statusFilter) r = r.filter((c) => c.status === statusFilter)
-    return r
-  }, [items, search, statusFilter])
+  }, [debouncedSearch, statusFilter, page])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const meta = {
-    current_page: page, last_page: totalPages, per_page: PER_PAGE,
-    total: filtered.length,
-    from: filtered.length ? (page - 1) * PER_PAGE + 1 : 0,
-    to: Math.min(page * PER_PAGE, filtered.length),
+  useEffect(() => { fetchList() }, [fetchList])
+  useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter])
+
+  function showToast(msg, type = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 2500)
   }
 
-  function openCreate() { setEditing(null); setForm(INITIAL_FORM); setModalOpen(true) }
-  function openEdit(item) {
-    setEditing(item)
-    setForm({ name: item.name, description: item.description || '', status: item.status })
+  function openCreate() {
+    setEditing(null)
+    setForm(INITIAL_FORM)
+    setFormErrors({})
     setModalOpen(true)
   }
-  function closeModal() { setModalOpen(false); setEditing(null) }
+  function openEdit(item) {
+    setEditing(item)
+    setForm({ name: item.name || '', description: item.description || '', status: item.status || 'active' })
+    setFormErrors({})
+    setModalOpen(true)
+  }
+  function closeModal() {
+    if (saving) return
+    setModalOpen(false)
+    setEditing(null)
+    setFormErrors({})
+  }
   function updateField(f, v) { setForm((p) => ({ ...p, [f]: v })) }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (editing) {
-      setItems((prev) => prev.map((c) => c.id === editing.id ? { ...c, ...form } : c))
-    } else {
-      setItems((prev) => [{
-        id: nextId(),
-        ...form,
-        vendor_count: 0,
-        created_at: new Date().toISOString().slice(0, 10),
-      }, ...prev])
+    if (saving) return
+    setSaving(true)
+    setFormErrors({})
+    try {
+      if (editing) {
+        await vendorCategoriesApi.update(editing.id, form)
+        showToast('Category updated')
+      } else {
+        await vendorCategoriesApi.create(form)
+        showToast('Category created')
+      }
+      setModalOpen(false)
+      setEditing(null)
+      fetchList()
+    } catch (err) {
+      // Laravel 422 validation errors come through err.errors
+      if (err.errors) {
+        setFormErrors(err.errors)
+      } else {
+        showToast(err.message || 'Save failed', 'error')
+      }
+    } finally {
+      setSaving(false)
     }
-    closeModal()
   }
 
-  function toggleStatus(item) {
-    setItems((prev) => prev.map((c) =>
-      c.id === item.id ? { ...c, status: c.status === 'active' ? 'inactive' : 'active' } : c
-    ))
+  async function toggleStatus(item) {
+    if (statusBusyId) return
+    if (!can('procurement.vendor_categories.edit')) return
+    const next = item.status === 'active' ? 'inactive' : 'active'
+    setStatusBusyId(item.id)
+    // Optimistic UI
+    setItems((prev) => prev.map((c) => c.id === item.id ? { ...c, status: next } : c))
+    try {
+      await vendorCategoriesApi.update(item.id, { status: next })
+    } catch (err) {
+      // Revert on failure
+      setItems((prev) => prev.map((c) => c.id === item.id ? { ...c, status: item.status } : c))
+      showToast(err.message || 'Failed to change status', 'error')
+    } finally {
+      setStatusBusyId(null)
+    }
   }
 
-  function confirmDelete() {
-    if (!deleteTarget) return
-    setItems((prev) => prev.filter((c) => c.id !== deleteTarget.id))
-    setDeleteTarget(null)
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    try {
+      await vendorCategoriesApi.delete(deleteTarget.id)
+      setDeleteTarget(null)
+      showToast('Category deactivated')
+      fetchList()
+    } catch (err) {
+      showToast(err.message || 'Delete failed', 'error')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
     <>
+      {toast && (
+        <div className={`hr-error-banner ${toast.type === 'success' ? 'success' : ''}`} style={{ marginBottom: 12 }}>
+          {toast.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+      {error && (
+        <div className="hr-error-banner">
+          <AlertCircle size={16} /><span>{error}</span>
+          <button onClick={() => setError('')} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+
       <div className="card animate-in">
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
             <div className="search-box">
               <Search size={16} className="search-icon" />
-              <input type="text" placeholder="Search categories…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+              <input type="text" placeholder="Search categories…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
           <div className="hr-toolbar-right">
-            <select className="hr-filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>
+            <select className="hr-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All Status</option>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
@@ -114,9 +194,11 @@ export default function VendorCategories() {
               </tr>
             </thead>
             <tbody>
-              {paged.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={6} className="hr-empty-cell"><div className="auth-spinner" style={{ margin: '16px auto' }} /></td></tr>
+              ) : items.length === 0 ? (
                 <tr><td colSpan={6} className="hr-empty-cell">No categories found</td></tr>
-              ) : paged.map((cat) => (
+              ) : items.map((cat) => (
                 <tr key={cat.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -125,11 +207,12 @@ export default function VendorCategories() {
                     </div>
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 300 }}>{cat.description || '—'}</td>
-                  <td style={{ fontWeight: 600 }}>{cat.vendor_count}</td>
+                  <td style={{ fontWeight: 600 }}>{cat.vendor_count ?? 0}</td>
                   <td>
                     <button
                       className={`status-toggle ${cat.status}`}
                       onClick={() => toggleStatus(cat)}
+                      disabled={!can('procurement.vendor_categories.edit') || statusBusyId === cat.id}
                       title={`Click to ${cat.status === 'active' ? 'deactivate' : 'activate'}`}
                     >
                       <span className="status-toggle-dot" />
@@ -159,7 +242,7 @@ export default function VendorCategories() {
             </tbody>
           </table>
         </div>
-        <Pagination meta={meta} onPageChange={setPage} />
+        {meta && meta.last_page > 1 && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
       {/* ─── Create / Edit Modal ─── */}
@@ -167,32 +250,53 @@ export default function VendorCategories() {
         <form onSubmit={handleSubmit} className="hr-form">
           <div className="hr-form-field">
             <label>Category Name *</label>
-            <input type="text" value={form.name} onChange={(e) => updateField('name', e.target.value)} required placeholder="e.g. Office Supplies" />
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => updateField('name', e.target.value)}
+              required
+              maxLength={100}
+              placeholder="e.g. Office Supplies"
+              disabled={saving}
+            />
+            {formErrors.name && <p className="hr-form-error">{formErrors.name[0]}</p>}
           </div>
           <div className="hr-form-field">
             <label>Description</label>
-            <textarea value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={3} placeholder="Brief description of this category…" />
+            <textarea
+              value={form.description}
+              onChange={(e) => updateField('description', e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Brief description of this category…"
+              disabled={saving}
+            />
+            {formErrors.description && <p className="hr-form-error">{formErrors.description[0]}</p>}
           </div>
           <div className="hr-form-field">
             <label>Status</label>
-            <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
+            <select value={form.status} onChange={(e) => updateField('status', e.target.value)} disabled={saving}>
               {STATUSES.map((s) => <option key={s} value={s}>{capitalize(s)}</option>)}
             </select>
           </div>
           <div className="hr-form-actions">
-            <button type="button" className="hr-btn-secondary" onClick={closeModal}>Cancel</button>
-            <button type="submit" className="hr-btn-primary">{editing ? 'Update Category' : 'Add Category'}</button>
+            <button type="button" className="hr-btn-secondary" onClick={closeModal} disabled={saving}>Cancel</button>
+            <button type="submit" className="hr-btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : editing ? 'Update Category' : 'Add Category'}
+            </button>
           </div>
         </form>
       </Modal>
 
       {/* ─── Delete Confirm ─── */}
-      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Category" size="sm">
+      <Modal open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} title="Delete Category" size="sm">
         <div className="hr-confirm-delete">
-          <p>Delete category <strong>"{deleteTarget?.name}"</strong>? This cannot be undone.</p>
+          <p>Delete category <strong>"{deleteTarget?.name}"</strong>? It will be deactivated rather than removed permanently.</p>
           <div className="hr-form-actions">
-            <button className="hr-btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
-            <button className="hr-btn-danger" onClick={confirmDelete}>Delete</button>
+            <button className="hr-btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
+            <button className="hr-btn-danger" onClick={confirmDelete} disabled={deleting}>
+              {deleting ? 'Deactivating…' : 'Deactivate'}
+            </button>
           </div>
         </div>
       </Modal>
