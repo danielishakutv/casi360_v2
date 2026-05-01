@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { rfpApi } from '../../services/procurement'
+import { rfpApi, invoicesApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 
@@ -59,6 +59,7 @@ function buildInitialForm() {
     pr_nos: '',
     po_nos: '',
     grn_nos: '',
+    invoice_id: '',  // approved supplier invoice this RFP pays
     rfp_date: todayStr(),
     payment_due_date: '',
     procurement_person: '',
@@ -89,11 +90,17 @@ export default function CreateRequestForPayment() {
   const navigate = useNavigate()
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
+  const [approvedInvoices, setApprovedInvoices] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+    // Only approved invoices can be paid by an RFP. Server enforces this
+    // too — the UI just hides everything else so the picker is always valid.
+    invoicesApi.list({ status: 'approved', per_page: 100, mine: 0 })
+      .then((res) => setApprovedInvoices(extractItems(res)))
+      .catch(() => {})
   }, [])
 
   /* ─── Form helpers ─── */
@@ -150,6 +157,7 @@ export default function CreateRequestForPayment() {
         pr_nos: form.pr_nos || undefined,
         po_nos: form.po_nos || undefined,
         grn_nos: form.grn_nos || undefined,
+        invoice_id: form.invoice_id || undefined,
         procurement_person: form.procurement_person || undefined,
         payee_name: form.payee_name,
         payee_bank_name: form.payee_bank_name,
@@ -249,6 +257,30 @@ export default function CreateRequestForPayment() {
             <div className="hr-form-field">
               <label>Payment Due Date *</label>
               <input type="date" value={form.payment_due_date} onChange={(e) => updateField('payment_due_date', e.target.value)} required />
+            </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field" style={{ gridColumn: '1 / -1' }}>
+              <label>
+                Approved Supplier Invoice
+                {' '}
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>
+                  · pays against this invoice
+                </span>
+              </label>
+              <select
+                value={form.invoice_id}
+                onChange={(e) => updateField('invoice_id', e.target.value)}
+              >
+                <option value="">{approvedInvoices.length === 0 ? 'No approved invoices yet — record + approve one first' : 'Select an approved invoice (optional)'}</option>
+                {approvedInvoices.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoice_number} — {inv.vendor_name || 'No vendor'} · {inv.currency || 'NGN'} {Number(inv.amount).toLocaleString()}
+                    {inv.po_number ? ` · PO ${inv.po_number}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

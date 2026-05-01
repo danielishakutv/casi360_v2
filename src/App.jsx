@@ -43,6 +43,7 @@ const GoodsReceivedNote  = lazy(() => import('./pages/procurement/GoodsReceivedN
 const CreateGoodsReceivedNote = lazy(() => import('./pages/procurement/CreateGoodsReceivedNote'))
 const RequestForPayment  = lazy(() => import('./pages/procurement/RequestForPayment'))
 const CreateRequestForPayment = lazy(() => import('./pages/procurement/CreateRequestForPayment'))
+const Invoices           = lazy(() => import('./pages/procurement/Invoices'))
 const Vendors            = lazy(() => import('./pages/procurement/Vendors'))
 const VendorCategories   = lazy(() => import('./pages/procurement/VendorCategories'))
 const InventoryItems     = lazy(() => import('./pages/procurement/InventoryItems'))
@@ -173,6 +174,7 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/procurement/grn/create" element={<CreateGoodsReceivedNote />} />
                 <Route path="/procurement/rfp" element={<RequestForPayment />} />
                 <Route path="/procurement/rfp/create" element={<CreateRequestForPayment />} />
+                <Route path="/procurement/invoices" element={<Invoices />} />
                 <Route path="/procurement/vendors" element={<Vendors />} />
                 <Route path="/procurement/vendor-categories" element={<VendorCategories />} />
                 <Route path="/procurement/inventory" element={<InventoryItems />} />

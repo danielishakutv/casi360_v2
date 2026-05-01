@@ -86,6 +86,7 @@ const navItems = [
       { label: 'Request for Quotation', icon: FileText,      path: '/procurement/rfq',              permission: 'procurement.rfq.view' },
       { label: 'Purchase Orders',       icon: Store,         path: '/procurement/purchase-orders',  permission: 'procurement.purchase_orders.view' },
       { label: 'Goods Received',        icon: Truck,         path: '/procurement/grn',              permission: 'procurement.grn.view' },
+      { label: 'Invoices',              icon: Receipt,       path: '/procurement/invoices',         permission: 'procurement.invoices.view' },
       { label: 'Request for Payment',   icon: CreditCard,    path: '/procurement/rfp',              permission: 'procurement.rfp.view' },
 
       // Master data last

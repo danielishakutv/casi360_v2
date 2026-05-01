@@ -144,3 +144,16 @@ export const rfpApi = {
   update: (id, data)   => api.patch(`/procurement/rfp/${id}`, data),
   delete: (id)         => api.delete(`/procurement/rfp/${id}`),
 }
+
+/* ------------------------------------------------------------------ */
+/* Vendor Invoices  ✅ LIVE                                            */
+/* ------------------------------------------------------------------ */
+
+export const invoicesApi = {
+  list:           (params)     => api.get('/procurement/invoices', params),
+  get:            (id)         => api.get(`/procurement/invoices/${id}`),
+  create:         (data)       => api.post('/procurement/invoices', data),
+  update:         (id, data)   => api.patch(`/procurement/invoices/${id}`, data),
+  delete:         (id)         => api.delete(`/procurement/invoices/${id}`),
+  processApproval:(id, data)   => api.patch(`/procurement/invoices/${id}/approval`, data),
+}
