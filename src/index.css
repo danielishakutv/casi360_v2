@@ -6400,3 +6400,190 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   .syss-app-preview-body { gap: 10px; }
   .syss-app-preview-tile { margin-left: 0; }
 }
+
+/* ==================  Localization panel  ==================
+   Region preset cards with a live local-time clock, format
+   pickers with inline previews, and a currency dropdown that
+   keeps the symbol + code fields in sync. */
+
+.syss-loc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.syss-loc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.syss-loc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.syss-loc-card.modified {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-50);
+}
+.syss-loc-card.wide {
+  grid-column: 1 / -1;
+}
+
+.syss-loc-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.syss-loc-card-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.syss-loc-card-head strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.syss-loc-card-head p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.syss-loc-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--primary-50);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.syss-loc-select {
+  width: 100%;
+  font-size: 13px;
+}
+
+.syss-loc-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.syss-loc-row-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.syss-loc-row-field label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.syss-loc-symbol-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.syss-loc-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  text-align: center;
+}
+
+/* Segmented (radio-like) buttons for time format toggle */
+.syss-loc-segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-card-hover);
+  padding: 3px;
+  gap: 2px;
+  align-self: flex-start;
+}
+.syss-loc-segmented button {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.syss-loc-segmented button:hover {
+  color: var(--text-primary);
+}
+.syss-loc-segmented button.active {
+  background: var(--bg-card);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Live preview block — fills out a row */
+.syss-loc-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+.syss-loc-preview.wide {
+  margin-top: 4px;
+}
+.syss-loc-preview-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--primary);
+  opacity: 0.75;
+}
+.syss-loc-preview-value {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .syss-loc-row { grid-template-columns: 1fr; }
+  .syss-loc-preview {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .syss-loc-segmented { width: 100%; }
+  .syss-loc-segmented button { flex: 1; }
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Save, AlertCircle, Check, RotateCcw, Search,
   Building2, Globe, Palette, Server, ShoppingCart, Settings as SettingsIcon,
-  ExternalLink, Image as ImageIcon, Eye,
+  ExternalLink, Image as ImageIcon, Eye, Clock, Calendar, Languages, Coins,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { settingsApi } from '../../services/api'
@@ -531,6 +531,418 @@ function AppearancePanel({ list, getValue, isEdited, onChange }) {
   )
 }
 
+/* ─────────────────────── Localization panel ─────────────────────── */
+/* Bespoke layout for the localization group: regional preset buttons,
+   live time-zone clock, format previews, and currency-with-symbol picker
+   so super admins don't have to type IANA strings or ISO codes by hand. */
+
+const TIMEZONE_OPTIONS = [
+  { group: 'Africa', items: [
+    { value: 'Africa/Lagos',         label: 'Lagos (WAT)' },
+    { value: 'Africa/Abuja',         label: 'Abuja (WAT)' },
+    { value: 'Africa/Accra',         label: 'Accra (GMT)' },
+    { value: 'Africa/Cairo',         label: 'Cairo (EET)' },
+    { value: 'Africa/Casablanca',    label: 'Casablanca (WET)' },
+    { value: 'Africa/Johannesburg',  label: 'Johannesburg (SAST)' },
+    { value: 'Africa/Nairobi',       label: 'Nairobi (EAT)' },
+  ]},
+  { group: 'Europe', items: [
+    { value: 'Europe/London',  label: 'London (GMT)' },
+    { value: 'Europe/Paris',   label: 'Paris (CET)' },
+    { value: 'Europe/Berlin',  label: 'Berlin (CET)' },
+  ]},
+  { group: 'Americas', items: [
+    { value: 'America/New_York',     label: 'New York (ET)' },
+    { value: 'America/Chicago',      label: 'Chicago (CT)' },
+    { value: 'America/Los_Angeles',  label: 'Los Angeles (PT)' },
+  ]},
+  { group: 'Asia & Pacific', items: [
+    { value: 'Asia/Dubai',     label: 'Dubai (GST)' },
+    { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+    { value: 'Asia/Tokyo',     label: 'Tokyo (JST)' },
+    { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
+  ]},
+  { group: 'Universal', items: [
+    { value: 'UTC', label: 'UTC' },
+  ]},
+]
+
+const CURRENCY_OPTIONS = [
+  { code: 'NGN', symbol: '₦',    name: 'Nigerian Naira' },
+  { code: 'USD', symbol: '$',    name: 'US Dollar' },
+  { code: 'EUR', symbol: '€',    name: 'Euro' },
+  { code: 'GBP', symbol: '£',    name: 'Pound Sterling' },
+  { code: 'GHS', symbol: 'GH₵',  name: 'Ghanaian Cedi' },
+  { code: 'KES', symbol: 'KSh',  name: 'Kenyan Shilling' },
+  { code: 'ZAR', symbol: 'R',    name: 'South African Rand' },
+  { code: 'XOF', symbol: 'CFA',  name: 'West African Franc' },
+  { code: 'XAF', symbol: 'FCFA', name: 'Central African Franc' },
+  { code: 'CAD', symbol: 'CA$',  name: 'Canadian Dollar' },
+  { code: 'AUD', symbol: 'A$',   name: 'Australian Dollar' },
+]
+
+const LANGUAGE_OPTIONS = [
+  { value: 'en', label: 'English' },
+  { value: 'fr', label: 'Français' },
+  { value: 'es', label: 'Español' },
+  { value: 'pt', label: 'Português' },
+  { value: 'sw', label: 'Kiswahili' },
+  { value: 'ar', label: 'العربية' },
+]
+
+const DATE_FORMAT_OPTIONS = [
+  'DD/MM/YYYY',
+  'MM/DD/YYYY',
+  'YYYY-MM-DD',
+  'D MMM YYYY',
+  'MMMM D, YYYY',
+]
+
+/* Format a real Date using one of our DATE_FORMAT_OPTIONS strings.
+   Token order matters — replace longest tokens first so YYYY isn't
+   eaten by the YY rule and MMMM isn't eaten by MM. */
+function formatDateTokens(fmt, date = new Date()) {
+  const day      = date.getDate()
+  const dayPad   = String(day).padStart(2, '0')
+  const monthIdx = date.getMonth()
+  const monthNum = String(monthIdx + 1).padStart(2, '0')
+  const monthShort = date.toLocaleString('en-GB', { month: 'short' })
+  const monthLong  = date.toLocaleString('en-GB', { month: 'long' })
+  const year     = date.getFullYear()
+
+  return fmt
+    .replace(/MMMM/g, monthLong)
+    .replace(/MMM/g, monthShort)
+    .replace(/DD/g, dayPad)
+    .replace(/MM/g, monthNum)
+    .replace(/YYYY/g, year)
+    .replace(/D/g, String(day))
+}
+
+function formatTimeIn(tz, mode = '12h') {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: mode !== '24h',
+    }).format(new Date())
+  } catch {
+    return '—'
+  }
+}
+
+function formatMoney(symbol = '₦', value = 125000.5) {
+  return `${symbol}${value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+/* Tick once per minute so the live clocks stay current without burning CPU. */
+function useMinuteTick() {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+}
+
+function TimezoneCard({ value, isModified, onChange }) {
+  useMinuteTick()
+  const safe = value || 'Africa/Lagos'
+  return (
+    <div className={`syss-loc-card ${isModified ? 'modified' : ''}`}>
+      <div className="syss-loc-card-head">
+        <span className="syss-loc-icon"><Clock size={16} /></span>
+        <div>
+          <strong>Timezone</strong>
+          {isModified && <span className="syss-modified-dot" aria-label="modified" />}
+          <p>Used for date/time display across the app.</p>
+        </div>
+      </div>
+      <select
+        className="syss-loc-select"
+        value={safe}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Timezone"
+      >
+        {TIMEZONE_OPTIONS.map((g) => (
+          <optgroup key={g.group} label={g.group}>
+            {g.items.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      <div className="syss-loc-preview">
+        <span className="syss-loc-preview-label">Local time</span>
+        <strong className="syss-loc-preview-value">{formatTimeIn(safe)}</strong>
+      </div>
+    </div>
+  )
+}
+
+function LanguageCard({ value, isModified, onChange }) {
+  const safe = value || 'en'
+  return (
+    <div className={`syss-loc-card ${isModified ? 'modified' : ''}`}>
+      <div className="syss-loc-card-head">
+        <span className="syss-loc-icon"><Languages size={16} /></span>
+        <div>
+          <strong>Language</strong>
+          {isModified && <span className="syss-modified-dot" aria-label="modified" />}
+          <p>Default interface language for new users.</p>
+        </div>
+      </div>
+      <select
+        className="syss-loc-select"
+        value={safe}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Language"
+      >
+        {LANGUAGE_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function DateTimeCard({ dateValue, dateModified, onDateChange,
+                       timeValue, timeModified, onTimeChange,
+                       tz }) {
+  useMinuteTick()
+  const safeDate = dateValue || 'DD/MM/YYYY'
+  const safeTime = timeValue === '24h' ? '24h' : '12h'
+  const datePreview = formatDateTokens(safeDate)
+  const timePreview = formatTimeIn(tz || 'Africa/Lagos', safeTime)
+  return (
+    <div className={`syss-loc-card wide ${(dateModified || timeModified) ? 'modified' : ''}`}>
+      <div className="syss-loc-card-head">
+        <span className="syss-loc-icon"><Calendar size={16} /></span>
+        <div>
+          <strong>Date &amp; time format</strong>
+          {(dateModified || timeModified) && <span className="syss-modified-dot" aria-label="modified" />}
+          <p>How dates and times appear throughout the app.</p>
+        </div>
+      </div>
+
+      <div className="syss-loc-row">
+        <div className="syss-loc-row-field">
+          <label>Date format</label>
+          <select
+            className="syss-loc-select"
+            value={safeDate}
+            onChange={(e) => onDateChange(e.target.value)}
+            aria-label="Date format"
+          >
+            {DATE_FORMAT_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>{opt} — {formatDateTokens(opt)}</option>
+            ))}
+          </select>
+        </div>
+        <div className="syss-loc-row-field">
+          <label>Time format</label>
+          <div className="syss-loc-segmented" role="radiogroup" aria-label="Time format">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={safeTime === '12h'}
+              className={safeTime === '12h' ? 'active' : ''}
+              onClick={() => onTimeChange('12h')}
+            >
+              12-hour
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={safeTime === '24h'}
+              className={safeTime === '24h' ? 'active' : ''}
+              onClick={() => onTimeChange('24h')}
+            >
+              24-hour
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="syss-loc-preview wide">
+        <span className="syss-loc-preview-label">Preview</span>
+        <strong className="syss-loc-preview-value">{datePreview} · {timePreview}</strong>
+      </div>
+    </div>
+  )
+}
+
+function CurrencyCard({ codeValue, codeModified, onCodeChange,
+                       symbolValue, symbolModified, onSymbolChange }) {
+  const safeCode = codeValue || 'NGN'
+  const known = CURRENCY_OPTIONS.find((c) => c.code === safeCode)
+  // Allow free-form code if not in the list, but show the dropdown plus a
+  // text fallback so we don't lock the super admin out.
+  const isCustom = !known
+
+  /* When the user picks a known currency from the dropdown, sync the
+     symbol automatically — this is almost always what they want. */
+  function handleCodeChange(next) {
+    onCodeChange(next)
+    const meta = CURRENCY_OPTIONS.find((c) => c.code === next)
+    if (meta && meta.symbol !== symbolValue) {
+      onSymbolChange(meta.symbol)
+    }
+  }
+
+  const safeSymbol = symbolValue || known?.symbol || '₦'
+
+  return (
+    <div className={`syss-loc-card wide ${(codeModified || symbolModified) ? 'modified' : ''}`}>
+      <div className="syss-loc-card-head">
+        <span className="syss-loc-icon"><Coins size={16} /></span>
+        <div>
+          <strong>Currency</strong>
+          {(codeModified || symbolModified) && <span className="syss-modified-dot" aria-label="modified" />}
+          <p>Default currency for budgets, expenses, and invoices.</p>
+        </div>
+      </div>
+
+      <div className="syss-loc-row">
+        <div className="syss-loc-row-field">
+          <label>Currency</label>
+          <select
+            className="syss-loc-select"
+            value={isCustom ? '__custom__' : safeCode}
+            onChange={(e) => {
+              if (e.target.value === '__custom__') return
+              handleCodeChange(e.target.value)
+            }}
+            aria-label="Currency"
+          >
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.symbol} · {c.code} — {c.name}
+              </option>
+            ))}
+            {isCustom && (
+              <option value="__custom__">{safeCode} — Custom</option>
+            )}
+          </select>
+        </div>
+        <div className="syss-loc-row-field">
+          <label>Symbol</label>
+          <input
+            type="text"
+            className="syss-loc-symbol-input"
+            value={safeSymbol}
+            onChange={(e) => onSymbolChange(e.target.value)}
+            maxLength={6}
+            aria-label="Currency symbol"
+          />
+        </div>
+        <div className="syss-loc-row-field">
+          <label>Code</label>
+          <input
+            type="text"
+            className="syss-loc-code-input"
+            value={safeCode}
+            onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
+            maxLength={3}
+            placeholder="NGN"
+            aria-label="ISO 4217 currency code"
+          />
+        </div>
+      </div>
+
+      <div className="syss-loc-preview wide">
+        <span className="syss-loc-preview-label">Preview</span>
+        <strong className="syss-loc-preview-value">{formatMoney(safeSymbol)}</strong>
+      </div>
+    </div>
+  )
+}
+
+function LocalizationPanel({ list, getValue, isEdited, onChange }) {
+  const byKey = useMemo(() => {
+    const m = {}
+    list.forEach((s) => { m[s.key] = s })
+    return m
+  }, [list])
+
+  const tz       = byKey.timezone
+  const lang     = byKey.language
+  const dateFmt  = byKey.date_format
+  const timeFmt  = byKey.time_format
+  const currCode = byKey.currency
+  const currSym  = byKey.currency_symbol
+
+  const handled = new Set([
+    'timezone', 'language',
+    'date_format', 'time_format',
+    'currency', 'currency_symbol',
+  ])
+  const rest = list.filter((s) => !handled.has(s.key))
+
+  const tzValue = tz ? getValue(tz) : null
+
+  return (
+    <div className="syss-loc-panel">
+      <div className="syss-loc-grid">
+        {tz && (
+          <TimezoneCard
+            value={tzValue}
+            isModified={isEdited(tz.key)}
+            onChange={(v) => onChange(tz.key, v)}
+          />
+        )}
+        {lang && (
+          <LanguageCard
+            value={getValue(lang)}
+            isModified={isEdited(lang.key)}
+            onChange={(v) => onChange(lang.key, v)}
+          />
+        )}
+      </div>
+
+      {(dateFmt || timeFmt) && (
+        <DateTimeCard
+          dateValue={dateFmt ? getValue(dateFmt) : null}
+          dateModified={dateFmt ? isEdited(dateFmt.key) : false}
+          onDateChange={(v) => dateFmt && onChange(dateFmt.key, v)}
+          timeValue={timeFmt ? getValue(timeFmt) : null}
+          timeModified={timeFmt ? isEdited(timeFmt.key) : false}
+          onTimeChange={(v) => timeFmt && onChange(timeFmt.key, v)}
+          tz={tzValue}
+        />
+      )}
+
+      {(currCode || currSym) && (
+        <CurrencyCard
+          codeValue={currCode ? getValue(currCode) : null}
+          codeModified={currCode ? isEdited(currCode.key) : false}
+          onCodeChange={(v) => currCode && onChange(currCode.key, v)}
+          symbolValue={currSym ? getValue(currSym) : null}
+          symbolModified={currSym ? isEdited(currSym.key) : false}
+          onSymbolChange={(v) => currSym && onChange(currSym.key, v)}
+        />
+      )}
+
+      {rest.length > 0 && (
+        <div className="syss-fields">
+          {rest.map((s) => (
+            <FieldRow
+              key={s.key}
+              setting={s}
+              value={getValue(s)}
+              isModified={isEdited(s.key)}
+              onChange={(v) => onChange(s.key, v)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─────────────────────── Main page ─────────────────────── */
 
 export default function SystemSettings() {
@@ -797,6 +1209,13 @@ export default function SystemSettings() {
 
                 {activeGroup === 'appearance' ? (
                   <AppearancePanel
+                    list={activeList}
+                    getValue={getValue}
+                    isEdited={(k) => k in edited}
+                    onChange={handleChange}
+                  />
+                ) : activeGroup === 'localization' ? (
+                  <LocalizationPanel
                     list={activeList}
                     getValue={getValue}
                     isEdited={(k) => k in edited}
