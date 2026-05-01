@@ -66,8 +66,20 @@ export default function SystemSettings() {
     setLoading(true); setError('')
     try {
       const res = await settingsApi.getAll()
-      const data = res?.data?.settings || extractItems(res)
-      setSettings(data)
+      // Backend returns settings grouped by group name:
+      //   { organization: [...], localization: [...], system: [...] }
+      // Flatten to a single array so the rest of the page can iterate it.
+      // Falls back to extractItems for any future shape change.
+      const raw = res?.data?.settings
+      let flat
+      if (Array.isArray(raw)) {
+        flat = raw
+      } else if (raw && typeof raw === 'object') {
+        flat = Object.values(raw).flat()
+      } else {
+        flat = extractItems(res)
+      }
+      setSettings(flat)
       setEdited({})
     } catch (err) { setError(err.message || 'Failed to load settings') }
     finally { setLoading(false) }
@@ -94,13 +106,12 @@ export default function SystemSettings() {
   }
 
   async function handleSave() {
-    const changes = Object.entries(edited)
-    if (changes.length === 0) return
+    if (Object.keys(edited).length === 0) return
     setSaving(true)
     try {
-      await settingsApi.bulkUpdate(
-        changes.map(([key, value]) => ({ key, value }))
-      )
+      // Backend expects { settings: { key1: value1, key2: value2 } } —
+      // a flat key→value map, not an array of {key, value} objects.
+      await settingsApi.bulkUpdate(edited)
       setEdited({})
       fetchSettings()
       showToast('Settings saved successfully')
