@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
@@ -64,11 +64,37 @@ function buildInitialForm() {
 
 export default function CreateRequestForQuotation() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const incomingPrId = searchParams.get('pr_id')
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [approvedPRs, setApprovedPRs] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+
+  /* Pre-fill pr_reference when arriving from a PR's "Create RFQ" button.
+     We wait for the approved-PR list to load so the picker can render the
+     matching <option>; if the PR isn't in the list (e.g. missing read
+     permission) we fetch it directly so the link still works. */
+  useEffect(() => {
+    if (!incomingPrId) return
+    if (form.pr_reference) return
+    const match = approvedPRs.find((pr) => pr.id === incomingPrId)
+    if (match) {
+      setForm((p) => ({ ...p, pr_reference: match.requisition_number || match.id }))
+      return
+    }
+    if (approvedPRs.length === 0) return // still loading
+    purchaseRequestsApi.get(incomingPrId)
+      .then((res) => {
+        const pr = res?.data?.requisition || res?.data?.data || res?.data
+        if (pr?.requisition_number) {
+          setForm((p) => ({ ...p, pr_reference: pr.requisition_number }))
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingPrId, approvedPRs])
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { purchaseOrdersApi, vendorsApi } from '../../services/procurement'
+import { purchaseOrdersApi, vendorsApi, rfqApi } from '../../services/procurement'
 import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
@@ -78,6 +78,8 @@ function buildInitialForm() {
 
 export default function CreatePurchaseOrder() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const incomingRfqId = searchParams.get('rfq_id')
   const { user } = useAuth()
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
@@ -93,6 +95,25 @@ export default function CreatePurchaseOrder() {
     departmentsApi.list({ per_page: 0 }).then((r) => setDepartments(extractItems(r))).catch(() => {})
     employeesApi.list({ per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
   }, [])
+
+  /* If we landed here from an RFQ's "Create PO" button, pre-select the
+     RFQ's vendor so the user doesn't have to hunt for it. The RFQ form
+     doesn't have a 1:1 reference field on the PO yet (PR refs are on
+     line items, not the header), so we keep the pre-fill scoped to
+     vendor — the user fills the rest. */
+  useEffect(() => {
+    if (!incomingRfqId) return
+    if (form.vendor_id) return
+    rfqApi.get(incomingRfqId)
+      .then((res) => {
+        const rfq = res?.data?.rfq || res?.data?.data || res?.data
+        if (rfq?.vendor_id) {
+          setForm((p) => ({ ...p, vendor_id: rfq.vendor_id }))
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingRfqId])
 
   const selectedVendor = useMemo(() => vendors.find((v) => v.id === form.vendor_id), [vendors, form.vendor_id])
 

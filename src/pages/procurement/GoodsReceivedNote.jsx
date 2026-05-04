@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, Receipt, AlertCircle, Check } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { grnApi } from '../../services/procurement'
+import { grnApi, purchaseOrdersApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { usePersistedScope } from '../../hooks/usePersistedScope'
@@ -42,6 +42,42 @@ export default function GoodsReceivedNote() {
   const [submitting, setSubmitting] = useState(false)
   const [viewItem, setViewItem] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [toast, setToast] = useState(null)
+  const [resolvingPo, setResolvingPo] = useState(null)
+
+  function showToast(msg, type = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  /* Click handler for the "Record Invoice" button on a GRN row.
+     The GRN only stores a po_reference string, so we look up the PO
+     by its number to get the UUID the Invoices page expects.
+     If no exact match is found, fall back to the Invoices page with
+     a search filter so the user can pick the right PO manually. */
+  async function recordInvoiceFor(grn) {
+    const ref = (grn?.po_reference || '').trim()
+    if (!ref) {
+      showToast('This GRN has no PO reference recorded.', 'error')
+      return
+    }
+    setResolvingPo(grn.id)
+    try {
+      const res = await purchaseOrdersApi.list({ search: ref, per_page: 5 })
+      const list = extractItems(res)
+      const exact = list.find((po) => po.po_number === ref) || list[0]
+      if (exact) {
+        navigate(`/procurement/invoices?po_id=${exact.id}`)
+      } else {
+        showToast(`Couldn't find PO "${ref}". Open the Invoices list and pick the right PO.`, 'error')
+        navigate('/procurement/invoices')
+      }
+    } catch {
+      showToast('PO lookup failed. Open the Invoices list manually.', 'error')
+    } finally {
+      setResolvingPo(null)
+    }
+  }
 
   const fetchList = useCallback(async () => {
     setLoading(true)
@@ -91,6 +127,14 @@ export default function GoodsReceivedNote() {
 
   return (
     <>
+      {toast && (
+        <div className={`hr-error-banner ${toast.type === 'success' ? 'success' : ''}`} style={{ marginBottom: 12 }}>
+          {toast.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="hr-error-dismiss">&times;</button>
+        </div>
+      )}
+
       <div className="card animate-in">
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
@@ -128,6 +172,16 @@ export default function GoodsReceivedNote() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
+                      {can('procurement.invoices.create') && ['inspected', 'accepted', 'partial'].includes(r.status) && r.po_reference && (
+                        <button
+                          className="hr-action-btn"
+                          onClick={() => recordInvoiceFor(r)}
+                          disabled={resolvingPo === r.id}
+                          title="Record vendor invoice for this PO"
+                        >
+                          <Receipt size={15} />
+                        </button>
+                      )}
                       {can('procurement.grn.edit') && (
                         <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
                       )}

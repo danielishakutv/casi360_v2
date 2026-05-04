@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { grnApi } from '../../services/procurement'
+import { grnApi, purchaseOrdersApi } from '../../services/procurement'
 
 /* ─── Constants ─── */
 const QUALITY_OPTIONS = ['Pass', 'Fail', 'Pending Inspection']
@@ -51,9 +51,32 @@ function buildInitialForm() {
 
 export default function CreateGoodsReceivedNote() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const incomingPoId = searchParams.get('po_id')
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+
+  /* If we landed here from a PO's "Record GRN" button, pre-fill the
+     reference (and the receiving office if the PO has a department).
+     Quietly fails if the PO can't be loaded — the form still works,
+     the user just types the PO number themselves. */
+  useEffect(() => {
+    if (!incomingPoId) return
+    if (form.original_po_pr_no) return
+    purchaseOrdersApi.get(incomingPoId)
+      .then((res) => {
+        const po = res?.data?.purchase_order || res?.data?.data || res?.data
+        if (!po) return
+        setForm((p) => ({
+          ...p,
+          original_po_pr_no: po.po_number || p.original_po_pr_no,
+          received_from: po.vendor_name || p.received_from,
+        }))
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingPoId])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle, Download, FileText } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle, Download, FileText, FileQuestion } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
@@ -196,6 +196,15 @@ export default function PurchaseRequests() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
+                      {can('procurement.rfq.create') && r.status === 'approved' && (
+                        <button
+                          className="hr-action-btn"
+                          onClick={() => navigate(`/procurement/rfq/create?pr_id=${r.id}`)}
+                          title="Create RFQ from this PR"
+                        >
+                          <FileQuestion size={15} />
+                        </button>
+                      )}
                       {can('procurement.requisitions.edit') && (r.status === 'draft' || r.status === 'revision' || r.status === 'rejected') && (
                         <button className="hr-action-btn" onClick={() => navigate(`/procurement/purchase-requests/${r.id}/edit`)} title="Edit"><Pencil size={15} /></button>
                       )}

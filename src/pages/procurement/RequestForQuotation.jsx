@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Store } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
@@ -137,6 +137,15 @@ export default function RequestForQuotation() {
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => setViewItem(r)} title="View"><Eye size={15} /></button>
+                      {can('procurement.purchase_orders.create') && (r.status === 'closed' || r.status === 'awarded') && (
+                        <button
+                          className="hr-action-btn"
+                          onClick={() => navigate(`/procurement/purchase-orders/create?rfq_id=${r.id}`)}
+                          title="Create PO from this RFQ"
+                        >
+                          <Store size={15} />
+                        </button>
+                      )}
                       {can('procurement.rfq.edit') && (
                         <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
                       )}
