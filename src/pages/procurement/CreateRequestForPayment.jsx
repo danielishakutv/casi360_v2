@@ -94,6 +94,11 @@ export default function CreateRequestForPayment() {
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [approvedInvoices, setApprovedInvoices] = useState([])
+  /* Tracks the most-recently-applied invoice so we don't re-apply on every
+     re-render. Stored separately so we can show a small "Auto-filled from
+     invoice X" badge until the user changes the selection. */
+  const [autofilledFromInvoiceId, setAutofilledFromInvoiceId] = useState(null)
+  const [autofilledInvoiceLabel, setAutofilledInvoiceLabel] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -116,6 +121,49 @@ export default function CreateRequestForPayment() {
     setForm((p) => ({ ...p, invoice_id: incomingInvoiceId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingInvoiceId, approvedInvoices])
+
+  /* Auto-fill from the selected invoice. Procurement enters invoice
+     details once; the RFP that pays it inherits everything we can
+     reasonably derive (amount, currency, payee, due date, and the
+     PR/PO/GRN reference numbers from the chain). Empty / not-yet-typed
+     fields are filled; user-edited fields are NOT overwritten silently
+     so anything they tweaked stays put. The autofill banner shows which
+     invoice the form is currently inheriting from. */
+  useEffect(() => {
+    if (!form.invoice_id) {
+      // User cleared the picker — drop the badge but leave their typed values alone.
+      setAutofilledFromInvoiceId(null)
+      setAutofilledInvoiceLabel(null)
+      return
+    }
+    if (form.invoice_id === autofilledFromInvoiceId) return  // already applied
+
+    let cancelled = false
+    invoicesApi.get(form.invoice_id)
+      .then((res) => {
+        if (cancelled) return
+        const invoice = res?.data?.invoice
+        if (!invoice) return
+        const chain = invoice.chain || {}
+
+        setForm((p) => ({
+          ...p,
+          payment_amount: p.payment_amount || (invoice.amount != null ? String(invoice.amount) : p.payment_amount),
+          currency:       p.currency       || invoice.currency       || 'NGN',
+          payment_due_date: p.payment_due_date || invoice.due_date   || '',
+          payee_name:     p.payee_name     || invoice.vendor_name    || '',
+          pr_nos:         p.pr_nos         || chain.pr?.number       || '',
+          po_nos:         p.po_nos         || chain.po?.number       || invoice.po_number || '',
+          grn_nos:        p.grn_nos        || chain.grn?.number      || '',
+        }))
+        setAutofilledFromInvoiceId(invoice.id)
+        setAutofilledInvoiceLabel(invoice.invoice_number)
+      })
+      .catch(() => { /* leave form alone if fetch fails */ })
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.invoice_id])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -295,6 +343,23 @@ export default function CreateRequestForPayment() {
                   </option>
                 ))}
               </select>
+              {autofilledInvoiceLabel && (
+                <p style={{
+                  marginTop: 6,
+                  fontSize: 11.5,
+                  color: 'var(--primary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--primary-50)',
+                  border: '1px solid var(--primary-100)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  alignSelf: 'flex-start',
+                }}>
+                  ✨ Amount, currency, payee, dates, and reference numbers auto-filled from <strong>{autofilledInvoiceLabel}</strong>. Edit any field to override.
+                </p>
+              )}
             </div>
           </div>
 
