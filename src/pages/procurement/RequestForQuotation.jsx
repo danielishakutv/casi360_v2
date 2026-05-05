@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['draft', 'open', 'closed', 'awarded', 'cancelled']
 const PER_PAGE = 15
@@ -40,6 +41,7 @@ export default function RequestForQuotation() {
   const [formError, setFormError] = useState('')
   const [approvedPRs, setApprovedPRs] = useState([])
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => {
@@ -60,6 +62,16 @@ export default function RequestForQuotation() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
+
+  /* Fetch full RFQ (with chain) when the view modal opens. */
+  useEffect(() => {
+    if (!viewItem?.id) { setViewDetail(null); return }
+    let cancelled = false
+    rfqApi.get(viewItem.id)
+      .then((res) => { if (!cancelled) setViewDetail(res?.data?.rfq || null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [viewItem?.id])
 
   function openEdit(item) {
     setEditing(item)
@@ -162,10 +174,11 @@ export default function RequestForQuotation() {
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="RFQ Details" size="md">
+      <Modal open={!!viewItem} onClose={() => { setViewItem(null); setViewDetail(null) }} title="RFQ Details" size="md">
         {viewItem && (
           <div className="note-detail">
             <div className="note-detail-header"><h3>{viewItem.rfq_number} — {viewItem.title}</h3></div>
+            {viewDetail?.chain && <DocumentChain chain={viewDetail.chain} current="rfq" />}
             <div className="note-detail-meta">
               <span><strong>PR Reference:</strong> {viewItem.pr_reference || '—'}</span>
               <span><strong>Deadline:</strong> {fmtDate(viewItem.deadline)}</span>

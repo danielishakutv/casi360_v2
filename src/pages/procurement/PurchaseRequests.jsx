@@ -14,6 +14,7 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
 import ApprovalChain, { buildChainFromPR } from '../../components/ApprovalChain'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'rejected', 'revision', 'fulfilled', 'cancelled']
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
@@ -102,6 +103,7 @@ export default function PurchaseRequests() {
           item_count:    d?.item_count    ?? null,
           needed_by:     d?.needed_by     ?? null,
           items:         Array.isArray(d?.items) ? d.items : null,
+          chain:         d?.chain ?? null,
         })
       })
       .catch(() => setViewExtra({}))
@@ -238,6 +240,7 @@ export default function PurchaseRequests() {
                   <span className={`status-badge ${pr.status}`}><span className="status-dot" />{fmtStatus(pr.status)}</span>
                 </div>
               </div>
+              {viewExtra?.chain && <DocumentChain chain={viewExtra.chain} current="pr" />}
 
               <div className="pr-detail-meta-grid">
                 <div><strong>Requester</strong><span>{pr.requested_by_name || '—'}</span></div>

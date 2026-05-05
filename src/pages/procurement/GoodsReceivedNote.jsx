@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['draft', 'pending_inspection', 'inspected', 'accepted', 'rejected', 'partial']
 const PER_PAGE = 15
@@ -41,6 +42,7 @@ export default function GoodsReceivedNote() {
   const [form, setForm] = useState(INITIAL_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
   const [resolvingPo, setResolvingPo] = useState(null)
@@ -91,6 +93,16 @@ export default function GoodsReceivedNote() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
+
+  /* Pull GRN detail (with chain) when view modal opens. */
+  useEffect(() => {
+    if (!viewItem?.id) { setViewDetail(null); return }
+    let cancelled = false
+    grnApi.get(viewItem.id)
+      .then((res) => { if (!cancelled) setViewDetail(res?.data?.grn || null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [viewItem?.id])
 
   function openEdit(item) {
     setEditing(item)
@@ -198,10 +210,11 @@ export default function GoodsReceivedNote() {
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="GRN Details" size="md">
+      <Modal open={!!viewItem} onClose={() => { setViewItem(null); setViewDetail(null) }} title="GRN Details" size="md">
         {viewItem && (
           <div className="note-detail">
             <div className="note-detail-header"><h3>{viewItem.grn_number}</h3></div>
+            {viewDetail?.chain && <DocumentChain chain={viewDetail.chain} current="grn" />}
             <div className="note-detail-meta">
               <span><strong>PO Reference:</strong> {viewItem.po_reference || '—'}</span>
               <span><strong>Vendor:</strong> {viewItem.vendor || '—'}</span>

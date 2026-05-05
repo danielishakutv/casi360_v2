@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'revision', 'partially_received', 'received', 'cancelled']
 const PAYMENT_STATUSES = ['unpaid', 'partially_paid', 'paid']
@@ -35,6 +36,7 @@ export default function PurchaseOrders() {
   const [page, setPage] = useState(1)
 
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -64,10 +66,15 @@ export default function PurchaseOrders() {
 
   const openView = useCallback((r) => {
     setViewItem(r)
+    setViewDetail(null)
     setDisbursements([])
     setDisbBalance(null)
     setDisbForm({ amount: '', payment_method: 'bank_transfer', payment_reference: '', payment_date: '', notes: '' })
     setDisbError('')
+    // Pull the full detail (with chain) so the breadcrumb can render
+    purchaseOrdersApi.get(r.id)
+      .then((res) => setViewDetail(res?.data?.purchase_order || null))
+      .catch(() => {})
     if (r.status === 'approved' || r.status === 'disbursed' || r.payment_status === 'partially_paid') {
       fetchDisbursements(r.id)
     }
@@ -216,10 +223,11 @@ export default function PurchaseOrders() {
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Purchase Order Details" size="lg">
+      <Modal open={!!viewItem} onClose={() => { setViewItem(null); setViewDetail(null) }} title="Purchase Order Details" size="lg">
         {viewItem && (
           <div className="note-detail">
             <div className="note-detail-header"><h3>{viewItem.po_number}</h3></div>
+            {viewDetail?.chain && <DocumentChain chain={viewDetail.chain} current="po" />}
             <div className="note-detail-meta">
               <span><strong>Vendor:</strong> {viewItem.vendor}</span>
               <span><strong>Department:</strong> {viewItem.department || '—'}</span>

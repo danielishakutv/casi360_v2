@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['draft', 'pending', 'submitted', 'approved', 'paid', 'rejected', 'on_hold']
 const PER_PAGE = 15
@@ -31,6 +32,7 @@ export default function RequestForPayment() {
   const [page, setPage] = useState(1)
 
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const fetchList = useCallback(async () => {
@@ -45,6 +47,16 @@ export default function RequestForPayment() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
+
+  /* Pull RFP detail (with chain) when view modal opens. */
+  useEffect(() => {
+    if (!viewItem?.id) { setViewDetail(null); return }
+    let cancelled = false
+    rfpApi.get(viewItem.id)
+      .then((res) => { if (!cancelled) setViewDetail(res?.data?.rfp || null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [viewItem?.id])
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -108,10 +120,11 @@ export default function RequestForPayment() {
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
 
-      <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Payment Request Details" size="lg">
+      <Modal open={!!viewItem} onClose={() => { setViewItem(null); setViewDetail(null) }} title="Payment Request Details" size="lg">
         {viewItem && (
           <div className="note-detail">
             <div className="note-detail-header"><h3>{viewItem.rfp_number}</h3></div>
+            {viewDetail?.chain && <DocumentChain chain={viewDetail.chain} current="rfp" />}
             <div className="note-detail-meta">
               <span><strong>PO Reference:</strong> {viewItem.po_reference || '—'}</span>
               <span><strong>GRN Reference:</strong> {viewItem.grn_reference || '—'}</span>

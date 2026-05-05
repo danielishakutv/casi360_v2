@@ -6587,3 +6587,123 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   .syss-loc-segmented { width: 100%; }
   .syss-loc-segmented button { flex: 1; }
 }
+
+/* ==================  DocumentChain breadcrumb  ================== */
+/* Horizontal trail rendered at the top of any procurement document
+   detail view (PR → RFQ → PO → GRN → Invoice → RFP). Present steps
+   are clickable, missing steps are greyed out, and the current step
+   is highlighted. Wraps cleanly on narrow viewports. */
+
+.doc-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  padding: 12px 14px;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.doc-chain-segment {
+  display: inline-flex;
+  align-items: center;
+}
+
+.doc-chain-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-secondary);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.doc-chain-step:hover:not(:disabled) {
+  background: var(--bg-card);
+  border-color: var(--border-color);
+}
+.doc-chain-step:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.doc-chain-step.missing {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.doc-chain-step.missing:hover { background: transparent; border-color: transparent; }
+.doc-chain-step.current {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  cursor: default;
+}
+.doc-chain-step.current .doc-chain-step-name { color: #fff; }
+.doc-chain-step.current .doc-chain-number { color: rgba(255, 255, 255, 0.85); }
+
+.doc-chain-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--primary-50);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.doc-chain-step.missing .doc-chain-icon {
+  background: transparent;
+  color: var(--text-faint);
+}
+.doc-chain-step.current .doc-chain-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.doc-chain-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  min-width: 0;
+}
+.doc-chain-step-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.doc-chain-number {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-chain-sep {
+  margin: 0 2px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .doc-chain {
+    padding: 10px;
+    gap: 4px;
+  }
+  .doc-chain-step { padding: 4px 8px; }
+  .doc-chain-number { max-width: 90px; font-size: 12px; }
+  .doc-chain-step-name { font-size: 10px; }
+}

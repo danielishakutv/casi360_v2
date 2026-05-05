@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import DocumentChain from '../../components/DocumentChain'
 
 const STATUSES = ['pending', 'approved', 'rejected', 'paid', 'cancelled']
 const PER_PAGE = 15
@@ -70,6 +71,7 @@ export default function Invoices() {
 
   /* View / approve / delete modal targets */
   const [viewItem, setViewItem] = useState(null)
+  const [viewDetail, setViewDetail] = useState(null)
   const [approvalTarget, setApprovalTarget] = useState(null)
   const [approvalAction, setApprovalAction] = useState('approve')
   const [approvalReason, setApprovalReason] = useState('')
@@ -100,6 +102,21 @@ export default function Invoices() {
 
   useEffect(() => { fetchList() }, [fetchList])
   useEffect(() => { setPage(1) }, [debouncedSearch, statusFilter, mine])
+
+  /* Fetch full detail (incl. chain) when the view modal opens.
+     We keep the row data rendering instantly while the chain loads. */
+  useEffect(() => {
+    if (!viewItem?.id) { setViewDetail(null); return }
+    let cancelled = false
+    invoicesApi.get(viewItem.id)
+      .then((res) => {
+        if (cancelled) return
+        const fresh = res?.data?.invoice
+        if (fresh) setViewDetail(fresh)
+      })
+      .catch(() => { /* keep cached row data */ })
+    return () => { cancelled = true }
+  }, [viewItem?.id])
 
   /* Deep-link: when arriving with ?po_id=… (typically clicked from a PO
      row's "Record Invoice" button), auto-open the create modal with the
@@ -496,6 +513,9 @@ export default function Invoices() {
                 <span className={`card-badge ${STATUS_BADGE[viewItem.status] || ''}`}>{fmtStatus(viewItem.status)}</span>
               </div>
             </div>
+            {viewDetail?.chain && (
+              <DocumentChain chain={viewDetail.chain} current="invoice" />
+            )}
             <div className="pr-detail-meta-grid">
               <div><strong>PO Reference</strong><span>{viewItem.po_number || '—'}</span></div>
               <div><strong>Vendor</strong><span>{viewItem.vendor_name || '—'}</span></div>
