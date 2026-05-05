@@ -126,11 +126,14 @@ export const rfqApi = {
 /* ------------------------------------------------------------------ */
 
 export const grnApi = {
-  list:   (params)     => api.get('/procurement/grn', params),
-  get:    (id)         => api.get(`/procurement/grn/${id}`),
-  create: (data)       => api.post('/procurement/grn', data),
-  update: (id, data)   => api.patch(`/procurement/grn/${id}`, data),
-  delete: (id)         => api.delete(`/procurement/grn/${id}`),
+  list:                (params)   => api.get('/procurement/grn', params),
+  get:                 (id)       => api.get(`/procurement/grn/${id}`),
+  create:              (data)     => api.post('/procurement/grn', data),
+  update:              (id, data) => api.patch(`/procurement/grn/${id}`, data),
+  delete:              (id)       => api.delete(`/procurement/grn/${id}`),
+  /* Dual-confirmation: receiver submits → budget holder accepts/rejects */
+  submit:              (id)       => api.post(`/procurement/grn/${id}/submit`),
+  processConfirmation: (id, data) => api.patch(`/procurement/grn/${id}/confirmation`, data),
 }
 
 /* ------------------------------------------------------------------ */
