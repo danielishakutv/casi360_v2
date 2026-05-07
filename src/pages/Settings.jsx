@@ -18,16 +18,25 @@ import Pagination from '../components/Pagination'
 /* ================================================================== */
 
 const DEFAULTS = {
+  // Organization (group: organization)
   organization_name: '', organization_acronym: '', organization_email: '', organization_phone: '',
   organization_website: '', organization_address: '', organization_state: '', organization_country: '',
   organization_registration_number: '', organization_tax_id: '', organization_founded: '',
+
+  // Notifications (group: notifications)
   notifications_email_alerts: true, notifications_sms_alerts: false, notifications_push: true,
   notifications_weekly_digest: true, notifications_mention_alerts: true, notifications_approval_alerts: true,
   notifications_system_updates: false, notifications_security_alerts: true,
-  security_two_factor: false, security_session_timeout: '60', security_password_expiry: '90',
-  security_max_login_attempts: '5', security_ip_whitelist: '', security_strong_passwords: true,
-  display_language: 'en', display_timezone: 'Africa/Lagos', display_date_format: 'DD/MM/YYYY',
-  display_currency: 'NGN', display_items_per_page: '15',
+
+  // Security — extras live in `security` group; the two below are
+  // canonical system-group rows shared with /settings/general.
+  security_two_factor: false, security_password_expiry: '90',
+  security_ip_whitelist: '', security_strong_passwords: true,
+  session_lifetime_minutes: '60', max_login_attempts: '5',
+
+  // Display — canonical localization-group rows (no `display_` prefix).
+  language: 'en', timezone: 'Africa/Lagos', date_format: 'DD/MM/YYYY',
+  currency: 'NGN', pagination_default: '15',
 }
 
 
@@ -292,7 +301,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Clock size={14} /> Session Timeout (minutes)</label>
-              <select value={s('security_session_timeout')} onChange={(e) => set('security_session_timeout', e.target.value)}>
+              <select value={s('session_lifetime_minutes')} onChange={(e) => set('session_lifetime_minutes', e.target.value)}>
                 <option value="15">15 minutes</option>
                 <option value="30">30 minutes</option>
                 <option value="60">1 hour</option>
@@ -315,7 +324,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Lock size={14} /> Max Login Attempts</label>
-              <select value={s('security_max_login_attempts')} onChange={(e) => set('security_max_login_attempts', e.target.value)}>
+              <select value={s('max_login_attempts')} onChange={(e) => set('max_login_attempts', e.target.value)}>
                 <option value="3">3 attempts</option>
                 <option value="5">5 attempts</option>
                 <option value="10">10 attempts</option>
@@ -329,7 +338,7 @@ export default function Settings() {
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Security', ['security_two_factor','security_session_timeout','security_password_expiry','security_max_login_attempts','security_ip_whitelist','security_strong_passwords'])}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Security', ['security_two_factor','session_lifetime_minutes','security_password_expiry','max_login_attempts','security_ip_whitelist','security_strong_passwords'])}>
             <Save size={15} /> Save Security Settings
           </button>
         </div>
@@ -354,7 +363,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><Languages size={14} /> Language</label>
-              <select value={s('display_language')} onChange={(e) => set('display_language', e.target.value)}>
+              <select value={s('language')} onChange={(e) => set('language', e.target.value)}>
                 <option value="en">English</option>
                 <option value="fr">French</option>
                 <option value="ha">Hausa</option>
@@ -364,7 +373,7 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label><Clock size={14} /> Timezone</label>
-              <select value={s('display_timezone')} onChange={(e) => set('display_timezone', e.target.value)}>
+              <select value={s('timezone')} onChange={(e) => set('timezone', e.target.value)}>
                 <option value="Africa/Lagos">Africa/Lagos (WAT, UTC+1)</option>
                 <option value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</option>
                 <option value="Europe/London">Europe/London (GMT, UTC+0)</option>
@@ -376,7 +385,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label><CalendarDays size={14} /> Date Format</label>
-              <select value={s('display_date_format')} onChange={(e) => set('display_date_format', e.target.value)}>
+              <select value={s('date_format')} onChange={(e) => set('date_format', e.target.value)}>
                 <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                 <option value="MM/DD/YYYY">MM/DD/YYYY</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD</option>
@@ -384,7 +393,7 @@ export default function Settings() {
             </div>
             <div className="hr-form-field">
               <label>Currency</label>
-              <select value={s('display_currency')} onChange={(e) => set('display_currency', e.target.value)}>
+              <select value={s('currency')} onChange={(e) => set('currency', e.target.value)}>
                 <option value="NGN">Nigerian Naira (₦)</option>
                 <option value="USD">US Dollar ($)</option>
                 <option value="GBP">British Pound (£)</option>
@@ -397,7 +406,7 @@ export default function Settings() {
           <div className="settings-form-row">
             <div className="hr-form-field">
               <label>Items Per Page</label>
-              <select value={s('display_items_per_page')} onChange={(e) => set('display_items_per_page', e.target.value)}>
+              <select value={s('pagination_default')} onChange={(e) => set('pagination_default', e.target.value)}>
                 <option value="10">10</option>
                 <option value="15">15</option>
                 <option value="25">25</option>
@@ -410,7 +419,7 @@ export default function Settings() {
         </div>
 
         <div className="settings-section-footer">
-          <button className="hr-btn-primary" onClick={() => handleSave('Display', ['display_language','display_timezone','display_date_format','display_currency','display_items_per_page'])}>
+          <button className="hr-btn-primary" onClick={() => handleSave('Display', ['language','timezone','date_format','currency','pagination_default'])}>
             <Save size={15} /> Save Display Settings
           </button>
         </div>
