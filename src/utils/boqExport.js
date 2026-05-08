@@ -291,7 +291,7 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(30, 64, 175)
   doc.text(
-    'Handwritten signature not required — this document is digitally generated and system-verified by casi360.com.',
+    'This document is digitally generated and system-verified by casi360.com.',
     ML + CW / 2, y + 5.2, { align: 'center' },
   )
   doc.setFont('helvetica', 'normal')
@@ -308,42 +308,10 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
     y += 6
   }
 
-  /* ── 4b. Activity Log ───────────────────────────────────────────── */
-  const auditLog = Array.isArray(boq.audit_log) ? boq.audit_log : []
-  if (auditLog.length > 0) {
-    if (y + 14 > 297 - MB) { doc.addPage(); y = MT + 2 }
-
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(40)
-    doc.text('Activity Log', ML, y)
-    doc.setTextColor(0)
-    y += 5
-
-    autoTable(doc, {
-      startY: y,
-      head: [['#', 'Action', 'Actor', 'Date / Time', 'Comments']],
-      body: auditLog.map((e, i) => [
-        i + 1,
-        fmtAuditAction(e.action),
-        e.actor_name || '—',
-        fmtDateTime(e.created_at),
-        e.comments || '',
-      ]),
-      theme: 'striped',
-      styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
-      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
-      columnStyles: {
-        0: { cellWidth: 8,  halign: 'center' },
-        1: { cellWidth: 32 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 38 },
-        4: { cellWidth: 64 },
-      },
-      margin: TBL_MARGIN,
-    })
-    y = doc.lastAutoTable.finalY + 4
-  }
+  /* The full activity-log timeline lives in the CSV export and the
+     in-app preview modal. The PDF stays focused on the formal sign-off
+     record — the Budget Holder column already shows the approver's
+     name / position / email / date once the BOQ is approved. */
 
   /* ── 5. Stamp header + footer on every page ─────────────────────── */
   const total = doc.internal.getNumberOfPages()
@@ -402,7 +370,7 @@ export function exportBOQtoCSV(boq, items = [], signoffs = []) {
     ), ''],
     [],
     ['Sign-offs'],
-    ['Note', 'Handwritten signature not required — this document is digitally generated and system-verified by casi360.com.'],
+    ['Note', 'This document is digitally generated and system-verified by casi360.com.'],
     ['Role', 'Name', 'Position', 'Email', 'Date'],
     ['Prepared By',
       pb.name || boq.prepared_by || '',
