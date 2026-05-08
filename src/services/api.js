@@ -157,6 +157,9 @@ export const usersApi = {
 
   changeStatus: (id, status) =>
     api.patch(`/auth/users/${id}/status`, { status }),
+
+  resetPassword: (id) =>
+    api.post(`/auth/users/${id}/reset-password`),
 }
 
 /* ------------------------------------------------------------------ */

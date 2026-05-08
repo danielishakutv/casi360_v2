@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Pencil, Shield, UserX, Eye, AlertCircle, X, RefreshCw, Copy, Check } from 'lucide-react'
+import { Search, Plus, Pencil, Shield, UserX, Eye, AlertCircle, X, RefreshCw, Copy, Check, KeyRound } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { usersApi } from '../../services/api'
@@ -227,6 +227,36 @@ export default function UserManagement() {
     finally { setDeactivating(false) }
   }
 
+  // ─── Reset Password ───
+  const [resetModal, setResetModal] = useState(null)
+  const [resetting, setResetting] = useState(false)
+  const [resetResult, setResetResult] = useState(null)
+  const [resetCopied, setResetCopied] = useState(false)
+
+  async function handleResetPassword() {
+    if (!resetModal) return
+    setResetting(true)
+    try {
+      const res = await usersApi.resetPassword(resetModal.id)
+      const pw = res?.data?.default_password || res?.default_password
+      setResetResult({ user: resetModal, password: pw })
+      setResetModal(null)
+      fetchList()
+    } catch (err) { showToast(err.message || 'Failed to reset password', 'error') }
+    finally { setResetting(false) }
+  }
+
+  function copyResetPassword() {
+    if (!resetResult?.password) return
+    navigator.clipboard?.writeText(resetResult.password)
+      .then(() => { setResetCopied(true); setTimeout(() => setResetCopied(false), 2000) })
+  }
+
+  function closeResetResult() {
+    setResetResult(null)
+    setResetCopied(false)
+  }
+
   const visibleRoles = isSuperAdmin() ? ROLES : ROLES.filter((r) => r !== 'super_admin')
 
   return (
@@ -324,6 +354,9 @@ export default function UserManagement() {
                       <button className="hr-action-btn" onClick={() => openRoleModal(u)} title="Change Role"><Shield size={15} /></button>
                       {u.id !== currentUser?.id && (
                         <>
+                          {(u.role !== 'super_admin' || isSuperAdmin()) && (
+                            <button className="hr-action-btn" onClick={() => setResetModal(u)} title="Reset Password"><KeyRound size={15} /></button>
+                          )}
                           <button className="hr-action-btn" onClick={() => setStatusModal(u)} title="Toggle Status"><RefreshCw size={15} /></button>
                           {u.role !== 'super_admin' && (
                             <button className="hr-action-btn danger" onClick={() => setDeactivateModal(u)} title="Deactivate"><UserX size={15} /></button>
@@ -498,6 +531,44 @@ export default function UserManagement() {
               <button className={statusModal.status === 'active' ? 'hr-btn-danger' : 'hr-btn-primary'} onClick={handleStatusToggle} disabled={togglingStatus}>
                 {togglingStatus ? 'Processing...' : statusModal.status === 'active' ? 'Deactivate' : 'Activate'}
               </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ─── Reset Password Modal ─── */}
+      <Modal open={!!resetModal} onClose={() => setResetModal(null)} title="Reset Password" size="sm">
+        {resetModal && (
+          <div className="hr-confirm-delete">
+            <p>Reset password for <strong>{resetModal.name}</strong>?</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Their password will be set to the platform default. They will be required to change it on their next login.
+            </p>
+            <div className="hr-form-actions">
+              <button className="hr-btn-secondary" onClick={() => setResetModal(null)}>Cancel</button>
+              <button className="hr-btn-primary" onClick={handleResetPassword} disabled={resetting}>
+                {resetting ? 'Resetting...' : 'Reset Password'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ─── Reset Password Result Modal ─── */}
+      <Modal open={!!resetResult} onClose={closeResetResult} title="Password Reset" size="sm">
+        {resetResult && (
+          <div>
+            <p style={{ marginBottom: 12 }}>
+              <strong>{resetResult.user.name}</strong>'s password has been reset. Share the password below with them — they will be required to change it on their next login.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-surface, var(--card-bg-hover, #f5f5f5))', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+              <code style={{ flex: 1, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 14, fontWeight: 600 }}>{resetResult.password}</code>
+              <button type="button" className="hr-btn-secondary" onClick={copyResetPassword} style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                {resetCopied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+              </button>
+            </div>
+            <div className="hr-form-actions">
+              <button className="hr-btn-primary" onClick={closeResetResult}>Done</button>
             </div>
           </div>
         )}
