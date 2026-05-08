@@ -36,8 +36,11 @@ function generateRFQNumber() {
 function buildInitialForm() {
   return {
     rfq_number: generateRFQNumber(),
-    /* Optional source PR (must be approved) */
+    /* Optional source PR (must be approved). When set, line items are
+       pulled from the PR — the RFQ is asking a vendor to quote for an
+       already-approved request. */
     pr_reference: '',
+    pr_id: '',
     /* Supplier header */
     supplier_id: '',
     supplier_name: '',
@@ -47,7 +50,8 @@ function buildInitialForm() {
     contact: '',
     /* Request type */
     request_type: [],          // multi-select: Goods / Works / Services
-    /* For */
+    /* For — exclusive: an RFQ targets either a Project or a Structure. */
+    for_type: 'project',       // 'project' | 'structure'
     structure: '',
     project: '',
     /* Currency */
@@ -57,9 +61,10 @@ function buildInitialForm() {
     /* Delivery */
     delivery_location: '',
     delivery_duration: '',
-    /* Received-by sign-off */
+    /* Received-by sign-off — date defaults to today since this form is
+       filled at receipt time. Name stays blank so the user has to pick. */
     received_by_name: '',
-    received_by_date: '',
+    received_by_date: todayStr(),
     received_by_signature: '',
     company_stamp: '',
   }
@@ -71,45 +76,47 @@ export default function CreateRequestForQuotation() {
   const incomingPrId = searchParams.get('pr_id')
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
-  const [allPRs, setAllPRs] = useState([])
+  const [approvedPRs, setApprovedPRs] = useState([])
   const [vendors, setVendors] = useState([])
   const [receivedByUsers, setReceivedByUsers] = useState([])
+  const [projectTeamMembers, setProjectTeamMembers] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
   /* Pre-fill pr_reference when arriving from a PR's "Create RFQ" button.
-     We wait for the PR list to load so the picker can render the
-     matching <option>; if the PR isn't in the list (e.g. missing read
-     permission) we fetch it directly so the link still works. */
+     We wait for the approved-PR list to load so the picker can render
+     the matching <option>; if the PR isn't in the list we fetch it
+     directly so the link still works. */
   useEffect(() => {
     if (!incomingPrId) return
     if (form.pr_reference) return
-    const match = allPRs.find((pr) => pr.id === incomingPrId)
+    const match = approvedPRs.find((pr) => pr.id === incomingPrId)
     if (match) {
-      setForm((p) => ({ ...p, pr_reference: match.requisition_number || match.id }))
+      handlePRSelect(match.requisition_number || match.id, /* skipConfirm */ true)
       return
     }
-    if (allPRs.length === 0) return // still loading
+    if (approvedPRs.length === 0) return // still loading
     purchaseRequestsApi.get(incomingPrId)
       .then((res) => {
         const pr = res?.data?.requisition || res?.data?.data || res?.data
         if (pr?.requisition_number) {
-          setForm((p) => ({ ...p, pr_reference: pr.requisition_number }))
+          handlePRSelect(pr.requisition_number, /* skipConfirm */ true)
         }
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingPrId, allPRs])
+  }, [incomingPrId, approvedPRs])
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
-    // Fetch every PR (no status filter) so the source-PR picker shows
-    // the full pipeline. Users still have to know which PR they want
-    // to source from; we let them choose any rather than gating on
-    // approved-only since drafts and in-review PRs may also need RFQs.
-    purchaseRequestsApi.list({ per_page: 0 })
-      .then((res) => setAllPRs(extractItems(res)))
+
+    // Source PR list is gated to approved-only — an RFQ asks vendors to
+    // quote for a request that has already been authorised, not for
+    // something still in review.
+    purchaseRequestsApi.list({ status: 'approved', per_page: 0 })
+      .then((res) => setApprovedPRs(extractItems(res)))
       .catch(() => {})
+
     vendorsApi.list({ per_page: 0 })
       .then((res) => setVendors(extractItems(res)))
       .catch(() => {})
@@ -132,6 +139,95 @@ export default function CreateRequestForQuotation() {
       })
       .catch(() => {})
   }, [])
+
+  /* Whenever a project is picked (and the form's "for" type is project),
+     pull that project's team members so they show up in the Received-By
+     dropdown alongside procurement / logistics / admin users. Clears
+     the team-member list when the project is unset or the form switches
+     to Structure mode. */
+  useEffect(() => {
+    if (form.for_type !== 'project' || !form.project) {
+      setProjectTeamMembers([])
+      return
+    }
+    const proj = projects.find((p) => (p.project_code || p.id) === form.project)
+    const projectId = proj?.id
+    if (!projectId) {
+      setProjectTeamMembers([])
+      return
+    }
+    projectsApi.get(projectId)
+      .then((res) => {
+        const data = res?.data?.project || res?.data?.data || res?.data
+        const members = data?.team_members || []
+        setProjectTeamMembers(members)
+      })
+      .catch(() => setProjectTeamMembers([]))
+  }, [form.for_type, form.project, projects])
+
+  /* Helper used by the existing-line-items check below. A fresh form
+     starts with one empty line item; treat that as "no work to lose". */
+  function lineItemsHaveContent(items) {
+    return (items || []).some((li) => (
+      (li.item || '').trim() !== '' ||
+      (li.description || '').trim() !== '' ||
+      (li.unit || '').trim() !== '' ||
+      String(li.quantity || '').trim() !== '' ||
+      String(li.unit_cost || '').trim() !== ''
+    ))
+  }
+
+  /* Picking a Source PR pre-fills the line items from that PR (the
+     vendor is being asked to quote for an already-approved request)
+     while leaving Cost per Unit blank so the vendor's price is what
+     gets entered. If the form already has user-typed line items we
+     ask before replacing — silent overwrite would be a pretty cruel
+     way to lose work. The `skipConfirm` flag is used by the deep-link
+     effect (?pr_id=…) so arriving from a PR doesn't trigger a prompt
+     against the empty default form. */
+  function handlePRSelect(prRefValue, skipConfirm = false) {
+    if (!prRefValue) {
+      setForm((p) => ({ ...p, pr_reference: '', pr_id: '' }))
+      return
+    }
+    const pr = approvedPRs.find((x) => (x.requisition_number || x.id) === prRefValue)
+    setForm((p) => ({ ...p, pr_reference: prRefValue, pr_id: pr?.id || '' }))
+
+    // No PR detail to pull from — just record the reference.
+    if (!pr?.id) return
+
+    const replaceItems = (prItems) => {
+      const mapped = (prItems || []).map((it) => ({
+        item: it.item_name || it.title || '',
+        description: it.description || '',
+        unit: it.unit || '',
+        quantity: it.quantity ?? '',
+        unit_cost: '', // vendor quotes the price — never copy from PR
+      }))
+      setForm((p) => ({
+        ...p,
+        line_items: mapped.length > 0 ? mapped : [{ ...EMPTY_LINE_ITEM }],
+      }))
+    }
+
+    purchaseRequestsApi.get(pr.id)
+      .then((res) => {
+        const data = res?.data?.requisition || res?.data?.data || res?.data || {}
+        const items = data.items || []
+        if (items.length === 0) return
+
+        if (!skipConfirm && lineItemsHaveContent(form.line_items)) {
+          // window.confirm is fine here — the form is small and modal
+          // creep would dwarf the prompt.
+          const ok = window.confirm(
+            'This Purchase Request has its own line items. Replace the items currently on the form with them?'
+          )
+          if (!ok) return
+        }
+        replaceItems(items)
+      })
+      .catch(() => {})
+  }
 
   /* When a vendor is picked from the dropdown, fill the address /
      company representative / contact fields so the procurement officer
@@ -195,11 +291,62 @@ export default function CreateRequestForQuotation() {
   const grandTotal = useMemo(() => form.line_items.reduce((s, li) => s + lineTotal(li), 0), [form.line_items, lineTotal])
   const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
 
+  /* Merged Received-By candidate list. Always includes procurement /
+     logistics / admin / super_admin users; when the RFQ targets a
+     project, project team members (any role) are added too. Deduped
+     by email so a procurement officer who is also on the project team
+     doesn't appear twice. */
+  const receivedByCandidates = useMemo(() => {
+    const merged = []
+    const seenEmails = new Set()
+    const seenNames  = new Set()
+
+    const push = (entry) => {
+      const emailKey = (entry.email || '').toLowerCase()
+      const nameKey  = (entry.name  || '').toLowerCase()
+      if (emailKey && seenEmails.has(emailKey)) return
+      if (!emailKey && nameKey && seenNames.has(nameKey)) return
+      if (emailKey) seenEmails.add(emailKey)
+      if (nameKey)  seenNames.add(nameKey)
+      merged.push(entry)
+    }
+
+    receivedByUsers.forEach((u) => push({
+      id: `user-${u.id}`,
+      name: u.name,
+      email: u.email,
+      role: (u.role || '').replace(/_/g, ' '),
+      department: u.department || '',
+      source: 'staff',
+    }))
+
+    if (form.for_type === 'project') {
+      projectTeamMembers.forEach((m) => {
+        const emp = m.employee || m
+        push({
+          id: `team-${m.id || emp?.id || ''}`,
+          name: emp?.name || m.name,
+          email: emp?.email || m.email,
+          role: m.role || emp?.designation?.title || emp?.position || 'Team Member',
+          department: emp?.department?.name || emp?.department || '',
+          source: 'team',
+        })
+      })
+    }
+
+    return merged
+  }, [receivedByUsers, projectTeamMembers, form.for_type])
+
   function buildPayload() {
     const signoffs = []
     if (form.received_by_name) {
       signoffs.push({ type: 'Logistics Officer', name: form.received_by_name, position: 'Logistics', date: form.received_by_date || todayStr(), signature: form.received_by_signature })
     }
+
+    // An RFQ targets exactly one of Structure / Project. Send only the
+    // field that matches the form's for_type so the API doesn't get
+    // both populated.
+    const isProject = form.for_type === 'project'
 
     return {
       title: form.supplier_name || 'RFQ',
@@ -210,8 +357,8 @@ export default function CreateRequestForQuotation() {
       contact_person: form.company_rep,
       supplier_phone: form.contact,
       request_types: form.request_type,
-      structure: form.structure || undefined,
-      project_code: form.project || undefined,
+      structure: !isProject ? (form.structure || undefined) : undefined,
+      project_code: isProject ? (form.project || undefined) : undefined,
       currency: form.currency,
       delivery_address: form.delivery_location || undefined,
       delivery_terms: form.delivery_duration || undefined,
@@ -302,15 +449,17 @@ export default function CreateRequestForQuotation() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Source Purchase Request</label>
-              <select value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)}>
+              <select value={form.pr_reference} onChange={(e) => handlePRSelect(e.target.value)}>
                 <option value="">— None —</option>
-                {allPRs.map((pr) => (
+                {approvedPRs.map((pr) => (
                   <option key={pr.id} value={pr.requisition_number || pr.id}>
                     {(pr.requisition_number || `PR-${pr.id}`)} — {pr.title || pr.description || 'Untitled'}
-                    {pr.status ? ` (${pr.status.replace(/_/g, ' ')})` : ''}
                   </option>
                 ))}
               </select>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Picking a PR pulls its line items into the form below — vendor enters the prices.
+              </span>
             </div>
           </div>
 
@@ -366,27 +515,56 @@ export default function CreateRequestForQuotation() {
             ))}
           </div>
 
-          {/* ── For: Structure / Project ── */}
+          {/* ── For: Structure XOR Project ── */}
           <p className="hr-form-section-title">For</p>
 
+          <div className="hr-form-row" style={{ marginBottom: 4 }}>
+            <div className="hr-form-field" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>This RFQ is for:</span>
+              <label className="rfq-checkbox-label" style={{ cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="for_type"
+                  value="project"
+                  checked={form.for_type === 'project'}
+                  onChange={() => setForm((p) => ({ ...p, for_type: 'project', structure: '' }))}
+                />
+                <span>Project</span>
+              </label>
+              <label className="rfq-checkbox-label" style={{ cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="for_type"
+                  value="structure"
+                  checked={form.for_type === 'structure'}
+                  onChange={() => setForm((p) => ({ ...p, for_type: 'structure', project: '' }))}
+                />
+                <span>Structure</span>
+              </label>
+            </div>
+          </div>
+
           <div className="hr-form-row">
-            <div className="hr-form-field">
-              <label>Structure *</label>
-              <input
-                type="text"
-                value={form.structure}
-                onChange={(e) => updateField('structure', e.target.value)}
-                placeholder="e.g. Head Office, Field Office Maiduguri"
-                required
-              />
-            </div>
-            <div className="hr-form-field">
-              <label>Project *</label>
-              <select value={form.project} onChange={(e) => updateField('project', e.target.value)} required>
-                <option value="">Select project…</option>
-                {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id} — {p.name}</option>)}
-              </select>
-            </div>
+            {form.for_type === 'project' ? (
+              <div className="hr-form-field">
+                <label>Project *</label>
+                <select value={form.project} onChange={(e) => updateField('project', e.target.value)} required>
+                  <option value="">Select project…</option>
+                  {projects.map((p) => <option key={p.id} value={p.project_code || p.id}>{p.project_code || p.id} — {p.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="hr-form-field">
+                <label>Structure *</label>
+                <input
+                  type="text"
+                  value={form.structure}
+                  onChange={(e) => updateField('structure', e.target.value)}
+                  placeholder="e.g. Head Office, Field Office Maiduguri"
+                  required
+                />
+              </div>
+            )}
           </div>
 
           {/* ── Currency ── */}
@@ -474,18 +652,20 @@ export default function CreateRequestForQuotation() {
               <label>Name</label>
               <select value={form.received_by_name} onChange={(e) => updateField('received_by_name', e.target.value)}>
                 <option value="">Select staff…</option>
-                {receivedByUsers.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.name} — {(u.role || '').replace(/_/g, ' ')}
-                    {u.department ? ` · ${u.department}` : ''}
+                {receivedByCandidates.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                    {c.role ? ` — ${c.role}` : ''}
+                    {c.department ? ` · ${c.department}` : ''}
+                    {c.source === 'team' ? ' · Project Team' : ''}
                   </option>
                 ))}
               </select>
-              {receivedByUsers.length === 0 && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                  No procurement / logistics / admin users available yet.
-                </span>
-              )}
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                {form.for_type === 'project' && form.project
+                  ? 'Procurement, Logistics, admins, and this project\'s team members.'
+                  : 'Procurement, Logistics, admins and super admins only.'}
+              </span>
             </div>
             <div className="hr-form-field">
               <label>Date</label>
