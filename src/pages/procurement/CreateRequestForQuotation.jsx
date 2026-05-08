@@ -1,17 +1,19 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
+import { rfqApi, purchaseRequestsApi, vendorsApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
+import { usersApi } from '../../services/api'
 import { extractItems } from '../../utils/apiHelpers'
 
 /* ─── Constants ─── */
 const REQUEST_TYPES = ['Goods', 'Works', 'Services']
 
-const DEMO_STRUCTURES = [
-  'Head Office', 'Regional Office - North', 'Regional Office - South',
-  'Field Office - Maiduguri', 'Field Office - Yola', 'Warehouse - Abuja',
-]
+// Users in these departments (or admin / super_admin) can sign off the
+// RFQ "Received By" block — procurement and logistics staff plus the
+// admin tier who may stand in for the Logistics Officer.
+const RECEIVED_BY_DEPARTMENTS = ['Procurement', 'Logistics']
+const RECEIVED_BY_ROLES = ['admin', 'super_admin']
 
 const CURRENCY_OPTIONS = [
   { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira', rate: 1 },
@@ -37,6 +39,7 @@ function buildInitialForm() {
     /* Optional source PR (must be approved) */
     pr_reference: '',
     /* Supplier header */
+    supplier_id: '',
     supplier_name: '',
     supplier_address: '',
     date: todayStr(),
@@ -68,23 +71,25 @@ export default function CreateRequestForQuotation() {
   const incomingPrId = searchParams.get('pr_id')
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
-  const [approvedPRs, setApprovedPRs] = useState([])
+  const [allPRs, setAllPRs] = useState([])
+  const [vendors, setVendors] = useState([])
+  const [receivedByUsers, setReceivedByUsers] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
   /* Pre-fill pr_reference when arriving from a PR's "Create RFQ" button.
-     We wait for the approved-PR list to load so the picker can render the
+     We wait for the PR list to load so the picker can render the
      matching <option>; if the PR isn't in the list (e.g. missing read
      permission) we fetch it directly so the link still works. */
   useEffect(() => {
     if (!incomingPrId) return
     if (form.pr_reference) return
-    const match = approvedPRs.find((pr) => pr.id === incomingPrId)
+    const match = allPRs.find((pr) => pr.id === incomingPrId)
     if (match) {
       setForm((p) => ({ ...p, pr_reference: match.requisition_number || match.id }))
       return
     }
-    if (approvedPRs.length === 0) return // still loading
+    if (allPRs.length === 0) return // still loading
     purchaseRequestsApi.get(incomingPrId)
       .then((res) => {
         const pr = res?.data?.requisition || res?.data?.data || res?.data
@@ -94,14 +99,66 @@ export default function CreateRequestForQuotation() {
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingPrId, approvedPRs])
+  }, [incomingPrId, allPRs])
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
-    purchaseRequestsApi.list({ status: 'approved', per_page: 0 })
-      .then((res) => setApprovedPRs(extractItems(res)))
+    // Fetch every PR (no status filter) so the source-PR picker shows
+    // the full pipeline. Users still have to know which PR they want
+    // to source from; we let them choose any rather than gating on
+    // approved-only since drafts and in-review PRs may also need RFQs.
+    purchaseRequestsApi.list({ per_page: 0 })
+      .then((res) => setAllPRs(extractItems(res)))
+      .catch(() => {})
+    vendorsApi.list({ per_page: 0 })
+      .then((res) => setVendors(extractItems(res)))
+      .catch(() => {})
+
+    // Build the "Received By" candidate list: every active user whose
+    // department is Procurement or Logistics, plus every active admin
+    // / super_admin. Single per_page=100 fetch then filtered in-memory
+    // so we don't fan out to four endpoints.
+    usersApi.list({ per_page: 100, status: 'active' })
+      .then((res) => {
+        const data = res?.data || res
+        const list = data?.users || extractItems(res) || []
+        const eligible = list.filter((u) => (
+          u.status !== 'inactive' && (
+            RECEIVED_BY_ROLES.includes(u.role) ||
+            RECEIVED_BY_DEPARTMENTS.includes(u.department)
+          )
+        ))
+        setReceivedByUsers(eligible)
+      })
       .catch(() => {})
   }, [])
+
+  /* When a vendor is picked from the dropdown, fill the address /
+     company representative / contact fields so the procurement officer
+     doesn't have to retype data we already have on file. Manual edits
+     stay possible — the inputs remain editable. */
+  function handleVendorSelect(vendorId) {
+    const v = vendors.find((x) => x.id === vendorId)
+    if (!v) {
+      setForm((p) => ({
+        ...p,
+        supplier_id: '',
+        supplier_name: '',
+        supplier_address: '',
+        company_rep: '',
+        contact: '',
+      }))
+      return
+    }
+    setForm((p) => ({
+      ...p,
+      supplier_id: v.id,
+      supplier_name: v.name || '',
+      supplier_address: v.address || '',
+      company_rep: v.contact_person || '',
+      contact: v.phone || v.email || '',
+    }))
+  }
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -247,9 +304,10 @@ export default function CreateRequestForQuotation() {
               <label>Source Purchase Request</label>
               <select value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)}>
                 <option value="">— None —</option>
-                {approvedPRs.map((pr) => (
+                {allPRs.map((pr) => (
                   <option key={pr.id} value={pr.requisition_number || pr.id}>
                     {(pr.requisition_number || `PR-${pr.id}`)} — {pr.title || pr.description || 'Untitled'}
+                    {pr.status ? ` (${pr.status.replace(/_/g, ' ')})` : ''}
                   </option>
                 ))}
               </select>
@@ -259,22 +317,36 @@ export default function CreateRequestForQuotation() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Name of Supplier *</label>
-              <input type="text" value={form.supplier_name} onChange={(e) => updateField('supplier_name', e.target.value)} placeholder="Enter supplier name" required />
+              <select
+                value={form.supplier_id}
+                onChange={(e) => handleVendorSelect(e.target.value)}
+                required
+              >
+                <option value="">Select a vendor…</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+              {vendors.length === 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  No vendors yet — add one in Procurement → Vendors first.
+                </span>
+              )}
             </div>
             <div className="hr-form-field">
               <label>Address *</label>
-              <input type="text" value={form.supplier_address} onChange={(e) => updateField('supplier_address', e.target.value)} placeholder="Supplier address" required />
+              <input type="text" value={form.supplier_address} onChange={(e) => updateField('supplier_address', e.target.value)} placeholder="Auto-filled from vendor" required />
             </div>
           </div>
 
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Company Representative *</label>
-              <input type="text" value={form.company_rep} onChange={(e) => updateField('company_rep', e.target.value)} placeholder="Full name of representative" required />
+              <input type="text" value={form.company_rep} onChange={(e) => updateField('company_rep', e.target.value)} placeholder="Auto-filled from vendor" required />
             </div>
             <div className="hr-form-field">
               <label>Contact *</label>
-              <input type="text" value={form.contact} onChange={(e) => updateField('contact', e.target.value)} placeholder="Phone / email" required />
+              <input type="text" value={form.contact} onChange={(e) => updateField('contact', e.target.value)} placeholder="Auto-filled from vendor" required />
             </div>
           </div>
 
@@ -300,10 +372,13 @@ export default function CreateRequestForQuotation() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Structure *</label>
-              <select value={form.structure} onChange={(e) => updateField('structure', e.target.value)} required>
-                <option value="">Select structure…</option>
-                {DEMO_STRUCTURES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input
+                type="text"
+                value={form.structure}
+                onChange={(e) => updateField('structure', e.target.value)}
+                placeholder="e.g. Head Office, Field Office Maiduguri"
+                required
+              />
             </div>
             <div className="hr-form-field">
               <label>Project *</label>
@@ -397,7 +472,20 @@ export default function CreateRequestForQuotation() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Name</label>
-              <input type="text" value={form.received_by_name} onChange={(e) => updateField('received_by_name', e.target.value)} placeholder="Logistics officer name" />
+              <select value={form.received_by_name} onChange={(e) => updateField('received_by_name', e.target.value)}>
+                <option value="">Select staff…</option>
+                {receivedByUsers.map((u) => (
+                  <option key={u.id} value={u.name}>
+                    {u.name} — {(u.role || '').replace(/_/g, ' ')}
+                    {u.department ? ` · ${u.department}` : ''}
+                  </option>
+                ))}
+              </select>
+              {receivedByUsers.length === 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  No procurement / logistics / admin users available yet.
+                </span>
+              )}
             </div>
             <div className="hr-form-field">
               <label>Date</label>
