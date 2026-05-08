@@ -332,10 +332,10 @@ export default function PurchaseRequests() {
 
               <div className="hr-form-actions">
                 <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
-                <button className="hr-btn-secondary" onClick={() => exportPRtoCSV({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download CSV">
+                <button className="hr-btn-secondary" onClick={() => exportPRtoCSV({ ...pr, ...(viewExtra || {}), justification: viewExtra?.justification ?? pr.justification, audit_log: auditLog || viewExtra?.audit_log || [] }, viewExtra?.items || [])} title="Download CSV">
                   <Download size={14} /> CSV
                 </button>
-                <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download PDF">
+                <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, ...(viewExtra || {}), justification: viewExtra?.justification ?? pr.justification, audit_log: auditLog || viewExtra?.audit_log || [] }, viewExtra?.items || [])} title="Download PDF">
                   <FileText size={14} /> PDF
                 </button>
                 {can('procurement.requisitions.edit') && (pr.status === 'draft' || pr.status === 'revision' || pr.status === 'rejected') && (

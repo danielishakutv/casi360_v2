@@ -12,6 +12,7 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
 import DocumentChain from '../../components/DocumentChain'
+import ActivityLog from '../../components/ActivityLog'
 
 const STATUSES = ['draft', 'open', 'closed', 'awarded', 'cancelled']
 const PER_PAGE = 15
@@ -187,6 +188,7 @@ export default function RequestForQuotation() {
               <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
             </div>
             <div className="note-detail-content">{viewItem.description || 'No description'}</div>
+            <ActivityLog entries={viewDetail?.audit_log || []} />
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
               {can('procurement.rfq.edit') && (

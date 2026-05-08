@@ -13,6 +13,7 @@ import { exportBOQtoPDF, exportBOQtoCSV } from '../../utils/boqExport'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
+import ActivityLog from '../../components/ActivityLog'
 
 const STATUSES = ['draft', 'submitted', 'approved', 'revised']
 const PER_PAGE = 25
@@ -229,23 +230,30 @@ export default function BillOfQuantities() {
               </>
             )}
 
-            {viewDetail?.signoffs?.length > 0 && (
-              <>
-                <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600 }}>Sign-offs</h4>
-                <div className="view-modal-grid">
-                  {viewDetail.signoffs.map((s, i) => (
-                    <div key={i} className="view-modal-field">
-                      <label>{capitalize((s.type || '').replace(/_/g, ' '))}</label>
-                      <p>
-                        <strong>{s.name || '\u2014'}</strong>
-                        {s.position ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.position}</span></> : null}
-                        {s.email ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.email}</span></> : null}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {(() => {
+              const signoffs = viewDetail?.signoffs || viewItem?.signoffs || []
+              if (!signoffs.length) return null
+              return (
+                <>
+                  <h4 style={{ margin: '16px 0 8px', fontSize: 13, fontWeight: 600 }}>Sign-offs</h4>
+                  <div className="view-modal-grid">
+                    {signoffs.map((s, i) => (
+                      <div key={i} className="view-modal-field">
+                        <label>{capitalize((s.type || '').replace(/_/g, ' '))}</label>
+                        <p>
+                          <strong>{s.name || '\u2014'}</strong>
+                          {s.position ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.position}</span></> : null}
+                          {s.email ? <><br /><span style={{ color: 'var(--text-muted)' }}>{s.email}</span></> : null}
+                          {s.date ? <><br /><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{fmtDate(s.date)}</span></> : null}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
+
+            <ActivityLog entries={viewDetail?.audit_log || []} />
 
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => { setViewItem(null); setViewDetail(null) }}>Close</button>

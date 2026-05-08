@@ -13,6 +13,7 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
 import DocumentChain from '../../components/DocumentChain'
+import ActivityLog from '../../components/ActivityLog'
 
 const STATUSES = ['draft', 'pending_inspection', 'inspected', 'accepted', 'rejected', 'partial']
 const PER_PAGE = 15
@@ -332,6 +333,7 @@ export default function GoodsReceivedNote() {
             )}
 
             <div className="note-detail-content">{viewItem.description || viewItem.notes || 'No description'}</div>
+            <ActivityLog entries={viewDetail?.audit_log || []} />
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
               {can('procurement.grn.edit') && viewItem.status === 'draft' && (

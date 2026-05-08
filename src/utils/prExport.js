@@ -27,6 +27,21 @@ function fmtDateOrBlank(d) {
   try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
   catch { return d }
 }
+function fmtDateTime(d) {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return d }
+}
+function fmtAuditAction(a) {
+  if (!a) return ''
+  return String(a)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 /* ── approval-chain helpers ─────────────────────────────────────────── */
 const ACTED = ['approved', 'forwarded', 'rejected']
@@ -290,6 +305,45 @@ export async function exportPRtoPDF(pr, items = []) {
     margin: TBL_MARGIN,
   })
 
+  /* ── 4b. Activity Log ───────────────────────────────────────────── */
+  const auditLog = Array.isArray(pr.audit_log) ? pr.audit_log : []
+  if (auditLog.length > 0) {
+    let yLog = doc.lastAutoTable.finalY + 6
+    if (yLog + 14 > 297 - MB) { doc.addPage(); yLog = MT + 2 }
+
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(40)
+    doc.text('Activity Log', ML, yLog)
+    doc.setTextColor(0)
+    yLog += 5
+
+    autoTable(doc, {
+      startY: yLog,
+      head: [['#', 'Action', 'Stage', 'Actor', 'Date / Time', 'Comments']],
+      body: auditLog.map((e, i) => [
+        i + 1,
+        fmtAuditAction(e.action),
+        e.stage ? fmtAuditAction(e.stage) : '',
+        e.actor_name || '—',
+        fmtDateTime(e.created_at),
+        e.comments || '',
+      ]),
+      theme: 'striped',
+      styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 8,  halign: 'center' },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 36 },
+        4: { cellWidth: 36 },
+        5: { cellWidth: 52 },
+      },
+      margin: TBL_MARGIN,
+    })
+  }
+
   /* ── 5. Stamp header + footer on every page ─────────────────────── */
   const total = doc.internal.getNumberOfPages()
   for (let i = 1; i <= total; i++) {
@@ -361,6 +415,22 @@ export function exportPRtoCSV(pr, items = []) {
   const comments = chain.map((s) => s.comment).filter(Boolean)
   if (comments.length) {
     rows.push([], ['Comments / Special Validation'], ...comments.map((c) => [c]))
+  }
+
+  const auditLog = Array.isArray(pr.audit_log) ? pr.audit_log : []
+  if (auditLog.length > 0) {
+    rows.push([], ['Activity Log'])
+    rows.push(['#', 'Action', 'Stage', 'Actor', 'Date / Time', 'Comments'])
+    auditLog.forEach((e, i) => {
+      rows.push([
+        i + 1,
+        fmtAuditAction(e.action),
+        e.stage ? fmtAuditAction(e.stage) : '',
+        e.actor_name || '',
+        fmtDateTime(e.created_at),
+        e.comments || '',
+      ])
+    })
   }
 
   const csv = rows.map((row) => row.map(escape).join(',')).join('\n')

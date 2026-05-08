@@ -27,6 +27,21 @@ function fmtDateOrBlank(d) {
   try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
   catch { return d }
 }
+function fmtDateTime(d) {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return d }
+}
+function fmtAuditAction(a) {
+  if (!a) return ''
+  return String(a)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 /* ── signoff helpers ────────────────────────────────────────────────── */
 function findMarketSurveys(signoffs) {
@@ -290,6 +305,44 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
     doc.setTextColor(40)
     doc.text(`Availability of Budget: ${bh.budget_available}`, ML, y)
     doc.setTextColor(0)
+    y += 6
+  }
+
+  /* ── 4b. Activity Log ───────────────────────────────────────────── */
+  const auditLog = Array.isArray(boq.audit_log) ? boq.audit_log : []
+  if (auditLog.length > 0) {
+    if (y + 14 > 297 - MB) { doc.addPage(); y = MT + 2 }
+
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(40)
+    doc.text('Activity Log', ML, y)
+    doc.setTextColor(0)
+    y += 5
+
+    autoTable(doc, {
+      startY: y,
+      head: [['#', 'Action', 'Actor', 'Date / Time', 'Comments']],
+      body: auditLog.map((e, i) => [
+        i + 1,
+        fmtAuditAction(e.action),
+        e.actor_name || '—',
+        fmtDateTime(e.created_at),
+        e.comments || '',
+      ]),
+      theme: 'striped',
+      styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 8,  halign: 'center' },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 38 },
+        4: { cellWidth: 64 },
+      },
+      margin: TBL_MARGIN,
+    })
+    y = doc.lastAutoTable.finalY + 4
   }
 
   /* ── 5. Stamp header + footer on every page ─────────────────────── */
@@ -369,6 +422,21 @@ export function exportBOQtoCSV(boq, items = [], signoffs = []) {
 
   if (bh.budget_available) {
     rows.push([], ['Availability of Budget', bh.budget_available])
+  }
+
+  const auditLog = Array.isArray(boq.audit_log) ? boq.audit_log : []
+  if (auditLog.length > 0) {
+    rows.push([], ['Activity Log'])
+    rows.push(['#', 'Action', 'Actor', 'Date / Time', 'Comments'])
+    auditLog.forEach((e, i) => {
+      rows.push([
+        i + 1,
+        fmtAuditAction(e.action),
+        e.actor_name || '',
+        fmtDateTime(e.created_at),
+        e.comments || '',
+      ])
+    })
   }
 
   const csv = rows.map((row) => row.map(escape).join(',')).join('\n')

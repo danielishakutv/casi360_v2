@@ -13,6 +13,7 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
 import DocumentChain from '../../components/DocumentChain'
+import ActivityLog from '../../components/ActivityLog'
 
 const STATUSES = ['draft', 'pending', 'submitted', 'approved', 'paid', 'rejected', 'on_hold']
 const PER_PAGE = 15
@@ -161,6 +162,7 @@ export default function RequestForPayment() {
               </div>
             )}
             {viewItem.description && <div className="note-detail-content">{viewItem.description}</div>}
+            <ActivityLog entries={viewDetail?.audit_log || []} />
             <div className="hr-form-actions">
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
             </div>

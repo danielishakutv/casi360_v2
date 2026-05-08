@@ -13,6 +13,7 @@ import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
 import MineToggle from '../../components/MineToggle'
 import DocumentChain from '../../components/DocumentChain'
+import ActivityLog from '../../components/ActivityLog'
 
 const STATUSES = ['draft', 'submitted', 'pending_approval', 'approved', 'revision', 'partially_received', 'received', 'cancelled']
 const PAYMENT_STATUSES = ['unpaid', 'partially_paid', 'paid']
@@ -330,6 +331,8 @@ export default function PurchaseOrders() {
                 )}
               </div>
             )}
+
+            <ActivityLog entries={viewDetail?.audit_log || []} />
 
             <div className="hr-form-actions" style={{ marginTop: 16 }}>
               <button className="hr-btn-secondary" onClick={() => setViewItem(null)}>Close</button>
