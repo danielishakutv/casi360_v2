@@ -1,15 +1,25 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import JSZip from 'jszip'
 import logoSrc from '../assets/casi_logo.jpg'
 
 /**
  * RFQ exports — PDF, Word (.doc), CSV.
  *
- * The view-model passed in is the `form` state from
- * CreateRequestForQuotation, plus a few server-side fields the backend
- * may have re-issued on save (rfq_number, status). The exports are
- * driven entirely from the in-memory form so the downloaded document
- * always reflects what the user just saved.
+ * The view-model `rfq` carries the form state plus a few server-side
+ * fields the backend may have re-issued on save (rfq_number, status).
+ * Two flavours are supported:
+ *
+ *  - Targeted: `rfq.vendors[]` lists every selected vendor. One
+ *    personalised document is generated per vendor (each addressed
+ *    individually). When more than one vendor is selected, all docs
+ *    are bundled into a single .zip. CSV stays as a single file
+ *    listing every vendor — it's a record format, not a vendor-facing
+ *    document.
+ *
+ *  - Open call: `rfq.scope === 'open'`. A single generic document is
+ *    produced with "To: All qualified suppliers" and an "Advertised
+ *    on" block recording where the call was published.
  *
  * The system never emails the vendor. The procurement officer
  * downloads in their preferred format and forwards manually.
@@ -20,7 +30,6 @@ const ML = 14
 const MR = 14
 const MT = 30
 const MB = 20
-const CW = 210 - ML - MR
 
 /* ── line-item column widths (sum = 182 mm) ───────────────────────── */
 const COL = { num: 8, item: 28, desc: 60, unit: 14, qty: 10, ucost: 28, total: 34 }
@@ -121,23 +130,53 @@ function drawFooter(doc, pageNum, totalPages) {
 
 const TBL_MARGIN = { top: MT, left: ML, right: MR, bottom: MB }
 
+/* ── helpers ──────────────────────────────────────────────────────── */
+function isOpenCall(rfq) { return rfq.scope === 'open' }
+function vendorList(rfq) { return Array.isArray(rfq.vendors) ? rfq.vendors : [] }
+
+/**
+ * Slugify a vendor name into something safe for a filename. Falls back
+ * to "vendor-N" when the name reduces to nothing.
+ */
+function slugify(name, fallbackIdx) {
+  const slug = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return slug || `vendor-${fallbackIdx}`
+}
+
+/**
+ * Trigger a browser download for a Blob with the given filename.
+ */
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /* ================================================================== */
-/* PDF                                                                 */
+/* PDF — single document for one recipient                             */
 /* ================================================================== */
-async function exportPDF(rfq) {
+async function buildPDFBlob(rfq, recipient, logoData) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const logoData = await loadLogoBase64(logoSrc)
   const symbol = rfq.currency_symbol || ''
 
-  /* 1. Supplier + RFQ header grid */
+  /* 1. Recipient + RFQ header grid */
+  const recipientName = recipient?.name || (isOpenCall(rfq) ? 'All qualified suppliers' : '—')
+  const recipientAddress = recipient?.address || (isOpenCall(rfq) ? safe(rfq.advertised_on) : '—')
+  const recipientContact = recipient?.contact_person || recipient?.phone || recipient?.email || (isOpenCall(rfq) ? '—' : '—')
+
   autoTable(doc, {
     startY: MT + 2,
     body: [
-      ['Supplier',     safe(rfq.supplier_name) || '—',         'RFQ Date',     fmtDate(rfq.date)],
-      ['Address',      safe(rfq.supplier_address) || '—',      'Source PR',    safe(rfq.pr_reference) || '—'],
-      ['Contact',      safe(rfq.contact) || '—',               'Currency',     safe(rfq.currency) || 'NGN'],
-      ['Company Rep',  safe(rfq.company_rep) || '—',           'For',          rfq.for_type === 'project' ? `Project: ${safe(rfq.project) || '—'}` : `Structure: ${safe(rfq.structure) || '—'}`],
-      ['Request Type', (rfq.request_type || []).join(', ') || '—', 'Items',    String((rfq.line_items || []).length)],
+      ['To',           recipientName,                            'RFQ Date',     fmtDate(rfq.date)],
+      [isOpenCall(rfq) ? 'Advertised On' : 'Address',
+                       recipientAddress || '—',                  'Source PR',    safe(rfq.pr_reference) || '—'],
+      ['Contact',      recipientContact || '—',                  'Currency',     safe(rfq.currency) || 'NGN'],
+      ['Scope',        isOpenCall(rfq) ? 'Open call' : 'Targeted',
+                                                                 'For',          rfq.for_type === 'project' ? `Project: ${safe(rfq.project) || '—'}` : `Structure: ${safe(rfq.structure) || '—'}`],
+      ['Request Type', (rfq.request_type || []).join(', ') || '—', 'Items',      String((rfq.line_items || []).length)],
     ],
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2.8, overflow: 'linebreak' },
@@ -243,29 +282,86 @@ async function exportPDF(rfq) {
     drawFooter(doc, i, total)
   }
 
-  doc.save(`${rfq.rfq_number || 'request-for-quotation'}.pdf`)
+  return doc.output('blob')
+}
+
+async function exportPDF(rfq) {
+  const logoData = await loadLogoBase64(logoSrc)
+  const baseName = rfq.rfq_number || 'request-for-quotation'
+
+  if (isOpenCall(rfq)) {
+    const blob = await buildPDFBlob(rfq, null, logoData)
+    saveBlob(blob, `${baseName}_open-call.pdf`)
+    return
+  }
+
+  const vendors = vendorList(rfq)
+  if (vendors.length === 0) {
+    const blob = await buildPDFBlob(rfq, null, logoData)
+    saveBlob(blob, `${baseName}.pdf`)
+    return
+  }
+
+  if (vendors.length === 1) {
+    const blob = await buildPDFBlob(rfq, vendors[0], logoData)
+    saveBlob(blob, `${baseName}_${slugify(vendors[0].name, 1)}.pdf`)
+    return
+  }
+
+  // Multiple vendors: build one PDF per vendor and zip them up. Each
+  // PDF is addressed personally so the procurement officer can forward
+  // straight to the right inbox without further editing.
+  const zip = new JSZip()
+  for (let i = 0; i < vendors.length; i++) {
+    const blob = await buildPDFBlob(rfq, vendors[i], logoData)
+    const name = `${baseName}_${slugify(vendors[i].name, i + 1)}.pdf`
+    zip.file(name, blob)
+  }
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  saveBlob(zipBlob, `${baseName}.zip`)
 }
 
 /* ================================================================== */
-/* CSV                                                                 */
+/* CSV — single file regardless of recipient count                     */
 /* ================================================================== */
 function exportCSV(rfq) {
   const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
   const symbol = rfq.currency_symbol || ''
+  const vendors = vendorList(rfq)
 
   const rows = [
     ['Request for Quotation'],
     ['Field', 'Value'],
     ['RFQ Number',          rfq.rfq_number || ''],
     ['Status',              (rfq.status || '').replace(/_/g, ' ')],
+    ['Scope',               isOpenCall(rfq) ? 'Open call' : 'Targeted'],
     ['RFQ Date',            fmtDate(rfq.date)],
     ['Source Purchase Request', rfq.pr_reference || ''],
-    [],
-    ['Supplier'],
-    ['Name',                rfq.supplier_name || ''],
-    ['Address',             rfq.supplier_address || ''],
-    ['Company Representative', rfq.company_rep || ''],
-    ['Contact',             rfq.contact || ''],
+  ]
+
+  if (isOpenCall(rfq)) {
+    rows.push([])
+    rows.push(['Open Call'])
+    rows.push(['Advertised On', rfq.advertised_on || ''])
+  } else {
+    rows.push([])
+    rows.push(['Vendors Invited'])
+    rows.push(['#', 'Name', 'Address', 'Contact Person', 'Phone', 'Email'])
+    if (vendors.length > 0) {
+      vendors.forEach((v, i) => rows.push([
+        i + 1,
+        v.name || '',
+        v.address || '',
+        v.contact_person || '',
+        v.phone || '',
+        v.email || '',
+      ]))
+    } else {
+      rows.push(['—', '(none selected)', '', '', '', ''])
+    }
+  }
+
+  rows.push(
     [],
     ['Request Type',        (rfq.request_type || []).join(', ')],
     [rfq.for_type === 'project' ? 'Project' : 'Structure',
@@ -296,30 +392,22 @@ function exportCSV(rfq) {
       rfq.received_by_signature || '',
       rfq.company_stamp || '',
     ],
-  ]
+  )
 
   const csv = rows.map((row) => row.map(escape).join(',')).join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${rfq.rfq_number || 'request-for-quotation'}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveBlob(blob, `${rfq.rfq_number || 'request-for-quotation'}.csv`)
 }
 
 /* ================================================================== */
-/* Word (.doc)                                                         */
+/* Word (.doc) — one HTML doc per recipient, zipped if >1              */
 /* ================================================================== */
-/**
- * Word will happily open an HTML file with a .doc extension and the
- * right Office namespaces in the <html> tag. That avoids pulling in a
- * heavy DOCX-generation library and gives the user an editable Word
- * document with reasonable fidelity for a single-page RFQ.
- */
-function exportDOC(rfq) {
+function buildDOCHtml(rfq, recipient) {
   const symbol = rfq.currency_symbol || ''
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const recipientName = recipient?.name || (isOpenCall(rfq) ? 'All qualified suppliers' : '')
+  const recipientAddress = recipient?.address || (isOpenCall(rfq) ? (rfq.advertised_on || '') : '')
+  const recipientContact = recipient?.contact_person || recipient?.phone || recipient?.email || ''
 
   const itemRows = (rfq.line_items || []).map((li, i) => `
     <tr>
@@ -332,7 +420,7 @@ function exportDOC(rfq) {
       <td style="text-align:right">${li.unit_cost ? esc(fmt(symbol, lineTotal(li))) : ''}</td>
     </tr>`).join('')
 
-  const html = `
+  return `
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset='utf-8'><title>${esc(rfq.rfq_number || 'RFQ')}</title>
 <style>
@@ -352,17 +440,16 @@ function exportDOC(rfq) {
     ${esc(rfq.rfq_number || '')} &middot; Status: ${esc((rfq.status || '').replace(/_/g, ' '))} &middot; ${esc(fmtDate(rfq.date))}
   </div>
 
-  <h2>Supplier</h2>
+  <h2>${isOpenCall(rfq) ? 'Open Call' : 'Recipient'}</h2>
   <table class="meta-grid">
-    <tr><td class="label">Name</td><td>${esc(rfq.supplier_name || '')}</td>
+    <tr><td class="label">To</td><td>${esc(recipientName)}</td>
         <td class="label">Source PR</td><td>${esc(rfq.pr_reference || '—')}</td></tr>
-    <tr><td class="label">Address</td><td>${esc(rfq.supplier_address || '')}</td>
+    <tr><td class="label">${isOpenCall(rfq) ? 'Advertised On' : 'Address'}</td><td>${esc(recipientAddress)}</td>
         <td class="label">Currency</td><td>${esc(rfq.currency || 'NGN')}</td></tr>
-    <tr><td class="label">Company Rep</td><td>${esc(rfq.company_rep || '')}</td>
+    <tr><td class="label">Contact</td><td>${esc(recipientContact)}</td>
         <td class="label">${rfq.for_type === 'project' ? 'Project' : 'Structure'}</td>
         <td>${esc(rfq.for_type === 'project' ? (rfq.project || '') : (rfq.structure || ''))}</td></tr>
-    <tr><td class="label">Contact</td><td>${esc(rfq.contact || '')}</td>
-        <td class="label">Request Type</td><td>${esc((rfq.request_type || []).join(', '))}</td></tr>
+    <tr><td class="label">Request Type</td><td colspan="3">${esc((rfq.request_type || []).join(', '))}</td></tr>
   </table>
 
   <h2>Itemized List</h2>
@@ -393,14 +480,37 @@ function exportDOC(rfq) {
   </div>
 </body>
 </html>`
+}
 
-  const blob = new Blob([html], { type: 'application/msword' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${rfq.rfq_number || 'request-for-quotation'}.doc`
-  a.click()
-  URL.revokeObjectURL(url)
+async function exportDOC(rfq) {
+  const baseName = rfq.rfq_number || 'request-for-quotation'
+
+  if (isOpenCall(rfq)) {
+    const html = buildDOCHtml(rfq, null)
+    saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}_open-call.doc`)
+    return
+  }
+
+  const vendors = vendorList(rfq)
+  if (vendors.length === 0) {
+    const html = buildDOCHtml(rfq, null)
+    saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}.doc`)
+    return
+  }
+
+  if (vendors.length === 1) {
+    const html = buildDOCHtml(rfq, vendors[0])
+    saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}_${slugify(vendors[0].name, 1)}.doc`)
+    return
+  }
+
+  const zip = new JSZip()
+  vendors.forEach((v, i) => {
+    const html = buildDOCHtml(rfq, v)
+    zip.file(`${baseName}_${slugify(v.name, i + 1)}.doc`, html)
+  })
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  saveBlob(zipBlob, `${baseName}_doc.zip`)
 }
 
 /* ================================================================== */

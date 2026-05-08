@@ -132,16 +132,25 @@ export default function RequestForQuotation() {
 
         <div className="table-wrapper">
           <table className="data-table">
-            <thead><tr><th>RFQ #</th><th>Title</th><th>PR Ref</th><th>Deadline</th><th>Quotes</th><th>Status</th><th>Created</th><th style={{ width: 120 }}>Actions</th></tr></thead>
+            <thead><tr><th>RFQ #</th><th>Title</th><th>Recipients</th><th>PR Ref</th><th>Deadline</th><th>Quotes</th><th>Status</th><th>Created</th><th style={{ width: 120 }}>Actions</th></tr></thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
+                <tr><td colSpan={9} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={8} className="hr-empty-cell">No RFQs found</td></tr>
+                <tr><td colSpan={9} className="hr-empty-cell">No RFQs found</td></tr>
               ) : items.map((r) => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{r.rfq_number}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.title}</td>
+                  <td style={{ fontSize: 12 }}>
+                    {r.scope === 'open' ? (
+                      <span style={{ color: 'var(--text-muted)' }}>Open call</span>
+                    ) : (r.vendors_count ?? 0) > 0 ? (
+                      <>{r.vendors_count} vendor{r.vendors_count === 1 ? '' : 's'}</>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    )}
+                  </td>
                   <td>{r.pr_reference || '—'}</td>
                   <td style={{ fontSize: 12 }}>{fmtDate(r.deadline)}</td>
                   <td>{r.quotes_count ?? '—'}</td>
@@ -188,8 +197,28 @@ export default function RequestForQuotation() {
               <span><strong>Deadline:</strong> {fmtDate(viewItem.deadline)}</span>
               <span><strong>Quotes:</strong> {viewItem.quotes_count ?? '—'}</span>
               <span><strong>Status:</strong> {capitalize(viewItem.status)}</span>
+              <span><strong>Scope:</strong> {viewItem.scope === 'open' ? 'Open call' : 'Targeted'}</span>
               <span><strong>Created:</strong> {fmtDate(viewItem.created_at)}</span>
             </div>
+            {viewItem.scope === 'open' && viewDetail?.advertised_on && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 8px' }}>
+                <strong>Advertised on:</strong> {viewDetail.advertised_on}
+              </div>
+            )}
+            {viewItem.scope !== 'open' && Array.isArray(viewDetail?.vendors) && viewDetail.vendors.length > 0 && (
+              <div style={{ margin: '4px 0 8px' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Vendors invited ({viewDetail.vendors.length})</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {viewDetail.vendors.map((v) => (
+                    <span key={v.id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: 'var(--surface-2, #f1f5f9)', border: '1px solid var(--border, #cbd5e1)',
+                      borderRadius: 999, padding: '2px 10px', fontSize: 12,
+                    }}>{v.name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="note-detail-content">{viewItem.description || 'No description'}</div>
             <ActivityLog entries={viewDetail?.audit_log || []} />
             <div className="hr-form-actions">

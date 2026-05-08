@@ -46,18 +46,25 @@ function buildInitialForm() {
     /* RFQs default to 'open' — once saved, the document is ready to be
        downloaded and forwarded to vendors. */
     status: 'open',
+    /* Free-text title shown in the listings table. Defaults to a
+       structure/project-derived label on save if left blank. */
+    title: '',
+    /* Targeted = invite a specific list of vendors. Open = public call
+       where any qualified vendor may respond; recipient pinning is
+       skipped and `advertised_on` records where the call was published. */
+    scope: 'targeted',
+    /* Where the open call was advertised (newspaper, website, board…).
+       Only used when scope === 'open'. */
+    advertised_on: '',
+    /* Multi-select: vendor IDs invited to quote on this RFQ (targeted). */
+    vendor_ids: [],
     /* Optional source PR (must be approved). When set, line items are
        pulled from the PR — the RFQ is asking a vendor to quote for an
        already-approved request. */
     pr_reference: '',
     pr_id: '',
-    /* Supplier header */
-    supplier_id: '',
-    supplier_name: '',
-    supplier_address: '',
+    /* Header / dates */
     date: todayStr(),
-    company_rep: '',
-    contact: '',
     /* Request type */
     request_type: [],          // multi-select: Goods / Works / Services
     /* For — exclusive: an RFQ targets either a Project or a Structure. */
@@ -99,10 +106,9 @@ export default function CreateRequestForQuotation() {
 
   /* Edit mode: hydrate the form from the existing RFQ. We pull the
      full detail array (which includes items + audit log) so every
-     field round-trips faithfully. The supplier auto-fill fields are
-     filled directly from the saved RFQ rather than re-running the
-     vendor lookup, so an RFQ written before a vendor was edited
-     keeps showing the values it was created with. */
+     field round-trips faithfully. Vendor selection is taken from the
+     RFQ's `vendors[]` pivot (with `vendor_id` as a single-vendor
+     fallback for legacy rows that pre-date the multi-vendor migration). */
   useEffect(() => {
     if (!isEdit || !editId) return
     let cancelled = false
@@ -114,17 +120,20 @@ export default function CreateRequestForQuotation() {
         if (!rfq) return
 
         const hasProject = !!rfq.project_code
+        const vendorIds = Array.isArray(rfq.vendors) && rfq.vendors.length > 0
+          ? rfq.vendors.map((v) => v.id)
+          : (rfq.vendor_id ? [rfq.vendor_id] : [])
+
         setForm({
           rfq_number: rfq.rfq_number || generateRFQNumber(),
           status: rfq.status || 'open',
+          title: rfq.title || '',
+          scope: rfq.scope || 'targeted',
+          advertised_on: rfq.advertised_on || '',
+          vendor_ids: vendorIds,
           pr_reference: rfq.pr_reference || '',
           pr_id: '',
-          supplier_id: rfq.vendor_id || '',
-          supplier_name: rfq.supplier_name || rfq.vendor_name || '',
-          supplier_address: rfq.supplier_address || '',
           date: rfq.issue_date || rfq.created_at?.slice(0, 10) || todayStr(),
-          company_rep: rfq.contact_person || '',
-          contact: rfq.supplier_phone || rfq.supplier_email || '',
           request_type: Array.isArray(rfq.request_types) ? rfq.request_types : [],
           for_type: hasProject ? 'project' : 'structure',
           structure: rfq.structure || '',
@@ -302,32 +311,37 @@ export default function CreateRequestForQuotation() {
       .catch(() => {})
   }
 
-  /* When a vendor is picked from the dropdown, fill the address /
-     company representative / contact fields so the procurement officer
-     doesn't have to retype data we already have on file. Manual edits
-     stay possible — the inputs remain editable. */
-  function handleVendorSelect(vendorId) {
-    const v = vendors.find((x) => x.id === vendorId)
-    if (!v) {
-      setForm((p) => ({
-        ...p,
-        supplier_id: '',
-        supplier_name: '',
-        supplier_address: '',
-        company_rep: '',
-        contact: '',
-      }))
-      return
-    }
-    setForm((p) => ({
-      ...p,
-      supplier_id: v.id,
-      supplier_name: v.name || '',
-      supplier_address: v.address || '',
-      company_rep: v.contact_person || '',
-      contact: v.phone || v.email || '',
-    }))
+  /* Multi-vendor selection: a vendor is added to `vendor_ids` when picked
+     from the dropdown and removed via the chip's X. Vendor records carry
+     name / address / contact themselves, so the form no longer mirrors
+     those fields — each per-vendor PDF is generated from the vendor's
+     own data at download time. */
+  function addVendor(vendorId) {
+    if (!vendorId) return
+    setForm((p) => p.vendor_ids.includes(vendorId)
+      ? p
+      : { ...p, vendor_ids: [...p.vendor_ids, vendorId] })
   }
+  function removeVendor(vendorId) {
+    setForm((p) => ({ ...p, vendor_ids: p.vendor_ids.filter((id) => id !== vendorId) }))
+  }
+  function setScope(scope) {
+    // Switching to open call clears any selected vendors; switching back
+    // to targeted clears the advertised_on free text.
+    setForm((p) => scope === 'open'
+      ? { ...p, scope, vendor_ids: [] }
+      : { ...p, scope, advertised_on: '' })
+  }
+
+  const selectedVendors = useMemo(() => (
+    form.vendor_ids
+      .map((id) => vendors.find((v) => v.id === id))
+      .filter(Boolean)
+  ), [form.vendor_ids, vendors])
+
+  const availableVendors = useMemo(() => (
+    vendors.filter((v) => !form.vendor_ids.includes(v.id))
+  ), [vendors, form.vendor_ids])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -420,16 +434,22 @@ export default function CreateRequestForQuotation() {
     // field that matches the form's for_type so the API doesn't get
     // both populated.
     const isProject = form.for_type === 'project'
+    const isOpenCall = form.scope === 'open'
+
+    // If the user didn't type a Title, derive a sensible default so the
+    // RFQ shows up in the listings table with something readable.
+    const derivedTitle = isProject
+      ? `RFQ for ${form.project || 'project'}`
+      : `RFQ for ${form.structure || 'structure'}`
 
     return {
-      title: form.supplier_name || 'RFQ',
+      title: form.title?.trim() || derivedTitle,
       status: form.status || 'open',
+      scope: form.scope || 'targeted',
+      advertised_on: isOpenCall ? (form.advertised_on || undefined) : undefined,
+      vendor_ids: isOpenCall ? [] : form.vendor_ids,
       issue_date: form.date,
       pr_reference: form.pr_reference || undefined,
-      supplier_name: form.supplier_name,
-      supplier_address: form.supplier_address,
-      contact_person: form.company_rep,
-      supplier_phone: form.contact,
       request_types: form.request_type,
       structure: !isProject ? (form.structure || undefined) : undefined,
       project_code: isProject ? (form.project || undefined) : undefined,
@@ -467,9 +487,20 @@ export default function CreateRequestForQuotation() {
     return res?.data?.rfq || res?.data || res
   }
 
+  /* Frontend guard so the user gets immediate feedback before the
+     backend rejects the payload. The backend enforces the same rules. */
+  function preflight() {
+    if (form.scope === 'targeted' && form.vendor_ids.length === 0) {
+      return 'Pick at least one vendor for a targeted RFQ, or switch to Open call.'
+    }
+    return null
+  }
+
   /* "Save" — create or update the RFQ, then return to the list. */
   async function handleSubmit(e) {
     e.preventDefault()
+    const blocker = preflight()
+    if (blocker) { setFormError(blocker); return }
     setSubmitting(true)
     setFormError('')
     try {
@@ -486,6 +517,8 @@ export default function CreateRequestForQuotation() {
      RFQ in the chosen format. The system never sends the document to
      the vendor; the procurement officer forwards it manually. */
   async function handleSaveAndDownload() {
+    const blocker = preflight()
+    if (blocker) { setFormError(blocker); return }
     setSubmitting(true)
     setFormError('')
     try {
@@ -493,10 +526,27 @@ export default function CreateRequestForQuotation() {
       // Build the export view-model from the form (so the download
       // reflects what the user sees) and overlay the server-side fields
       // (rfq_number, status etc) that may have been re-issued on save.
+      // Vendors come from the freshly-saved RFQ when available — that
+      // way the per-vendor PDFs are addressed using the canonical vendor
+      // record, not whatever was cached in `vendors` state.
+      const savedVendors = Array.isArray(saved?.vendors) && saved.vendors.length > 0
+        ? saved.vendors
+        : selectedVendors.map((v) => ({
+            id: v.id,
+            name: v.name,
+            address: v.address,
+            phone: v.phone,
+            email: v.email,
+            contact_person: v.contact_person,
+          }))
+
       const viewModel = {
         ...form,
         rfq_number: saved?.rfq_number || form.rfq_number,
         status: saved?.status || form.status,
+        scope: saved?.scope || form.scope,
+        advertised_on: saved?.advertised_on || form.advertised_on,
+        vendors: savedVendors,
         grand_total: grandTotal,
         currency_symbol: currencyInfo.symbol,
         currency_rate: currencyInfo.rate,
@@ -531,8 +581,8 @@ export default function CreateRequestForQuotation() {
             </div>
           )}
 
-          {/* ── Supplier Header ── */}
-          <p className="hr-form-section-title">Supplier Information</p>
+          {/* ── RFQ Header ── */}
+          <p className="hr-form-section-title">RFQ Information</p>
 
           <div className="hr-form-row">
             <div className="hr-form-field">
@@ -555,6 +605,18 @@ export default function CreateRequestForQuotation() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
+              <label>Title</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => updateField('title', e.target.value)}
+                placeholder="e.g. Office furniture — Q2 2026 (auto-derived if left blank)"
+              />
+            </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
               <label>Source Purchase Request</label>
               <select value={form.pr_reference} onChange={(e) => handlePRSelect(e.target.value)}>
                 <option value="">— None —</option>
@@ -570,41 +632,126 @@ export default function CreateRequestForQuotation() {
             </div>
           </div>
 
-          <div className="hr-form-row">
-            <div className="hr-form-field">
-              <label>Name of Supplier *</label>
-              <select
-                value={form.supplier_id}
-                onChange={(e) => handleVendorSelect(e.target.value)}
-                required
-              >
-                <option value="">Select a vendor…</option>
-                {vendors.map((v) => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
-                ))}
-              </select>
-              {vendors.length === 0 && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                  No vendors yet — add one in Procurement → Vendors first.
-                </span>
-              )}
-            </div>
-            <div className="hr-form-field">
-              <label>Address *</label>
-              <input type="text" value={form.supplier_address} onChange={(e) => updateField('supplier_address', e.target.value)} placeholder="Auto-filled from vendor" required />
+          {/* ── Scope: targeted (multi-vendor) vs open call ── */}
+          <p className="hr-form-section-title">Recipients</p>
+
+          <div className="hr-form-row" style={{ marginBottom: 4 }}>
+            <div className="hr-form-field" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>This RFQ is:</span>
+              <label className="rfq-checkbox-label" style={{ cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="rfq_scope"
+                  value="targeted"
+                  checked={form.scope === 'targeted'}
+                  onChange={() => setScope('targeted')}
+                />
+                <span>Targeted — invite specific vendors</span>
+              </label>
+              <label className="rfq-checkbox-label" style={{ cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="rfq_scope"
+                  value="open"
+                  checked={form.scope === 'open'}
+                  onChange={() => setScope('open')}
+                />
+                <span>Open call — any qualified vendor</span>
+              </label>
             </div>
           </div>
 
-          <div className="hr-form-row">
-            <div className="hr-form-field">
-              <label>Company Representative *</label>
-              <input type="text" value={form.company_rep} onChange={(e) => updateField('company_rep', e.target.value)} placeholder="Auto-filled from vendor" required />
+          {form.scope === 'targeted' ? (
+            <>
+              <div className="hr-form-row">
+                <div className="hr-form-field">
+                  <label>Add Vendor *</label>
+                  <select
+                    value=""
+                    onChange={(e) => { addVendor(e.target.value); e.target.value = '' }}
+                  >
+                    <option value="">Select a vendor to add…</option>
+                    {availableVendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                  {vendors.length === 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                      No vendors yet — add one in Procurement → Vendors first.
+                    </span>
+                  )}
+                  {vendors.length > 0 && availableVendors.length === 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                      All available vendors have been added.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {selectedVendors.length > 0 && (
+                <div className="hr-form-row">
+                  <div className="hr-form-field" style={{ width: '100%' }}>
+                    <label>Selected Vendors ({selectedVendors.length})</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                      {selectedVendors.map((v) => (
+                        <span
+                          key={v.id}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: 'var(--surface-2, #f1f5f9)',
+                            border: '1px solid var(--border, #cbd5e1)',
+                            borderRadius: 999,
+                            padding: '4px 10px',
+                            fontSize: 12,
+                          }}
+                          title={[v.address, v.contact_person, v.phone, v.email].filter(Boolean).join(' · ')}
+                        >
+                          <strong>{v.name}</strong>
+                          {v.contact_person && <span style={{ color: 'var(--text-muted)' }}>· {v.contact_person}</span>}
+                          <button
+                            type="button"
+                            onClick={() => removeVendor(v.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              color: 'var(--text-muted)',
+                            }}
+                            aria-label={`Remove ${v.name}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, display: 'block' }}>
+                      One personalised RFQ document will be generated per vendor on download. If you select more than one, the files come bundled in a .zip.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="hr-form-row">
+              <div className="hr-form-field" style={{ width: '100%' }}>
+                <label>Advertised On</label>
+                <textarea
+                  value={form.advertised_on}
+                  onChange={(e) => updateField('advertised_on', e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Daily Trust newspaper, casi360.com/tenders, office notice board (May–Jun 2026)"
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Where the open call was published. Quotes will be received from any qualified vendor — register them on the Vendor list as responses arrive.
+                </span>
+              </div>
             </div>
-            <div className="hr-form-field">
-              <label>Contact *</label>
-              <input type="text" value={form.contact} onChange={(e) => updateField('contact', e.target.value)} placeholder="Auto-filled from vendor" required />
-            </div>
-          </div>
+          )}
 
           {/* ── Request Type ── */}
           <p className="hr-form-section-title">Request for the Price of</p>
