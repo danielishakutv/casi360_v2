@@ -12,12 +12,19 @@ import EmployeePicker from '../../components/EmployeePicker'
 
 const MANAGER_ROLES = ['super_admin', 'admin', 'manager']
 
-const STATUSES = ['active', 'inactive', 'on_leave', 'terminated']
+// Backend accepts active / on_leave / terminated. Frontend used to also
+// list "inactive", which the API silently rejected with a 422 — keep
+// the two in sync.
+const STATUSES = ['active', 'on_leave', 'terminated']
 const GENDERS  = ['male', 'female', 'other']
 
+const TODAY_ISO = () => new Date().toISOString().slice(0, 10)
+
+// Default join_date to today so a fresh form doesn't fail validation
+// on an easily-missed required field. Editable as usual.
 const INITIAL_FORM = {
   name: '', email: '', phone: '', gender: '', date_of_birth: '',
-  department_id: '', designation_id: '', manager: '', join_date: '',
+  department_id: '', designation_id: '', manager: '', join_date: TODAY_ISO(),
   salary: '', status: 'active', address: '',
   emergency_contact_name: '', emergency_contact_phone: '',
 }
@@ -430,8 +437,8 @@ export default function StaffList() {
           <h4 className="hr-form-section-title">Employment Details</h4>
           <div className="hr-form-grid">
             <div className="hr-form-field">
-              <label>Department</label>
-              <select value={form.department_id} onChange={(e) => updateField('department_id', e.target.value)}>
+              <label>Department *</label>
+              <select value={form.department_id} onChange={(e) => updateField('department_id', e.target.value)} required>
                 <option value="">Select department</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -440,8 +447,8 @@ export default function StaffList() {
               {formErrors.department_id && <span className="hr-field-error">{formErrors.department_id[0]}</span>}
             </div>
             <div className="hr-form-field">
-              <label>Designation</label>
-              <select value={form.designation_id} onChange={(e) => updateField('designation_id', e.target.value)}>
+              <label>Designation *</label>
+              <select value={form.designation_id} onChange={(e) => updateField('designation_id', e.target.value)} required>
                 <option value="">Select designation</option>
                 {designations.map((d) => (
                   <option key={d.id} value={d.id}>{d.title}</option>
@@ -470,12 +477,14 @@ export default function StaffList() {
               )}
             </div>
             <div className="hr-form-field">
-              <label>Join Date</label>
+              <label>Join Date *</label>
               <input
                 type="date"
                 value={form.join_date}
                 onChange={(e) => updateField('join_date', e.target.value)}
+                required
               />
+              {formErrors.join_date && <span className="hr-field-error">{formErrors.join_date[0]}</span>}
             </div>
             <div className="hr-form-field">
               <label>Salary</label>
