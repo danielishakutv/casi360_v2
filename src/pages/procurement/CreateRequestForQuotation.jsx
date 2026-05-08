@@ -1,13 +1,20 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom'
+import { ArrowLeft, PlusCircle, X, AlertCircle, Download } from 'lucide-react'
 import { rfqApi, purchaseRequestsApi, vendorsApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
 import { usersApi } from '../../services/api'
 import { extractItems } from '../../utils/apiHelpers'
+import { exportRFQ } from '../../utils/rfqExport'
 
 /* ─── Constants ─── */
 const REQUEST_TYPES = ['Goods', 'Works', 'Services']
+const RFQ_STATUSES = ['draft', 'open', 'closed', 'awarded', 'cancelled']
+const DOWNLOAD_FORMATS = [
+  { value: 'pdf', label: 'PDF' },
+  { value: 'doc', label: 'Word (.doc)' },
+  { value: 'csv', label: 'CSV' },
+]
 
 // Users in these departments (or admin / super_admin) can sign off the
 // RFQ "Received By" block — procurement and logistics staff plus the
@@ -36,6 +43,9 @@ function generateRFQNumber() {
 function buildInitialForm() {
   return {
     rfq_number: generateRFQNumber(),
+    /* RFQs default to 'open' — once saved, the document is ready to be
+       downloaded and forwarded to vendors. */
+    status: 'open',
     /* Optional source PR (must be approved). When set, line items are
        pulled from the PR — the RFQ is asking a vendor to quote for an
        already-approved request. */
@@ -74,6 +84,8 @@ export default function CreateRequestForQuotation() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const incomingPrId = searchParams.get('pr_id')
+  const { id: editId } = useParams()
+  const isEdit = Boolean(editId)
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [approvedPRs, setApprovedPRs] = useState([])
@@ -82,12 +94,73 @@ export default function CreateRequestForQuotation() {
   const [projectTeamMembers, setProjectTeamMembers] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  const [loadingEdit, setLoadingEdit] = useState(isEdit)
+  const [downloadFormat, setDownloadFormat] = useState('pdf')
+
+  /* Edit mode: hydrate the form from the existing RFQ. We pull the
+     full detail array (which includes items + audit log) so every
+     field round-trips faithfully. The supplier auto-fill fields are
+     filled directly from the saved RFQ rather than re-running the
+     vendor lookup, so an RFQ written before a vendor was edited
+     keeps showing the values it was created with. */
+  useEffect(() => {
+    if (!isEdit || !editId) return
+    let cancelled = false
+    setLoadingEdit(true)
+    rfqApi.get(editId)
+      .then((res) => {
+        if (cancelled) return
+        const rfq = res?.data?.rfq || res?.data || res
+        if (!rfq) return
+
+        const hasProject = !!rfq.project_code
+        setForm({
+          rfq_number: rfq.rfq_number || generateRFQNumber(),
+          status: rfq.status || 'open',
+          pr_reference: rfq.pr_reference || '',
+          pr_id: '',
+          supplier_id: rfq.vendor_id || '',
+          supplier_name: rfq.supplier_name || rfq.vendor_name || '',
+          supplier_address: rfq.supplier_address || '',
+          date: rfq.issue_date || rfq.created_at?.slice(0, 10) || todayStr(),
+          company_rep: rfq.contact_person || '',
+          contact: rfq.supplier_phone || rfq.supplier_email || '',
+          request_type: Array.isArray(rfq.request_types) ? rfq.request_types : [],
+          for_type: hasProject ? 'project' : 'structure',
+          structure: rfq.structure || '',
+          project: rfq.project_code || '',
+          currency: rfq.currency || 'NGN',
+          line_items: (rfq.items || []).length > 0
+            ? rfq.items.map((it) => ({
+                item: it.item_number || '',
+                description: it.description || '',
+                unit: it.unit || '',
+                quantity: it.quantity ?? '',
+                unit_cost: it.unit_cost ?? '',
+              }))
+            : [{ ...EMPTY_LINE_ITEM }],
+          delivery_location: rfq.delivery_address || '',
+          delivery_duration: rfq.delivery_terms || '',
+          received_by_name: (rfq.signoffs || [])[0]?.name || '',
+          received_by_date: (rfq.signoffs || [])[0]?.date || todayStr(),
+          received_by_signature: (rfq.signoffs || [])[0]?.signature || '',
+          company_stamp: '',
+        })
+      })
+      .catch((err) => {
+        if (!cancelled) setFormError(err?.message || 'Failed to load RFQ for editing.')
+      })
+      .finally(() => { if (!cancelled) setLoadingEdit(false) })
+    return () => { cancelled = true }
+  }, [isEdit, editId])
 
   /* Pre-fill pr_reference when arriving from a PR's "Create RFQ" button.
+     Skipped in edit mode — an existing RFQ already has its source PR.
      We wait for the approved-PR list to load so the picker can render
      the matching <option>; if the PR isn't in the list we fetch it
      directly so the link still works. */
   useEffect(() => {
+    if (isEdit) return
     if (!incomingPrId) return
     if (form.pr_reference) return
     const match = approvedPRs.find((pr) => pr.id === incomingPrId)
@@ -350,7 +423,8 @@ export default function CreateRequestForQuotation() {
 
     return {
       title: form.supplier_name || 'RFQ',
-      date: form.date,
+      status: form.status || 'open',
+      issue_date: form.date,
       pr_reference: form.pr_reference || undefined,
       supplier_name: form.supplier_name,
       supplier_address: form.supplier_address,
@@ -379,33 +453,58 @@ export default function CreateRequestForQuotation() {
     setFormError(err.errors ? Object.values(err.errors).flat().join(', ') : (err.message || fallback))
   }
 
-  /* "Save as Draft" — creates the RFQ in draft status and exits. */
-  function handleSubmit(e) {
+  /* Persist the RFQ — POST on create, PATCH on edit — and return the
+     freshly-saved RFQ so the caller can decide whether to navigate
+     away or download the document. Backend handles the audit log
+     automatically (rfq_created / rfq_updated). */
+  async function persistRfq() {
+    const payload = buildPayload()
+    if (isEdit) {
+      const res = await rfqApi.update(editId, payload)
+      return res?.data?.rfq || res?.data || res
+    }
+    const res = await rfqApi.create(payload)
+    return res?.data?.rfq || res?.data || res
+  }
+
+  /* "Save" — create or update the RFQ, then return to the list. */
+  async function handleSubmit(e) {
     e.preventDefault()
     setSubmitting(true)
     setFormError('')
-
-    rfqApi.create(buildPayload())
-      .then(() => navigate('/procurement/rfq'))
-      .catch((err) => handleErr(err, 'Failed to create RFQ'))
-      .finally(() => setSubmitting(false))
+    try {
+      await persistRfq()
+      navigate('/procurement/rfq')
+    } catch (err) {
+      handleErr(err, isEdit ? 'Failed to update RFQ' : 'Failed to create RFQ')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  /* "Save & Send to Vendor" — creates the RFQ then transitions it from
-     draft → sent via the dedicated submit endpoint, marking it live. */
-  async function handleSaveAndSend() {
+  /* "Save & Download" — saves first, then downloads the freshly-saved
+     RFQ in the chosen format. The system never sends the document to
+     the vendor; the procurement officer forwards it manually. */
+  async function handleSaveAndDownload() {
     setSubmitting(true)
     setFormError('')
     try {
-      const res = await rfqApi.create(buildPayload())
-      const data = res?.data?.rfq || res?.data || res
-      const newId = data?.id
-      if (newId) {
-        await rfqApi.submit(newId)
+      const saved = await persistRfq()
+      // Build the export view-model from the form (so the download
+      // reflects what the user sees) and overlay the server-side fields
+      // (rfq_number, status etc) that may have been re-issued on save.
+      const viewModel = {
+        ...form,
+        rfq_number: saved?.rfq_number || form.rfq_number,
+        status: saved?.status || form.status,
+        grand_total: grandTotal,
+        currency_symbol: currencyInfo.symbol,
+        currency_rate: currencyInfo.rate,
       }
+      exportRFQ(downloadFormat, viewModel)
       navigate('/procurement/rfq')
     } catch (err) {
-      handleErr(err, 'Failed to send RFQ')
+      handleErr(err, isEdit ? 'Failed to save and download RFQ' : 'Failed to create and download RFQ')
     } finally {
       setSubmitting(false)
     }
@@ -418,7 +517,7 @@ export default function CreateRequestForQuotation() {
         <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/rfq')}>
           <ArrowLeft size={16} /> Back to RFQs
         </button>
-        <h2 className="pr-page-title">New Request for Quotation</h2>
+        <h2 className="pr-page-title">{isEdit ? `Edit RFQ ${form.rfq_number}` : 'New Request for Quotation'}</h2>
       </div>
 
       <div className="card">
@@ -443,6 +542,14 @@ export default function CreateRequestForQuotation() {
             <div className="hr-form-field">
               <label>Date</label>
               <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} />
+            </div>
+            <div className="hr-form-field">
+              <label>Status</label>
+              <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
+                {RFQ_STATUSES.map((s) => (
+                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -685,21 +792,38 @@ export default function CreateRequestForQuotation() {
           </div>
 
           {/* ── Actions ── */}
-          <div className="hr-form-actions">
+          <div className="hr-form-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/rfq')}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Save as Draft'}
+            <button type="submit" className="hr-btn-primary" disabled={submitting || loadingEdit}>
+              {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Save'}
             </button>
-            <button
-              type="button"
-              className="hr-btn-primary"
-              style={{ background: 'var(--success, #16a34a)' }}
-              disabled={submitting}
-              onClick={handleSaveAndSend}
-            >
-              {submitting ? 'Sending…' : 'Save & Send to Vendor'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <select
+                value={downloadFormat}
+                onChange={(e) => setDownloadFormat(e.target.value)}
+                style={{ minWidth: 110 }}
+                disabled={submitting || loadingEdit}
+                aria-label="Download format"
+              >
+                {DOWNLOAD_FORMATS.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="hr-btn-primary"
+                style={{ background: 'var(--success, #16a34a)' }}
+                disabled={submitting || loadingEdit}
+                onClick={handleSaveAndDownload}
+              >
+                <Download size={14} style={{ marginRight: 4 }} />
+                {submitting ? 'Saving…' : `Save & Download ${downloadFormat.toUpperCase()}`}
+              </button>
+            </div>
           </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Save & Download persists the RFQ first, then downloads the file in the chosen format. Forward the document to vendors yourself — the system does not email it.
+          </p>
         </form>
       </div>
     </div>

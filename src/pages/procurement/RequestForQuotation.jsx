@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Store } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Store, FileEdit } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { rfqApi, purchaseRequestsApi } from '../../services/procurement'
@@ -19,7 +19,7 @@ const PER_PAGE = 15
 
 const INITIAL_FORM = {
   title: '', description: '', pr_reference: '',
-  deadline: '', status: 'draft', notes: '',
+  deadline: '', status: 'open', notes: '',
 }
 
 export default function RequestForQuotation() {
@@ -160,7 +160,10 @@ export default function RequestForQuotation() {
                         </button>
                       )}
                       {can('procurement.rfq.edit') && (
-                        <button className="hr-action-btn" onClick={() => openEdit(r)} title="Edit"><Pencil size={15} /></button>
+                        <>
+                          <button className="hr-action-btn" onClick={() => openEdit(r)} title="Quick edit (title, status, notes)"><Pencil size={15} /></button>
+                          <button className="hr-action-btn" onClick={() => navigate(`/procurement/rfq/${r.id}/edit`)} title="Full edit (supplier, items, sign-off)"><FileEdit size={15} /></button>
+                        </>
                       )}
                       {can('procurement.rfq.delete') && (
                         <button className="hr-action-btn danger" onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 size={15} /></button>
