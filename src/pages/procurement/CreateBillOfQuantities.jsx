@@ -315,9 +315,9 @@ export default function CreateBillOfQuantities() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
-              <label>Category</label>
+              <label>Budget Category</label>
               <select value={form.category} onChange={(e) => updateField('category', e.target.value)}>
-                <option value="">Select category...</option>
+                <option value="">Select budget category...</option>
                 {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 {form.category && !categories.some((c) => c.name === form.category) && (
                   <option value={form.category}>{form.category}</option>

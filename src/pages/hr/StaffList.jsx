@@ -1,12 +1,16 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Search, Plus, Pencil, UserX, AlertCircle } from 'lucide-react'
 import { employeesApi, departmentsApi, designationsApi } from '../../services/hr'
+import { usersApi } from '../../services/api'
 import { capitalize } from '../../utils/capitalize'
 import { useDebounce } from '../../hooks/useDebounce'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
+import EmployeePicker from '../../components/EmployeePicker'
+
+const MANAGER_ROLES = ['super_admin', 'admin', 'manager']
 
 const STATUSES = ['active', 'inactive', 'on_leave', 'terminated']
 const GENDERS  = ['male', 'female', 'other']
@@ -30,6 +34,7 @@ export default function StaffList() {
   const [meta, setMeta] = useState(null)
   const [departments, setDepartments] = useState([])
   const [designations, setDesignations] = useState([])
+  const [managerCandidates, setManagerCandidates] = useState([])
   const [loading, setLoading] = useState(true)
 
   /* -------- Filters -------- */
@@ -53,7 +58,7 @@ export default function StaffList() {
 
   const [error, setError] = useState('')
 
-  /* ---- Load lookup data (departments & designations) ---- */
+  /* ---- Load lookup data (departments, designations, manager candidates) ---- */
   useEffect(() => {
     Promise.all([
       departmentsApi.list({ per_page: 0 }),
@@ -62,7 +67,47 @@ export default function StaffList() {
       setDepartments(extractItems(dRes))
       setDesignations(extractItems(dgRes))
     }).catch(() => {})
+
+    // Manager picker: every super_admin / admin / manager user is a
+    // potential manager. Fetched once and filtered in-memory by the
+    // department selected in the form. The endpoint accepts a single
+    // `role` filter, so we issue one request per role and merge.
+    Promise.all(MANAGER_ROLES.map((role) => usersApi.list({ role, per_page: 100 })))
+      .then((responses) => {
+        const merged = []
+        const seen = new Set()
+        responses.forEach((res) => {
+          const data = res?.data || res
+          const list = data?.users || extractItems(res) || []
+          list.forEach((u) => {
+            if (u?.id && !seen.has(u.id) && u.status === 'active') {
+              seen.add(u.id)
+              merged.push(u)
+            }
+          })
+        })
+        setManagerCandidates(merged)
+      })
+      .catch(() => {})
   }, [])
+
+  /* ---- Filter manager candidates by the form's selected department ---- */
+  const selectedDeptName = useMemo(() => {
+    return departments.find((d) => d.id === form.department_id)?.name || ''
+  }, [departments, form.department_id])
+
+  const filteredManagers = useMemo(() => {
+    const shaped = managerCandidates.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      department: u.department,
+      // Surface the role as the secondary line in the picker.
+      position: capitalize((u.role || '').replace(/_/g, ' ')),
+    }))
+    if (!selectedDeptName) return shaped
+    return shaped.filter((u) => (u.department || '') === selectedDeptName)
+  }, [managerCandidates, selectedDeptName])
 
   /* ================================================================ */
   /* Fetch list                                                       */
@@ -406,12 +451,23 @@ export default function StaffList() {
             </div>
             <div className="hr-form-field">
               <label>Manager</label>
-              <input
-                type="text"
+              <EmployeePicker
+                employees={filteredManagers}
                 value={form.manager}
-                onChange={(e) => updateField('manager', e.target.value)}
-                placeholder="Manager name"
+                onSelect={(u) => updateField('manager', u.name || '')}
+                onTextChange={(text) => updateField('manager', text)}
+                placeholder={form.department_id ? 'Search admins / managers in this department...' : 'Pick a department first to filter…'}
               />
+              {!form.department_id && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Select a department above and only its managers / admins will appear here.
+                </span>
+              )}
+              {form.department_id && filteredManagers.length === 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  No active managers / admins in this department yet — you can still type a name.
+                </span>
+              )}
             </div>
             <div className="hr-form-field">
               <label>Join Date</label>
