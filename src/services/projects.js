@@ -114,7 +114,21 @@ export const programReportsApi = {
 /* ------------------------------------------------------------------ */
 
 export const helpApi = {
+  // Articles — read
   listArticles: (params)  => api.get('/help/articles', params),
   getArticle:   (id)      => api.get(`/help/articles/${id}`),
+
+  // Articles — write (super_admin or allowlisted editors)
+  createArticle: (data)         => api.post('/help/articles', data),
+  updateArticle: (id, data)     => api.patch(`/help/articles/${id}`, data),
+  deleteArticle: (id)           => api.delete(`/help/articles/${id}`),
+
+  // Editor allowlist — super_admin only
+  listEditors:    ()           => api.get('/help/editors'),
+  addEditor:      (user_id)    => api.post('/help/editors', { user_id }),
+  removeEditor:   (id)         => api.delete(`/help/editors/${id}`),
+  eligibleUsers:  (search)     => api.get('/help/editors-eligible', { search }),
+
+  // Tickets
   submitTicket: (data)    => api.post('/help/tickets', data),
 }
