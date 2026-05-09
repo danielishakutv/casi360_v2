@@ -10,8 +10,11 @@ import { exportRFQ } from '../../utils/rfqExport'
 /* ─── Constants ─── */
 const REQUEST_TYPES = ['Goods', 'Works', 'Services']
 const RFQ_STATUSES = ['draft', 'open', 'closed', 'awarded', 'cancelled']
+// PDF download is intentionally disabled — RFQs are forwarded to
+// vendors as Word so they can fill in their quote in-place. The PDF
+// branch in rfqExport.js is left intact so re-enabling later is a
+// one-line change.
 const DOWNLOAD_FORMATS = [
-  { value: 'pdf', label: 'PDF' },
   { value: 'doc', label: 'Word (.doc)' },
   { value: 'csv', label: 'CSV' },
 ]
@@ -102,7 +105,7 @@ export default function CreateRequestForQuotation() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
-  const [downloadFormat, setDownloadFormat] = useState('pdf')
+  const [downloadFormat, setDownloadFormat] = useState('doc')
 
   /* Edit mode: hydrate the form from the existing RFQ. We pull the
      full detail array (which includes items + audit log) so every
