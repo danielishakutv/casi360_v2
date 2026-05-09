@@ -839,7 +839,11 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   flex: 1;
   padding: 24px 28px 40px;
   max-width: 100%;
-  overflow-x: hidden;
+  /* `clip` (not `hidden`) so descendants can use position: sticky.
+     `overflow-x: hidden` would create a scroll container and break
+     stickiness on pages like the Help Center category rail. */
+  overflow-x: hidden;  /* fallback for very old browsers */
+  overflow-x: clip;
 }
 
 /* ===== DASHBOARD STATS ===== */
@@ -6814,12 +6818,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 /* Category rail */
 .help-rail {
   position: sticky;
-  top: 80px;
+  top: calc(var(--header-height) + 16px);
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100vh - var(--header-height) - 32px);
   overflow-y: auto;
 }
 .help-rail-title {
