@@ -31,14 +31,11 @@ const MR = 14
 const MT = 30
 const MB = 20
 
-/* ── line-item column widths (sum = 182 mm) ───────────────────────── */
-const COL = { num: 8, item: 28, desc: 60, unit: 14, qty: 10, ucost: 28, total: 34 }
+/* ── line-item column widths (sum = 182 mm) — only items + qty,
+ *    no prices on RFQ; vendor responds with their own quotation. */
+const COL = { num: 12, item: 50, desc: 90, unit: 16, qty: 14 }
 
 /* ── formatters ────────────────────────────────────────────────────── */
-function fmt(symbol, n) {
-  const v = Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `${symbol || ''}${v}`
-}
 function fmtDate(d) {
   if (!d) return '—'
   try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
@@ -50,10 +47,6 @@ function fmtDateOrBlank(d) {
   catch { return d }
 }
 function safe(v) { return v == null ? '' : String(v) }
-
-function lineTotal(li) {
-  return (Number(li.quantity) || 0) * (Number(li.unit_cost) || 0)
-}
 
 /* ── shared loader for the logo (PDF only) ────────────────────────── */
 async function loadLogoBase64(src) {
@@ -160,7 +153,6 @@ function saveBlob(blob, filename) {
 /* ================================================================== */
 async function buildPDFBlob(rfq, recipient, logoData) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const symbol = rfq.currency_symbol || ''
 
   /* 1. Recipient + RFQ header grid */
   const recipientName = recipient?.name || (isOpenCall(rfq) ? 'All qualified suppliers' : '—')
@@ -191,7 +183,9 @@ async function buildPDFBlob(rfq, recipient, logoData) {
 
   let y = doc.lastAutoTable.finalY + 7
 
-  /* 2. Itemized list — vendor fills in costs, so unit/total cost are blank by design */
+  /* 2. Itemized list — items + qty only. RFQ asks vendors to quote
+   *    against this list; their response carries the prices in
+   *    whatever format they choose. */
   if ((rfq.line_items || []).length > 0) {
     if (y > 297 - MB - 30) { doc.addPage(); y = MT + 2 }
     doc.setFontSize(9)
@@ -203,27 +197,23 @@ async function buildPDFBlob(rfq, recipient, logoData) {
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Item', 'Description (Specs / TOR)', 'Unit', 'Qty', 'Unit Cost', 'Total']],
+      head: [['#', 'Item', 'Description (Specs / TOR)', 'Unit', 'Qty']],
       body: rfq.line_items.map((li, i) => [
         i + 1,
         safe(li.item),
         safe(li.description),
         safe(li.unit),
         li.quantity ?? '',
-        li.unit_cost ? fmt(symbol, li.unit_cost) : '',
-        li.unit_cost ? fmt(symbol, lineTotal(li)) : '',
       ]),
       theme: 'striped',
       styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
       headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
       columnStyles: {
-        0: { cellWidth: COL.num,   halign: 'center' },
+        0: { cellWidth: COL.num,  halign: 'center' },
         1: { cellWidth: COL.item },
         2: { cellWidth: COL.desc },
         3: { cellWidth: COL.unit },
-        4: { cellWidth: COL.qty,   halign: 'right' },
-        5: { cellWidth: COL.ucost, halign: 'right' },
-        6: { cellWidth: COL.total, halign: 'right' },
+        4: { cellWidth: COL.qty,  halign: 'right' },
       },
       margin: TBL_MARGIN,
     })
@@ -326,7 +316,6 @@ async function exportPDF(rfq) {
 /* ================================================================== */
 function exportCSV(rfq) {
   const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const symbol = rfq.currency_symbol || ''
   const vendors = vendorList(rfq)
 
   const rows = [
@@ -369,15 +358,13 @@ function exportCSV(rfq) {
     ['Currency',            rfq.currency || 'NGN'],
     [],
     ['Itemized List'],
-    ['#', 'Item', 'Description', 'Unit', 'Qty', 'Cost per Unit', 'Total Cost'],
+    ['#', 'Item', 'Description', 'Unit', 'Qty'],
     ...(rfq.line_items || []).map((li, i) => [
       i + 1,
       li.item || '',
       li.description || '',
       li.unit || '',
       li.quantity ?? '',
-      li.unit_cost ? fmt(symbol, li.unit_cost) : '',
-      li.unit_cost ? fmt(symbol, lineTotal(li)) : '',
     ]),
     [],
     ['Delivery'],
@@ -403,7 +390,6 @@ function exportCSV(rfq) {
 /* Word (.doc) — one HTML doc per recipient, zipped if >1              */
 /* ================================================================== */
 function buildDOCHtml(rfq, recipient, logoData) {
-  const symbol = rfq.currency_symbol || ''
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const recipientName = recipient?.name || (isOpenCall(rfq) ? 'All qualified suppliers' : '')
   const recipientAddress = recipient?.address || (isOpenCall(rfq) ? (rfq.advertised_on || '') : '')
@@ -416,8 +402,6 @@ function buildDOCHtml(rfq, recipient, logoData) {
       <td>${esc(li.description || '')}</td>
       <td>${esc(li.unit || '')}</td>
       <td style="text-align:right">${esc(li.quantity ?? '')}</td>
-      <td style="text-align:right">${li.unit_cost ? esc(fmt(symbol, li.unit_cost)) : ''}</td>
-      <td style="text-align:right">${li.unit_cost ? esc(fmt(symbol, lineTotal(li))) : ''}</td>
     </tr>`).join('')
 
   // Letterhead — logo on the left, organisation name + URL on the
@@ -475,8 +459,8 @@ function buildDOCHtml(rfq, recipient, logoData) {
 
   <h2>Itemized List</h2>
   <table>
-    <tr><th>#</th><th>Item</th><th>Description (Specs / TOR)</th><th>Unit</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr>
-    ${itemRows || '<tr><td colspan="7" style="text-align:center; color:#888;">No items</td></tr>'}
+    <tr><th>#</th><th>Item</th><th>Description (Specs / TOR)</th><th>Unit</th><th>Qty</th></tr>
+    ${itemRows || '<tr><td colspan="5" style="text-align:center; color:#888;">No items</td></tr>'}
   </table>
 
   <h2>Delivery</h2>

@@ -376,10 +376,6 @@ export default function CreateRequestForQuotation() {
     }))
   }, [])
 
-  /* ─── Line item totals ─── */
-  const lineTotal = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.unit_cost) || 0), [])
-  const grandTotal = useMemo(() => form.line_items.reduce((s, li) => s + lineTotal(li), 0), [form.line_items, lineTotal])
-  const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
 
   /* Merged Received-By candidate list. Always includes procurement /
      logistics / admin / super_admin users; when the RFQ targets a
@@ -550,9 +546,6 @@ export default function CreateRequestForQuotation() {
         scope: saved?.scope || form.scope,
         advertised_on: saved?.advertised_on || form.advertised_on,
         vendors: savedVendors,
-        grand_total: grandTotal,
-        currency_symbol: currencyInfo.symbol,
-        currency_rate: currencyInfo.rate,
       }
       exportRFQ(downloadFormat, viewModel)
       navigate('/procurement/rfq')
@@ -835,6 +828,11 @@ export default function CreateRequestForQuotation() {
           </div>
 
           {/* ── Itemized List ── */}
+          {/* Cost per Unit and Total Cost columns are intentionally
+              omitted on the RFQ form — an RFQ asks vendors to quote
+              their prices, so we have nothing to record on this side.
+              The downloaded Word/CSV doc keeps empty Unit Cost / Total
+              columns so the vendor has somewhere to fill the prices in. */}
           <p className="hr-form-section-title">Itemized List</p>
 
           <div className="pr-line-items-wrapper">
@@ -842,12 +840,10 @@ export default function CreateRequestForQuotation() {
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>S/N</th>
-                  <th style={{ width: 160 }}>Item</th>
+                  <th style={{ width: 200 }}>Item</th>
                   <th>Description (Technical Specifications / TOR)</th>
-                  <th style={{ width: 100 }}>Unit of Measure</th>
-                  <th style={{ width: 70 }}>Qty</th>
-                  <th style={{ width: 120 }}>Cost per Unit</th>
-                  <th style={{ width: 130 }}>Total Cost</th>
+                  <th style={{ width: 130 }}>Unit of Measure</th>
+                  <th style={{ width: 90 }}>Qty</th>
                   <th style={{ width: 36 }}></th>
                 </tr>
               </thead>
@@ -859,8 +855,6 @@ export default function CreateRequestForQuotation() {
                     <td><input type="text" value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Specs / Terms of Reference" /></td>
                     <td><input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" /></td>
                     <td><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" /></td>
-                    <td><input type="number" value={li.unit_cost} onChange={(e) => updateLineItem(idx, 'unit_cost', e.target.value)} min="0" step="0.01" /></td>
-                    <td className="pr-computed">{currencyInfo.symbol}{lineTotal(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td>
                       {form.line_items.length > 1 && (
                         <button type="button" className="pr-remove-row" onClick={() => removeLineItem(idx)} title="Remove row"><X size={14} /></button>
@@ -869,23 +863,9 @@ export default function CreateRequestForQuotation() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr className="pr-total-row">
-                  <td colSpan={6} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL</td>
-                  <td className="pr-computed" style={{ fontWeight: 700 }}>{currencyInfo.symbol}{grandTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td></td>
-                </tr>
-              </tfoot>
             </table>
             <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
           </div>
-
-          {form.currency !== 'NGN' && (
-            <div className="pr-naira-equivalent">
-              Naira equivalent: <strong>₦{(grandTotal * currencyInfo.rate).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-              <span className="pr-rate-note">({currencyInfo.symbol}1 = ₦{currencyInfo.rate.toLocaleString()})</span>
-            </div>
-          )}
 
           {/* ── Delivery ── */}
           <p className="hr-form-section-title">Delivery</p>
