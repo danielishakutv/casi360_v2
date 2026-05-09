@@ -1,20 +1,19 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { purchaseOrdersApi, vendorsApi, rfqApi } from '../../services/procurement'
+import { ArrowLeft, PlusCircle, X, AlertCircle, Download } from 'lucide-react'
+import { purchaseOrdersApi, vendorsApi, rfqApi, purchaseRequestsApi } from '../../services/procurement'
 import { departmentsApi, employeesApi } from '../../services/hr'
+import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
+import { exportPO } from '../../utils/poExport'
 
 /* ─── Constants ─── */
 const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'Cheque']
 
-const DEMO_PROJECTS = [
-  { id: 'PRJ-001', name: 'HQ Renovation Phase 2', code: 'PRJ-001' },
-  { id: 'PRJ-002', name: 'Warehouse Security Upgrade', code: 'PRJ-002' },
-  { id: 'PRJ-003', name: 'Power Infrastructure', code: 'PRJ-003' },
-  { id: 'PRJ-004', name: 'Community Health Programme', code: 'PRJ-004' },
-  { id: 'PRJ-005', name: 'Education Support Initiative', code: 'PRJ-005' },
+const DOWNLOAD_FORMATS = [
+  { value: 'doc', label: 'Word (.doc)' },
+  { value: 'csv', label: 'CSV' },
 ]
 
 const BUDGET_LINES = [
@@ -50,6 +49,10 @@ function buildInitialForm() {
     date: todayStr(),
     location: '',
     currency: 'NGN',
+    /* Source documents — picking either pulls vendor / items / project
+       / delivery / currency into the form. Both are optional. */
+    pr_reference: '',  // requisition_number, e.g. "PR-202605-0001"
+    rfq_reference: '', // rfq_number, e.g. "RFQ-202605-0001"
     /* API lookups */
     vendor_id: '',
     department_id: '',
@@ -80,42 +83,172 @@ export default function CreatePurchaseOrder() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const incomingRfqId = searchParams.get('rfq_id')
+  const incomingPrId = searchParams.get('pr_id')
   const { user } = useAuth()
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState(null)
+  const [downloadFormat, setDownloadFormat] = useState('doc')
 
   /* ─── Lookups ─── */
   const [vendors, setVendors] = useState([])
   const [departments, setDepartments] = useState([])
   const [employees, setEmployees] = useState([])
+  const [projects, setProjects] = useState([])
+  const [approvedPRs, setApprovedPRs] = useState([])
+  const [closedRfqs, setClosedRfqs] = useState([])
 
   useEffect(() => {
     vendorsApi.list({ per_page: 0 }).then((r) => setVendors(extractItems(r))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((r) => setDepartments(extractItems(r))).catch(() => {})
     employeesApi.list({ per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
+    projectsApi.list({ per_page: 0 }).then((r) => setProjects(extractItems(r))).catch(() => {})
+
+    // Source PR options — only fully-approved PRs can feed a PO.
+    purchaseRequestsApi.list({ status: 'approved', per_page: 0 })
+      .then((r) => setApprovedPRs(extractItems(r)))
+      .catch(() => {})
+
+    // Source RFQ options — closed (vendor responses in) or awarded
+    // (single vendor selected) RFQs are the ones ready to convert
+    // into a PO.
+    rfqApi.list({ status: 'closed', per_page: 0 })
+      .then((r) => {
+        const closed = extractItems(r)
+        rfqApi.list({ status: 'awarded', per_page: 0 })
+          .then((r2) => setClosedRfqs([...closed, ...extractItems(r2)]))
+          .catch(() => setClosedRfqs(closed))
+      })
+      .catch(() => {})
   }, [])
 
-  /* If we landed here from an RFQ's "Create PO" button, pre-select the
-     RFQ's vendor so the user doesn't have to hunt for it. The RFQ form
-     doesn't have a 1:1 reference field on the PO yet (PR refs are on
-     line items, not the header), so we keep the pre-fill scoped to
-     vendor — the user fills the rest. */
+  /* Default Prepared By to the current user. Only fires once at mount —
+     if the user types into the field, their edit wins. */
+  useEffect(() => {
+    if (!user?.name) return
+    setForm((p) => p.prepared_by.name
+      ? p
+      : { ...p, prepared_by: { ...p.prepared_by, name: user.name, position: user.role || '', date: todayStr() } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.name])
+
+  /* Pull a full RFQ and pre-fill everything we know. Used both for the
+     deep-link path (?rfq_id=…) and when the user picks an RFQ from
+     the in-form dropdown. Existing items are replaced after a confirm
+     prompt to avoid wiping work the user typed in. */
+  function applyRfqToForm(rfq, { skipConfirm = false } = {}) {
+    if (!rfq) return
+    const newItems = (rfq.items || []).map((it) => ({
+      pr_no: rfq.pr_reference || '',
+      project_code: rfq.project_code || '',
+      budget_line: '',
+      description: it.description || '',
+      unit: it.unit || '',
+      quantity: it.quantity ?? '',
+      unit_price: '', // PO is where the agreed price is recorded — typed in here
+    }))
+
+    if (!skipConfirm && lineItemsHaveContent(form.line_items) && newItems.length > 0) {
+      const ok = window.confirm('Replace the items currently on the form with the items from this RFQ?')
+      if (!ok) return
+    }
+
+    setForm((p) => ({
+      ...p,
+      rfq_reference: rfq.rfq_number || '',
+      pr_reference: rfq.pr_reference || p.pr_reference,
+      vendor_id: rfq.vendor_id || p.vendor_id,
+      currency: rfq.currency || p.currency,
+      deliver_address: rfq.delivery_address || p.deliver_address,
+      delivery_terms: rfq.delivery_terms || p.delivery_terms,
+      line_items: newItems.length > 0 ? newItems : p.line_items,
+    }))
+  }
+
+  function applyPrToForm(pr, { skipConfirm = false } = {}) {
+    if (!pr) return
+    const newItems = (pr.items || []).map((it) => ({
+      pr_no: pr.requisition_number || '',
+      project_code: pr.project_code || '',
+      budget_line: it.budget_line || '',
+      description: it.description || '',
+      unit: it.unit || '',
+      quantity: it.quantity ?? '',
+      unit_price: it.estimated_unit_cost ?? '',
+    }))
+
+    if (!skipConfirm && lineItemsHaveContent(form.line_items) && newItems.length > 0) {
+      const ok = window.confirm('Replace the items currently on the form with the items from this Purchase Request?')
+      if (!ok) return
+    }
+
+    setForm((p) => ({
+      ...p,
+      pr_reference: pr.requisition_number || '',
+      currency: pr.currency || p.currency,
+      deliver_address: pr.delivery_location || p.deliver_address,
+      line_items: newItems.length > 0 ? newItems : p.line_items,
+    }))
+  }
+
+  /* "User typed something" check — a fresh form has one blank line item;
+     treat that as "no work to lose". Mirrors the RFQ form's helper. */
+  function lineItemsHaveContent(items) {
+    return (items || []).some((li) => (
+      (li.description || '').trim() !== '' ||
+      (li.unit || '').trim() !== '' ||
+      String(li.quantity || '').trim() !== '' ||
+      String(li.unit_price || '').trim() !== ''
+    ))
+  }
+
+  /* Deep-link from RFQ — apply once the RFQ resolves. Skip the
+     confirm because the form is empty when arriving via deep-link. */
   useEffect(() => {
     if (!incomingRfqId) return
-    if (form.vendor_id) return
+    if (form.rfq_reference) return
     rfqApi.get(incomingRfqId)
-      .then((res) => {
-        const rfq = res?.data?.rfq || res?.data?.data || res?.data
-        if (rfq?.vendor_id) {
-          setForm((p) => ({ ...p, vendor_id: rfq.vendor_id }))
-        }
-      })
+      .then((res) => applyRfqToForm(res?.data?.rfq || res?.data?.data || res?.data, { skipConfirm: true }))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingRfqId])
 
+  /* Deep-link from PR — same pattern. */
+  useEffect(() => {
+    if (!incomingPrId) return
+    if (form.pr_reference) return
+    purchaseRequestsApi.get(incomingPrId)
+      .then((res) => applyPrToForm(res?.data?.requisition || res?.data?.data || res?.data, { skipConfirm: true }))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingPrId])
+
+  function handleRfqPick(rfqNumber) {
+    if (!rfqNumber) {
+      setForm((p) => ({ ...p, rfq_reference: '' }))
+      return
+    }
+    const summary = closedRfqs.find((r) => (r.rfq_number || r.id) === rfqNumber)
+    if (!summary) return
+    rfqApi.get(summary.id)
+      .then((res) => applyRfqToForm(res?.data?.rfq || res?.data?.data || res?.data))
+      .catch(() => {})
+  }
+
+  function handlePrPick(prNumber) {
+    if (!prNumber) {
+      setForm((p) => ({ ...p, pr_reference: '' }))
+      return
+    }
+    const summary = approvedPRs.find((r) => (r.requisition_number || r.id) === prNumber)
+    if (!summary) return
+    purchaseRequestsApi.get(summary.id)
+      .then((res) => applyPrToForm(res?.data?.requisition || res?.data?.data || res?.data))
+      .catch(() => {})
+  }
+
   const selectedVendor = useMemo(() => vendors.find((v) => v.id === form.vendor_id), [vendors, form.vendor_id])
+  const selectedDepartment = useMemo(() => departments.find((d) => d.id === form.department_id), [departments, form.department_id])
 
   /* ─── Form helpers ─── */
   const updateField = useCallback((f, v) => setForm((p) => ({ ...p, [f]: v })), [])
@@ -162,24 +295,49 @@ export default function CreatePurchaseOrder() {
   const fmt = (n) => sym + n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   function buildPayload() {
+    const items = form.line_items
+      .filter((li) => li.description.trim())
+      .map((li) => ({
+        description: li.description,
+        quantity: Number(li.quantity) || 1,
+        unit: li.unit || undefined,
+        unit_price: Number(li.unit_price) || 0,
+        pr_no: li.pr_no || undefined,
+        project_code: li.project_code || undefined,
+        budget_line: li.budget_line || undefined,
+      }))
+
+    const subtotal = items.reduce((s, i) => s + (i.quantity * i.unit_price), 0)
+    const tax = Number(form.sales_tax) || 0
+    const charges = Number(form.delivery_charges) || 0
+
     return {
       vendor_id: form.vendor_id || undefined,
       department_id: form.department_id || undefined,
       requested_by: form.requested_by || user?.employee_id || user?.id || undefined,
       order_date: form.date,
       expected_delivery_date: form.delivery_date || undefined,
-      tax_amount: Number(form.sales_tax) || 0,
+      pr_reference: form.pr_reference || undefined,
+      rfq_reference: form.rfq_reference || undefined,
+      subtotal,
+      tax_amount: tax,
       discount_amount: 0,
+      delivery_charges: charges,
+      total_amount: subtotal + tax + charges,
       currency: form.currency,
       notes: form.remarks || undefined,
-      items: form.line_items
-        .filter((li) => li.description.trim())
-        .map((li) => ({
-          description: li.description,
-          quantity: Number(li.quantity) || 1,
-          unit: li.unit || undefined,
-          unit_price: Number(li.unit_price) || 0,
-        })),
+      deliver_name: form.deliver_name || undefined,
+      deliver_address: form.deliver_address || undefined,
+      deliver_position: form.deliver_position || undefined,
+      deliver_contact: form.deliver_contact || undefined,
+      payment_terms: (form.payment_terms || []).join(', ') || undefined,
+      delivery_terms: form.delivery_terms || undefined,
+      remarks: form.remarks || undefined,
+      signoffs: [
+        form.prepared_by, form.approved_by, form.reviewed_by, form.supplier_acceptance,
+      ].map((s, idx) => ({ ...s, type: ['prepared_by','approved_by','reviewed_by','supplier_acceptance'][idx] }))
+        .filter((s) => s.name?.trim()),
+      items,
     }
   }
 
@@ -229,6 +387,35 @@ export default function CreatePurchaseOrder() {
     }
   }
 
+  /* "Save & Download" — saves the PO as draft, then downloads the
+     freshly-saved version in the chosen format. Mirrors the RFQ flow.
+     Procurement officer forwards the document to the vendor manually. */
+  async function handleSaveAndDownload() {
+    setSubmitting(true)
+    setFormErrors(null)
+    try {
+      const res = await purchaseOrdersApi.create(buildPayload())
+      const saved = res?.data?.purchase_order || res?.data || res
+      const viewModel = {
+        ...form,
+        po_number: saved?.po_number || form.po_number,
+        status: saved?.status || 'draft',
+        currency_symbol: currencyInfo.symbol,
+        department_name: selectedDepartment?.name || '',
+        vendor_name: selectedVendor?.name || '',
+        vendor_address: selectedVendor?.address || '',
+        vendor_contact_person: selectedVendor?.contact_person || '',
+        vendor_phone: selectedVendor?.phone || selectedVendor?.telephone || '',
+      }
+      exportPO(downloadFormat, viewModel)
+      navigate('/procurement/purchase-orders')
+    } catch (err) {
+      handleErr(err, 'Failed to save and download purchase order')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   /* ─── Signoff block (render function, not component) ─── */
   function renderSignoff(label, section) {
     return (
@@ -270,6 +457,40 @@ export default function CreatePurchaseOrder() {
               <button type="button" onClick={() => setFormErrors(null)} className="hr-error-dismiss">&times;</button>
             </div>
           )}
+
+          {/* ── Source Documents (auto-fill the rest of the form) ── */}
+          <p className="hr-form-section-title">Source Documents</p>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Source RFQ</label>
+              <select value={form.rfq_reference} onChange={(e) => handleRfqPick(e.target.value)}>
+                <option value="">— None —</option>
+                {closedRfqs.map((r) => (
+                  <option key={r.id} value={r.rfq_number || r.id}>
+                    {(r.rfq_number || `RFQ-${r.id}`)} — {r.title || 'Untitled'} {r.vendor_name ? `· ${r.vendor_name}` : ''}
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Picking an RFQ auto-fills vendor, items, currency, and delivery. Closed/awarded RFQs only.
+              </span>
+            </div>
+            <div className="hr-form-field">
+              <label>Source Purchase Request</label>
+              <select value={form.pr_reference} onChange={(e) => handlePrPick(e.target.value)}>
+                <option value="">— None —</option>
+                {approvedPRs.map((pr) => (
+                  <option key={pr.id} value={pr.requisition_number || pr.id}>
+                    {(pr.requisition_number || `PR-${pr.id}`)} — {pr.title || pr.description || 'Untitled'}
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Use this when going PR → PO directly (no RFQ in between).
+              </span>
+            </div>
+          </div>
 
           {/* ── PO Header ── */}
           <p className="hr-form-section-title">Purchase Order</p>
@@ -427,7 +648,11 @@ export default function CreatePurchaseOrder() {
                     <td>
                       <select value={li.project_code} onChange={(e) => updateLineItem(idx, 'project_code', e.target.value)}>
                         <option value="">—</option>
-                        {DEMO_PROJECTS.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.project_code || p.id}>
+                            {p.project_code || p.id}
+                          </option>
+                        ))}
                       </select>
                     </td>
                     <td>
@@ -500,7 +725,7 @@ export default function CreatePurchaseOrder() {
           </div>
 
           {/* ── Actions ── */}
-          <div className="hr-form-actions">
+          <div className="hr-form-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
             <button type="button" className="hr-btn-secondary" onClick={() => navigate('/procurement/purchase-orders')} disabled={submitting}>Cancel</button>
             <button type="submit" className="hr-btn-primary" disabled={submitting}>
               {submitting ? 'Saving…' : 'Save as Draft'}
@@ -514,7 +739,33 @@ export default function CreatePurchaseOrder() {
             >
               {submitting ? 'Submitting…' : 'Save & Submit for Approval'}
             </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <select
+                value={downloadFormat}
+                onChange={(e) => setDownloadFormat(e.target.value)}
+                style={{ minWidth: 110 }}
+                disabled={submitting}
+                aria-label="Download format"
+              >
+                {DOWNLOAD_FORMATS.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="hr-btn-primary"
+                style={{ background: 'var(--primary, #2563eb)' }}
+                disabled={submitting}
+                onClick={handleSaveAndDownload}
+              >
+                <Download size={14} style={{ marginRight: 4 }} />
+                {submitting ? 'Saving…' : `Save & Download ${downloadFormat.toUpperCase()}`}
+              </button>
+            </div>
           </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Save & Download persists the PO as a draft, then downloads it in the chosen format. Forward the document to the vendor yourself — the system does not email it.
+          </p>
         </form>
       </div>
     </div>
