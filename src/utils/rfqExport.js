@@ -31,9 +31,8 @@ const MR = 14
 const MT = 30
 const MB = 20
 
-/* ── line-item column widths (sum = 182 mm) — only items + qty,
- *    no prices on RFQ; vendor responds with their own quotation. */
-const COL = { num: 12, item: 50, desc: 90, unit: 16, qty: 14 }
+/* ── line-item column widths (sum = 182 mm) ───────────────────────── */
+const COL = { num: 8, item: 28, desc: 60, unit: 14, qty: 10, ucost: 28, total: 34 }
 
 /* ── formatters ────────────────────────────────────────────────────── */
 function fmtDate(d) {
@@ -183,9 +182,9 @@ async function buildPDFBlob(rfq, recipient, logoData) {
 
   let y = doc.lastAutoTable.finalY + 7
 
-  /* 2. Itemized list — items + qty only. RFQ asks vendors to quote
-   *    against this list; their response carries the prices in
-   *    whatever format they choose. */
+  /* 2. Itemized list — Unit Cost and Total cells are intentionally
+   *    blank: the vendor fills them in on the printed/forwarded doc
+   *    when responding with their quote. */
   if ((rfq.line_items || []).length > 0) {
     if (y > 297 - MB - 30) { doc.addPage(); y = MT + 2 }
     doc.setFontSize(9)
@@ -197,23 +196,27 @@ async function buildPDFBlob(rfq, recipient, logoData) {
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Item', 'Description (Specs / TOR)', 'Unit', 'Qty']],
+      head: [['#', 'Item', 'Description (Specs / TOR)', 'Unit', 'Qty', 'Unit Cost', 'Total']],
       body: rfq.line_items.map((li, i) => [
         i + 1,
         safe(li.item),
         safe(li.description),
         safe(li.unit),
         li.quantity ?? '',
+        '', // vendor fills in
+        '', // vendor fills in
       ]),
       theme: 'striped',
       styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
       headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
       columnStyles: {
-        0: { cellWidth: COL.num,  halign: 'center' },
+        0: { cellWidth: COL.num,   halign: 'center' },
         1: { cellWidth: COL.item },
         2: { cellWidth: COL.desc },
         3: { cellWidth: COL.unit },
-        4: { cellWidth: COL.qty,  halign: 'right' },
+        4: { cellWidth: COL.qty,   halign: 'right' },
+        5: { cellWidth: COL.ucost, halign: 'right' },
+        6: { cellWidth: COL.total, halign: 'right' },
       },
       margin: TBL_MARGIN,
     })
@@ -358,13 +361,15 @@ function exportCSV(rfq) {
     ['Currency',            rfq.currency || 'NGN'],
     [],
     ['Itemized List'],
-    ['#', 'Item', 'Description', 'Unit', 'Qty'],
+    ['#', 'Item', 'Description', 'Unit', 'Qty', 'Cost per Unit', 'Total Cost'],
     ...(rfq.line_items || []).map((li, i) => [
       i + 1,
       li.item || '',
       li.description || '',
       li.unit || '',
       li.quantity ?? '',
+      '', // vendor fills in
+      '', // vendor fills in
     ]),
     [],
     ['Delivery'],
@@ -395,6 +400,8 @@ function buildDOCHtml(rfq, recipient, logoData) {
   const recipientAddress = recipient?.address || (isOpenCall(rfq) ? (rfq.advertised_on || '') : '')
   const recipientContact = recipient?.contact_person || recipient?.phone || recipient?.email || ''
 
+  // Unit Cost / Total cells stay empty by design — the vendor types
+  // their quoted prices into the document when responding.
   const itemRows = (rfq.line_items || []).map((li, i) => `
     <tr>
       <td>${i + 1}</td>
@@ -402,6 +409,8 @@ function buildDOCHtml(rfq, recipient, logoData) {
       <td>${esc(li.description || '')}</td>
       <td>${esc(li.unit || '')}</td>
       <td style="text-align:right">${esc(li.quantity ?? '')}</td>
+      <td style="text-align:right">&nbsp;</td>
+      <td style="text-align:right">&nbsp;</td>
     </tr>`).join('')
 
   // Letterhead — logo on the left, organisation name + URL on the
@@ -459,8 +468,8 @@ function buildDOCHtml(rfq, recipient, logoData) {
 
   <h2>Itemized List</h2>
   <table>
-    <tr><th>#</th><th>Item</th><th>Description (Specs / TOR)</th><th>Unit</th><th>Qty</th></tr>
-    ${itemRows || '<tr><td colspan="5" style="text-align:center; color:#888;">No items</td></tr>'}
+    <tr><th>#</th><th>Item</th><th>Description (Specs / TOR)</th><th>Unit</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr>
+    ${itemRows || '<tr><td colspan="7" style="text-align:center; color:#888;">No items</td></tr>'}
   </table>
 
   <h2>Delivery</h2>
