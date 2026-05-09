@@ -402,7 +402,7 @@ function exportCSV(rfq) {
 /* ================================================================== */
 /* Word (.doc) — one HTML doc per recipient, zipped if >1              */
 /* ================================================================== */
-function buildDOCHtml(rfq, recipient) {
+function buildDOCHtml(rfq, recipient, logoData) {
   const symbol = rfq.currency_symbol || ''
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const recipientName = recipient?.name || (isOpenCall(rfq) ? 'All qualified suppliers' : '')
@@ -420,25 +420,46 @@ function buildDOCHtml(rfq, recipient) {
       <td style="text-align:right">${li.unit_cost ? esc(fmt(symbol, lineTotal(li))) : ''}</td>
     </tr>`).join('')
 
+  // Letterhead — logo on the left, organisation name + URL on the
+  // right. Word renders the data-URI image inline so the doc stays
+  // self-contained (no external fetch required when opened offline).
+  const logoCell = logoData
+    ? `<img src="${logoData}" alt="Care Aid" style="height:54pt; width:auto;" />`
+    : ''
+  const header = `
+  <table class="letterhead" style="border:none; margin-bottom:6pt;">
+    <tr>
+      <td style="border:none; vertical-align:middle; width:60pt; padding:0 8pt 0 0;">${logoCell}</td>
+      <td style="border:none; vertical-align:middle;">
+        <div style="font-size:14pt; font-weight:bold; color:#1e293b; letter-spacing:0.5pt;">CARE AID SUPPORT INITIATIVE</div>
+        <div style="font-size:9pt; color:#6b7280;">casi360.com</div>
+      </td>
+      <td style="border:none; vertical-align:middle; text-align:right; color:#6b7280; font-size:9pt;">
+        <div style="font-weight:bold; color:#1e293b; font-size:11pt;">Request for Quotation</div>
+        <div>${esc(rfq.rfq_number || '')}</div>
+        <div>Status: ${esc((rfq.status || '').replace(/_/g, ' '))}</div>
+        <div>${esc(fmtDate(rfq.date))}</div>
+      </td>
+    </tr>
+  </table>
+  <hr style="border:none; border-top:0.75pt solid #c8d2e0; margin:0 0 12pt;" />`
+
   return `
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset='utf-8'><title>${esc(rfq.rfq_number || 'RFQ')}</title>
 <style>
   body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #111; }
-  h1 { font-size: 18pt; margin: 0 0 4pt; }
   h2 { font-size: 13pt; margin: 12pt 0 4pt; border-bottom: 1pt solid #d0d7de; padding-bottom: 2pt; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 8pt; }
   td, th { border: 0.75pt solid #b8c1cc; padding: 4pt 6pt; vertical-align: top; }
   th { background: #2563eb; color: #fff; text-align: left; }
   .label { background: #f5f7fa; font-weight: bold; width: 22%; }
   .meta-grid td { vertical-align: top; }
+  .letterhead, .letterhead td { border: none !important; }
   .footer { color: #6b7280; font-size: 9pt; margin-top: 18pt; border-top: 0.75pt solid #d0d7de; padding-top: 6pt; }
 </style></head>
 <body>
-  <h1>Request for Quotation</h1>
-  <div style="color:#555; font-size:10pt; margin-bottom:10pt;">
-    ${esc(rfq.rfq_number || '')} &middot; Status: ${esc((rfq.status || '').replace(/_/g, ' '))} &middot; ${esc(fmtDate(rfq.date))}
-  </div>
+  ${header}
 
   <h2>${isOpenCall(rfq) ? 'Open Call' : 'Recipient'}</h2>
   <table class="meta-grid">
@@ -484,29 +505,32 @@ function buildDOCHtml(rfq, recipient) {
 
 async function exportDOC(rfq) {
   const baseName = rfq.rfq_number || 'request-for-quotation'
+  // Load the Care Aid letterhead once, then bake it into every doc
+  // (and every per-vendor doc when the RFQ targets multiple vendors).
+  const logoData = await loadLogoBase64(logoSrc)
 
   if (isOpenCall(rfq)) {
-    const html = buildDOCHtml(rfq, null)
+    const html = buildDOCHtml(rfq, null, logoData)
     saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}_open-call.doc`)
     return
   }
 
   const vendors = vendorList(rfq)
   if (vendors.length === 0) {
-    const html = buildDOCHtml(rfq, null)
+    const html = buildDOCHtml(rfq, null, logoData)
     saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}.doc`)
     return
   }
 
   if (vendors.length === 1) {
-    const html = buildDOCHtml(rfq, vendors[0])
+    const html = buildDOCHtml(rfq, vendors[0], logoData)
     saveBlob(new Blob([html], { type: 'application/msword' }), `${baseName}_${slugify(vendors[0].name, 1)}.doc`)
     return
   }
 
   const zip = new JSZip()
   vendors.forEach((v, i) => {
-    const html = buildDOCHtml(rfq, v)
+    const html = buildDOCHtml(rfq, v, logoData)
     zip.file(`${baseName}_${slugify(v.name, i + 1)}.doc`, html)
   })
   const zipBlob = await zip.generateAsync({ type: 'blob' })
