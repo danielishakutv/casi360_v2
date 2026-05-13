@@ -12,26 +12,26 @@ import { useAuth } from '../../contexts/AuthContext'
  * --------------------------------------------------------------------- */
 const HERO_SLIDES = [
   {
-    // African professional reviewing documents — fits "transparent procurement"
-    image: 'https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1600&q=80&auto=format&fit=crop',
+    // Black professionals in a planning/document session
+    image: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1600',
     title: 'Procurement, made transparent.',
     description: 'BOQ → PR → RFQ → PO → GRN → Invoice → Payment, all linked together. Every signature, every change, in one auditable trail.',
   },
   {
-    // African team in a sign-off / decision meeting
-    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1600&q=80&auto=format&fit=crop',
+    // Black professional reviewing / signing off at a desk
+    image: 'https://images.pexels.com/photos/1181715/pexels-photo-1181715.jpeg?auto=compress&cs=tinysrgb&w=1600',
     title: 'Approvals that hold the line.',
     description: 'Multi-step sign-offs from preparer to budget holder. Nothing moves until the right people have actually signed.',
   },
   {
-    // African team collaborating on plans — fits "projects on the books"
-    image: 'https://images.unsplash.com/photo-1573164574572-cb89e39749b4?w=1600&q=80&auto=format&fit=crop',
+    // Black professionals collaborating on a project plan
+    image: 'https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1600',
     title: 'Projects, on the books.',
     description: 'Budget lines, team rosters, donors, deliverables — tracked side-by-side with the spend they fund.',
   },
   {
-    // African colleagues in a working session — fits "vendors and quotes side by side"
-    image: 'https://images.unsplash.com/photo-1573497019418-b400bb3ab074?w=1600&q=80&auto=format&fit=crop',
+    // Black professional in a working/negotiation session
+    image: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=1600',
     title: 'Vendors and quotes, side by side.',
     description: 'Invite multiple suppliers or run an open call, compare responses, award with a full audit trail behind the decision.',
   },
