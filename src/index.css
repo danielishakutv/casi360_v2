@@ -1814,18 +1814,20 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   opacity: 1;
 }
 
-/* Dark gradient over the photo so the white overlay text stays
-   readable regardless of which image is showing. */
+/* Dark overlay over the photo so the white overlay text stays
+   readable regardless of which image is showing. Combines a flat
+   dark base (legibility everywhere) with an extra-dark gradient at
+   the bottom (where the title/description sit). */
 .auth-hero-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(15, 23, 42, 0.88) 0%,
-    rgba(15, 23, 42, 0.55) 40%,
-    rgba(15, 23, 42, 0.15) 70%,
-    rgba(15, 23, 42, 0.05) 100%
-  );
+  background:
+    linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.85) 0%,
+      rgba(0, 0, 0, 0.55) 45%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
 }
 
 .auth-hero-overlay {

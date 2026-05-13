@@ -5,28 +5,33 @@ import { useAuth } from '../../contexts/AuthContext'
 
 /* ── Hero carousel content ─────────────────────────────────────────────
  * Showcases what CASI360 actually does so the login screen sells the
- * product. Each slide is a stable Unsplash URL — swap with local NGO
- * photography by replacing the `image` field. Order is meaningful: the
- * procurement chain leads since that's the headline workflow.
+ * product. Photos are African professionals in corporate settings,
+ * sourced from Unsplash (free-to-use). Swap with local Care Aid
+ * photography by replacing the `image` field. Order is meaningful:
+ * the procurement chain leads since that's the headline workflow.
  * --------------------------------------------------------------------- */
 const HERO_SLIDES = [
   {
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1600&q=80&auto=format&fit=crop',
+    // African professional reviewing documents — fits "transparent procurement"
+    image: 'https://images.unsplash.com/photo-1573164713988-8665fc963095?w=1600&q=80&auto=format&fit=crop',
     title: 'Procurement, made transparent.',
     description: 'BOQ → PR → RFQ → PO → GRN → Invoice → Payment, all linked together. Every signature, every change, in one auditable trail.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1600&q=80&auto=format&fit=crop',
+    // African team in a sign-off / decision meeting
+    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1600&q=80&auto=format&fit=crop',
     title: 'Approvals that hold the line.',
     description: 'Multi-step sign-offs from preparer to budget holder. Nothing moves until the right people have actually signed.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=1600&q=80&auto=format&fit=crop',
+    // African team collaborating on plans — fits "projects on the books"
+    image: 'https://images.unsplash.com/photo-1573164574572-cb89e39749b4?w=1600&q=80&auto=format&fit=crop',
     title: 'Projects, on the books.',
     description: 'Budget lines, team rosters, donors, deliverables — tracked side-by-side with the spend they fund.',
   },
   {
-    image: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=1600&q=80&auto=format&fit=crop',
+    // African colleagues in a working session — fits "vendors and quotes side by side"
+    image: 'https://images.unsplash.com/photo-1573497019418-b400bb3ab074?w=1600&q=80&auto=format&fit=crop',
     title: 'Vendors and quotes, side by side.',
     description: 'Invite multiple suppliers or run an open call, compare responses, award with a full audit trail behind the decision.',
   },
