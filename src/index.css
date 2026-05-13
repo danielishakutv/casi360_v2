@@ -1775,6 +1775,138 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 
+/* ==================  Login Split Layout (Login page only) ==================
+ * Two-column layout used by Login.jsx — hero carousel on the left,
+ * existing auth-card on the right. Form is untouched; this just
+ * wraps it. On small screens the hero collapses out and the form
+ * recentres exactly as before.
+ * --------------------------------------------------------------- */
+.auth-page-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  padding: 0;
+  align-items: stretch;
+  gap: 0;
+}
+
+.auth-page-split .auth-card {
+  margin: auto;
+  max-width: 460px;
+}
+
+.auth-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+}
+
+.auth-hero-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 900ms ease-in-out;
+}
+
+.auth-hero-slide.is-active {
+  opacity: 1;
+}
+
+/* Dark gradient over the photo so the white overlay text stays
+   readable regardless of which image is showing. */
+.auth-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(15, 23, 42, 0.88) 0%,
+    rgba(15, 23, 42, 0.55) 40%,
+    rgba(15, 23, 42, 0.15) 70%,
+    rgba(15, 23, 42, 0.05) 100%
+  );
+}
+
+.auth-hero-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 48px 56px 44px;
+  color: #fff;
+}
+
+.auth-hero-brand {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 5px 12px;
+  margin-bottom: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.auth-hero-title {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 800;
+  margin: 0 0 12px;
+  max-width: 520px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+.auth-hero-desc {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0 0 22px;
+  max-width: 560px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.auth-hero-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.auth-hero-dot {
+  width: 28px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background 220ms ease, width 220ms ease;
+}
+
+.auth-hero-dot:hover {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.auth-hero-dot.is-active {
+  width: 40px;
+  background: #fff;
+}
+
+/* Below the split's break-point the hero collapses out and the form
+   page reverts to its centred single-card layout. */
+@media (max-width: 960px) {
+  .auth-page-split {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+  .auth-hero {
+    display: none;
+  }
+}
+
+
 /* ==================  Profile Page  ================== */
 
 .profile-header-card {
