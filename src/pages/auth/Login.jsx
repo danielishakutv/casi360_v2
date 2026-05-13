@@ -12,26 +12,24 @@ import { useAuth } from '../../contexts/AuthContext'
  * --------------------------------------------------------------------- */
 const HERO_SLIDES = [
   {
-    // Black professionals in a planning/document session
-    image: 'https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    // Local image — Care Aid's own photography in /public
+    image: '/procurment-made.jpeg',
     title: 'Procurement, made transparent.',
     description: 'BOQ → PR → RFQ → PO → GRN → Invoice → Payment, all linked together. Every signature, every change, in one auditable trail.',
   },
   {
-    // Black professional reviewing / signing off at a desk
-    image: 'https://images.pexels.com/photos/1181715/pexels-photo-1181715.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    // Spaces and "." in the filename need URL-encoding for the CSS url(...).
+    image: '/Approvals%20that%20hold%20the%20line..jpeg',
     title: 'Approvals that hold the line.',
     description: 'Multi-step sign-offs from preparer to budget holder. Nothing moves until the right people have actually signed.',
   },
   {
-    // Black professionals collaborating on a project plan
-    image: 'https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    image: '/Projects%2C%20on%20the%20books.webp',
     title: 'Projects, on the books.',
     description: 'Budget lines, team rosters, donors, deliverables — tracked side-by-side with the spend they fund.',
   },
   {
-    // Black professional in a working/negotiation session
-    image: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    image: '/vendor%20quotes%20side%20by%20side.avif',
     title: 'Vendors and quotes, side by side.',
     description: 'Invite multiple suppliers or run an open call, compare responses, award with a full audit trail behind the decision.',
   },
