@@ -39,6 +39,7 @@ export default function OperationsApprovals() {
   // Without it, send mine=1 so the backend scopes results to records that
   // concern the current user (created, named on, acted on, or department-mate).
   const canViewAllHistory = can('procurement.approvals.view_all')
+  const canApprove        = can('procurement.approvals.operations')
 
   const [reqs, setReqs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -250,11 +251,13 @@ export default function OperationsApprovals() {
                 <div className="approval-card-chain"><ApprovalChain chain={buildChainFromPR(item)} /></div>
                 <div className="approval-card-actions">
                   <button className="approval-card-view-btn" onClick={() => openDetail(item)}><Eye size={14} /> View Details</button>
-                  <div className="approval-card-quick">
-                    <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
-                    <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
-                    <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
-                  </div>
+                  {canApprove && (
+                    <div className="approval-card-quick">
+                      <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                      <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                      <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -305,9 +308,13 @@ export default function OperationsApprovals() {
                       <td>
                         <div className="approvals-action-row">
                           <button className="hr-action-btn" onClick={() => openDetail(item)} title="View full details"><Eye size={13} /></button>
-                          <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
-                          <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
-                          <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                          {canApprove && (
+                            <>
+                              <button className="approval-action-btn approve"  onClick={() => openAction(item, 'approve')}><CheckCheck size={12} /> Approve</button>
+                              <button className="approval-action-btn revision" onClick={() => openAction(item, 'revision')}><RotateCcw size={12} /></button>
+                              <button className="approval-action-btn reject"   onClick={() => openAction(item, 'reject')}><X size={12} /></button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -530,7 +537,7 @@ export default function OperationsApprovals() {
                 <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download PDF">
                   <FileText size={14} /> PDF
                 </button>
-                {!viewIsHistory && (
+                {!viewIsHistory && canApprove && (
                   <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction(viewTarget, 'approve') }}>
                     Take Action
                   </button>

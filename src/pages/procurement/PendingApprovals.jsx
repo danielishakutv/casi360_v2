@@ -221,6 +221,7 @@ export default function PendingApprovals() {
   function closeBoqDetail() { setBoqView(null); setBoqDetail(null); setBoqAuditLog([]) }
 
   const canApproveBoq = can('procurement.boq.approve')
+  const canApprovePR  = can('procurement.approvals.budget_holder')
   const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0
 
   return (
@@ -313,11 +314,13 @@ export default function PendingApprovals() {
                     <div className="approval-card-chain"><ApprovalChain chain={buildChainFromPR(req)} /></div>
                     <div className="approval-card-actions">
                       <button className="approval-card-view-btn" onClick={() => openDetail(req)}><Eye size={14} /> View Details</button>
-                      <div className="approval-card-quick">
-                        <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}><CheckCircle size={12} /> Approve</button>
-                        <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')}><RotateCcw size={12} /></button>
-                        <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}><XCircle size={12} /></button>
-                      </div>
+                      {canApprovePR && (
+                        <div className="approval-card-quick">
+                          <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}><CheckCircle size={12} /> Approve</button>
+                          <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')}><RotateCcw size={12} /></button>
+                          <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}><XCircle size={12} /></button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -345,9 +348,13 @@ export default function PendingApprovals() {
                         <td>
                           <div className="approvals-action-row">
                             <button className="hr-action-btn" onClick={() => openDetail(req)} title="View full details"><Eye size={13} /></button>
-                            <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
-                            <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Revision"><RotateCcw size={13} /></button>
-                            <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
+                            {canApprovePR && (
+                              <>
+                                <button className="approval-action-btn approve"  onClick={() => openAction('req', req, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                                <button className="approval-action-btn revision" onClick={() => openAction('req', req, 'revision')} title="Revision"><RotateCcw size={13} /></button>
+                                <button className="approval-action-btn reject"   onClick={() => openAction('req', req, 'reject')}   title="Reject"><XCircle size={13} /></button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -646,7 +653,7 @@ export default function PendingApprovals() {
                 <button className="hr-btn-secondary" onClick={() => exportPRtoPDF({ ...pr, justification: viewExtra?.justification ?? pr.justification }, viewExtra?.items || [])} title="Download PDF">
                   <FileText size={14} /> PDF
                 </button>
-                {!viewIsHistory && (
+                {!viewIsHistory && canApprovePR && (
                   <button className="hr-btn-primary" onClick={() => { closeDetail(); openAction('req', viewTarget, 'approve') }}>
                     Take Action
                   </button>
