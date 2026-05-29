@@ -25,7 +25,7 @@ const AUDIT_LABELS = {
   updated:   'Updated',
   submitted: 'Submitted for Approval',
   approved:  'Approved',
-  forwarded: 'Forwarded to Procurement',
+  forwarded: 'Forwarded to Operations',
   revision:  'Revision Requested',
   rejected:  'Rejected',
 }
@@ -34,7 +34,7 @@ const STAGE_LABELS = {
   budget_holder: 'Budget Holder',
   finance:       'Finance',
   procurement:   'Procurement',
-  operations:    'Procurement',
+  operations:    'Operations',
 }
 
 function fmtStatus(s) { return capitalize((s || 'draft').replace(/_/g, ' ')) }

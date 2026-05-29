@@ -22,10 +22,10 @@ const ACTIONS = [
 
 const AUDIT_LABELS = {
   created: 'Created', updated: 'Updated', submitted: 'Submitted for Approval',
-  approved: 'Approved', forwarded: 'Forwarded to Procurement',
+  approved: 'Approved', forwarded: 'Forwarded to Operations',
   revision: 'Revision Requested', rejected: 'Rejected',
 }
-const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
+const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Operations' }
 
 export default function PendingApprovals() {
   const { can, user } = useAuth()

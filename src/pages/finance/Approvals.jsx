@@ -22,17 +22,17 @@ function priorityClass(p) {
 
 const ACTION_META = {
   approve:  { label: 'Approve & Forward',     icon: <CheckCheck size={13} />,   cls: 'approve'  },
-  forward:  { label: 'Forward to Procurement', icon: <ChevronRight size={13} />, cls: 'forward'  },
+  forward:  { label: 'Forward to Operations',  icon: <ChevronRight size={13} />, cls: 'forward'  },
   revision: { label: 'Request Revision',      icon: <RotateCcw size={13} />,    cls: 'revision' },
   reject:   { label: 'Reject',                icon: <X size={13} />,            cls: 'reject'   },
 }
 
 const AUDIT_LABELS = {
   created: 'Created', updated: 'Updated', submitted: 'Submitted for Approval',
-  approved: 'Approved', forwarded: 'Forwarded to Procurement',
+  approved: 'Approved', forwarded: 'Forwarded to Operations',
   revision: 'Revision Requested', rejected: 'Rejected',
 }
-const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Procurement' }
+const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Operations' }
 
 export default function FinanceApprovals() {
   const { can } = useAuth()
@@ -210,7 +210,7 @@ export default function FinanceApprovals() {
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
             <strong style={{ color: 'var(--text-secondary)' }}>Finance approval queue.</strong>{' '}
             Items reach this queue after the Budget Holder has approved. Approving (or forwarding)
-            advances the request to the Procurement team for final sign-off; you may also request
+            advances the request to the Operations team for final sign-off; you may also request
             revision or reject.
           </p>
         </div>
@@ -589,7 +589,7 @@ export default function FinanceApprovals() {
             {action === 'forward' && (
               <div className="hr-error-banner" style={{ background: 'var(--badge-blue-bg)', color: 'var(--badge-blue-fg)', border: 'none', marginBottom: 12 }}>
                 <AlertCircle size={14} />
-                <span>This will forward the request to the Procurement team for final approval.</span>
+                <span>This will forward the request to the Operations team for final approval.</span>
               </div>
             )}
 
@@ -602,7 +602,7 @@ export default function FinanceApprovals() {
                 placeholder={
                   action === 'reject'   ? 'State reason for rejection…' :
                   action === 'revision' ? 'Describe what needs to be corrected…' :
-                  action === 'forward'  ? 'Notes for Procurement team (optional)…' :
+                  action === 'forward'  ? 'Notes for Operations team (optional)…' :
                   'Optional approval note…'
                 }
                 required={action === 'reject' || action === 'revision'}
