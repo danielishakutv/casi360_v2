@@ -152,7 +152,9 @@ export default function UserManagement() {
       setCreateOpen(false); resetCreateForm(); fetchList()
       showToast('User created successfully')
     } catch (err) {
-      if (err.errors) setCreateErrors(err.errors)
+      // Surface every validation message in the banner too, so errors on fields
+      // without their own inline display (phone, department, role) are never silent.
+      if (err.errors) setCreateErrors({ ...err.errors, _general: Object.values(err.errors).flat().join(' ') })
       else setCreateErrors({ _general: err.message })
     } finally { setCreating(false) }
   }
