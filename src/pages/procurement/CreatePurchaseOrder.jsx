@@ -519,7 +519,7 @@ export default function CreatePurchaseOrder() {
               <label>Requested By *</label>
               <select value={form.requested_by || ''} onChange={(e) => updateField('requested_by', e.target.value)} required>
                 <option value="">— Select employee —</option>
-                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name}</option>)}
+                {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </select>
             </div>
           </div>
