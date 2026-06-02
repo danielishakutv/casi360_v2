@@ -32,10 +32,11 @@ export default function Messages() {
 
   /* Compose */
   const [composeOpen, setComposeOpen] = useState(false)
-  const [composeForm, setComposeForm] = useState({ recipient_id: '', subject: '', body: '' })
+  const [composeForm, setComposeForm] = useState({ recipient_ids: [], subject: '', body: '' })
   const [composeSending, setComposeSending] = useState(false)
   const [composeErrors, setComposeErrors] = useState(null)
   const [staffList, setStaffList] = useState([])
+  const [recipientQuery, setRecipientQuery] = useState('')
 
   /* Fetch messages */
   const fetchList = useCallback(async () => {
@@ -85,16 +86,34 @@ export default function Messages() {
   }
 
   /* Compose */
+  const staffName = (s) => s?.name || [s?.first_name, s?.last_name].filter(Boolean).join(' ') || s?.email || 'Unknown'
+
   function openCompose() {
-    setComposeForm({ recipient_id: '', subject: '', body: '' }); setComposeErrors(null); setComposeOpen(true)
+    setComposeForm({ recipient_ids: [], subject: '', body: '' }); setComposeErrors(null); setRecipientQuery(''); setComposeOpen(true)
     if (!staffList.length) {
       usersApi.list({ per_page: 0 }).then((r) => setStaffList(extractItems(r))).catch(() => {})
     }
   }
+
+  const addRecipient = (id) => {
+    setComposeForm((p) => p.recipient_ids.includes(id) ? p : { ...p, recipient_ids: [...p.recipient_ids, id] })
+    setRecipientQuery('')
+  }
+  const removeRecipient = (id) =>
+    setComposeForm((p) => ({ ...p, recipient_ids: p.recipient_ids.filter((r) => r !== id) }))
+
   async function handleCompose(e) {
-    e.preventDefault(); setComposeSending(true); setComposeErrors(null)
+    e.preventDefault(); setComposeErrors(null)
+    if (!composeForm.recipient_ids.length) {
+      setComposeErrors({ general: ['Select at least one recipient.'] }); return
+    }
+    setComposeSending(true)
     try {
-      await messagesApi.send(composeForm)
+      // Backend sends to one recipient per request — fan out so a group
+      // selection delivers an individual copy to each person.
+      await Promise.all(composeForm.recipient_ids.map((rid) =>
+        messagesApi.send({ recipient_id: rid, subject: composeForm.subject, body: composeForm.body })
+      ))
       setComposeOpen(false); fetchList()
     } catch (err) {
       if (err.status === 422 && err.errors) setComposeErrors(err.errors)
@@ -211,10 +230,55 @@ export default function Messages() {
           )}
           <div className="hr-form-field">
             <label>To *</label>
-            <select value={composeForm.recipient_id} onChange={(e) => setComposeForm((p) => ({ ...p, recipient_id: e.target.value }))} required>
-              <option value="">— Select recipient —</option>
-              {staffList.filter((s) => s.id !== user?.id).map((s) => <option key={s.id} value={s.id}>{s.name || `${s.first_name} ${s.last_name}`}</option>)}
-            </select>
+            {/* Selected recipients as removable chips */}
+            {composeForm.recipient_ids.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {composeForm.recipient_ids.map((rid) => {
+                  const s = staffList.find((x) => x.id === rid)
+                  return (
+                    <span key={rid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-secondary, #f1f5f9)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 14, padding: '2px 8px', fontSize: 13 }}>
+                      {staffName(s)}
+                      <button type="button" onClick={() => removeRecipient(rid)} aria-label="Remove recipient" style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'inline-flex', color: 'var(--text-muted)' }}>
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+            <input
+              type="text"
+              value={recipientQuery}
+              onChange={(e) => setRecipientQuery(e.target.value)}
+              placeholder="Search staff by name or email…"
+            />
+            {/* Always-visible scrollable candidate list */}
+            <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border, #e5e7eb)', borderRadius: 6 }}>
+              {(() => {
+                const q = recipientQuery.trim().toLowerCase()
+                const candidates = staffList
+                  .filter((s) => s.id !== user?.id && !composeForm.recipient_ids.includes(s.id))
+                  .filter((s) => !q || staffName(s).toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
+                if (!staffList.length) return <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' }}>Loading staff…</div>
+                if (!candidates.length) return <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' }}>No matching staff</div>
+                return candidates.map((s) => (
+                  <button
+                    type="button"
+                    key={s.id}
+                    onClick={() => addRecipient(s.id)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border, #f1f5f9)', cursor: 'pointer', fontSize: 13 }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-secondary, #f8fafc)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{staffName(s)}</span>
+                    {s.email ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}> · {s.email}</span> : ''}
+                  </button>
+                ))
+              })()}
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+              Select one or more recipients. Each person receives their own copy.
+            </span>
           </div>
           <div className="hr-form-field">
             <label>Subject *</label>
