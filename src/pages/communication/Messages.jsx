@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal } from 'lucide-react'
+import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, X } from 'lucide-react'
 import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
