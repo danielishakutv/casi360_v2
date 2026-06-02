@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle, Download } from 'lucide-react'
 import { rfqApi, purchaseRequestsApi, vendorsApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
-import { usersApi } from '../../services/api'
+import { employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { exportRFQ } from '../../utils/rfqExport'
 
@@ -19,11 +19,6 @@ const DOWNLOAD_FORMATS = [
   { value: 'csv', label: 'CSV' },
 ]
 
-// Users in these departments (or admin / super_admin) can sign off the
-// RFQ "Received By" block — procurement and logistics staff plus the
-// admin tier who may stand in for the Logistics Officer.
-const RECEIVED_BY_DEPARTMENTS = ['Procurement', 'Logistics']
-const RECEIVED_BY_ROLES = ['admin', 'super_admin']
 
 const CURRENCY_OPTIONS = [
   { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira', rate: 1 },
@@ -206,22 +201,13 @@ export default function CreateRequestForQuotation() {
       .then((res) => setVendors(extractItems(res)))
       .catch(() => {})
 
-    // Build the "Received By" candidate list: every active user whose
-    // department is Procurement or Logistics, plus every active admin
-    // / super_admin. Single per_page=100 fetch then filtered in-memory
-    // so we don't fan out to four endpoints.
-    usersApi.list({ per_page: 100, status: 'active' })
-      .then((res) => {
-        const data = res?.data || res
-        const list = data?.users || extractItems(res) || []
-        const eligible = list.filter((u) => (
-          u.status !== 'inactive' && (
-            RECEIVED_BY_ROLES.includes(u.role) ||
-            RECEIVED_BY_DEPARTMENTS.includes(u.department)
-          )
-        ))
-        setReceivedByUsers(eligible)
-      })
+    // "Received By" candidate list: every active employee. The admin-only
+    // /auth/users endpoint 403s for procurement/logistics staff, which left
+    // this dropdown empty for the very people who file RFQs. The HR
+    // employees endpoint is accessible to them, so use it and open the list
+    // to all active staff who can reach this form.
+    employeesApi.list({ status: 'active', per_page: 0 })
+      .then((res) => setReceivedByUsers(extractItems(res)))
       .catch(() => {})
   }, [])
 
@@ -398,10 +384,10 @@ export default function CreateRequestForQuotation() {
     }
 
     receivedByUsers.forEach((u) => push({
-      id: `user-${u.id}`,
+      id: `emp-${u.id}`,
       name: u.name,
       email: u.email,
-      role: (u.role || '').replace(/_/g, ' '),
+      role: u.position || '',
       department: u.department || '',
       source: 'staff',
     }))
@@ -900,8 +886,8 @@ export default function CreateRequestForQuotation() {
               </select>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
                 {form.for_type === 'project' && form.project
-                  ? 'Procurement, Logistics, admins, and this project\'s team members.'
-                  : 'Procurement, Logistics, admins and super admins only.'}
+                  ? 'All active staff, including this project\'s team members.'
+                  : 'All active staff.'}
               </span>
             </div>
             <div className="hr-form-field">
