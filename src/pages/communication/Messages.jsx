@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal } from 'lucide-react'
 import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
-import { usersApi } from '../../services/api'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../contexts/AuthContext'
@@ -91,7 +90,7 @@ export default function Messages() {
   function openCompose() {
     setComposeForm({ recipient_ids: [], subject: '', body: '' }); setComposeErrors(null); setRecipientQuery(''); setComposeOpen(true)
     if (!staffList.length) {
-      usersApi.list({ per_page: 0 }).then((r) => setStaffList(extractItems(r))).catch(() => {})
+      messagesApi.recipients().then((r) => setStaffList(extractItems(r))).catch(() => {})
     }
   }
 

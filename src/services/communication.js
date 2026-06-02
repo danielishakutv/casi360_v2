@@ -14,6 +14,7 @@ import { api } from './api'
 
 export const messagesApi = {
   list:        (params)          => api.get('/communication/messages', params),
+  recipients:  (params)          => api.get('/communication/messages/recipients', params),
   unreadCount: ()                => api.get('/communication/messages/unread-count'),
   thread:      (threadId)        => api.get(`/communication/messages/${threadId}`),
   send:        (data)            => api.post('/communication/messages', data),
