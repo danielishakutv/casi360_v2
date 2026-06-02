@@ -101,7 +101,7 @@ export default function CreatePurchaseOrder() {
   useEffect(() => {
     vendorsApi.list({ per_page: 0 }).then((r) => setVendors(extractItems(r))).catch(() => {})
     departmentsApi.list({ per_page: 0 }).then((r) => setDepartments(extractItems(r))).catch(() => {})
-    employeesApi.list({ per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
+    employeesApi.list({ status: 'active', per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
     projectsApi.list({ per_page: 0 }).then((r) => setProjects(extractItems(r))).catch(() => {})
 
     // Source PR options — only fully-approved PRs can feed a PO.
