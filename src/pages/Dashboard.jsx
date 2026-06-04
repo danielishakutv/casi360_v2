@@ -124,9 +124,9 @@ export default function Dashboard() {
                     {recentStaff.map((s) => (
                       <tr key={s.id}>
                         <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-                          {s.first_name} {s.last_name}
+                          {s.name}
                         </td>
-                        <td>{s.department?.name || '—'}</td>
+                        <td>{s.department || '—'}</td>
                         <td>
                           <span className={`status-badge ${s.status}`}>
                             <span className="status-dot" />{capitalize(s.status || 'active')}
