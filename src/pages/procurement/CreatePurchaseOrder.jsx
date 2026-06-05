@@ -7,6 +7,7 @@ import { projectsApi } from '../../services/projects'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
 import { exportPO } from '../../utils/poExport'
+import EmployeePicker from '../../components/EmployeePicker'
 
 /* ─── Constants ─── */
 const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'Cheque']
@@ -418,11 +419,27 @@ export default function CreatePurchaseOrder() {
 
   /* ─── Signoff block (render function, not component) ─── */
   function renderSignoff(label, section) {
+    // Supplier Acceptance is signed by the vendor (external) — keep free-text.
+    // Internal sign-offs pick a staff member; selecting one fills Position too.
+    const isExternal = section === 'supplier_acceptance'
     return (
       <div className="pr-signoff-block" key={section}>
         <h4 className="pr-signoff-title">{label}</h4>
         <div className="hr-form-row">
-          <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} placeholder="Full name" /></div>
+          <div className="hr-form-field">
+            <label>Name</label>
+            {isExternal ? (
+              <input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} placeholder="Full name" />
+            ) : (
+              <EmployeePicker
+                employees={employees}
+                value={form[section].name}
+                onSelect={(emp) => setForm((p) => ({ ...p, [section]: { ...p[section], name: emp.name || '', position: emp.position || p[section].position } }))}
+                onTextChange={(text) => updateSignoff(section, 'name', text)}
+                placeholder="Search staff by name…"
+              />
+            )}
+          </div>
           <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} placeholder="Position / title" /></div>
         </div>
         <div className="hr-form-row">
