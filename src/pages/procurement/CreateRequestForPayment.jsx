@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { rfpApi, invoicesApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
+import { employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
+import EmployeePicker from '../../components/EmployeePicker'
 
 /* ─── Constants ─── */
 const PAYMENT_MODES = ['Bank Transfer', 'Cash', 'Cheque']
@@ -93,6 +95,7 @@ export default function CreateRequestForPayment() {
 
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
+  const [employees, setEmployees] = useState([])
   const [approvedInvoices, setApprovedInvoices] = useState([])
   /* Tracks the most-recently-applied invoice so we don't re-apply on every
      re-render. Stored separately so we can show a small "Auto-filled from
@@ -104,6 +107,7 @@ export default function CreateRequestForPayment() {
 
   useEffect(() => {
     projectsApi.list({ per_page: 0 }).then((res) => setProjects(extractItems(res))).catch(() => {})
+    employeesApi.list({ status: 'active', per_page: 0 }).then((res) => setEmployees(extractItems(res))).catch(() => {})
     // Only approved invoices can be paid by an RFP. Server enforces this
     // too — the UI just hides everything else so the picker is always valid.
     invoicesApi.list({ status: 'approved', per_page: 100, mine: 0 })
@@ -261,7 +265,16 @@ export default function CreateRequestForPayment() {
       <div className="pr-signoff-block" key={section}>
         <h4 className="pr-signoff-title">{label}</h4>
         <div className="hr-form-row">
-          <div className="hr-form-field"><label>Name</label><input type="text" value={form[section].name} onChange={(e) => updateSignoff(section, 'name', e.target.value)} placeholder="Full name" /></div>
+          <div className="hr-form-field">
+            <label>Name</label>
+            <EmployeePicker
+              employees={employees}
+              value={form[section].name}
+              onSelect={(emp) => setForm((p) => ({ ...p, [section]: { ...p[section], name: emp.name || '', position: emp.position || p[section].position } }))}
+              onTextChange={(text) => updateSignoff(section, 'name', text)}
+              placeholder="Search staff by name…"
+            />
+          </div>
           <div className="hr-form-field"><label>Position</label><input type="text" value={form[section].position} onChange={(e) => updateSignoff(section, 'position', e.target.value)} placeholder="Position / title" /></div>
         </div>
         <div className="hr-form-field" style={{ maxWidth: 400 }}>
@@ -365,7 +378,13 @@ export default function CreateRequestForPayment() {
 
           <div className="hr-form-field" style={{ maxWidth: 400 }}>
             <label>Procurement Person</label>
-            <input type="text" value={form.procurement_person} onChange={(e) => updateField('procurement_person', e.target.value)} placeholder="Procurement officer name" />
+            <EmployeePicker
+              employees={employees}
+              value={form.procurement_person}
+              onSelect={(emp) => updateField('procurement_person', emp.name || '')}
+              onTextChange={(text) => updateField('procurement_person', text)}
+              placeholder="Search staff by name…"
+            />
           </div>
 
           {/* ── Payee Details + Supporting Docs side by side ── */}
