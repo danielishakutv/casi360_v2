@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
 import { grnApi, purchaseOrdersApi } from '../../services/procurement'
+import { employeesApi } from '../../services/hr'
+import { extractItems } from '../../utils/apiHelpers'
+import EmployeePicker from '../../components/EmployeePicker'
 
 /* ─── Constants ─── */
 const QUALITY_OPTIONS = ['Pass', 'Fail', 'Pending Inspection']
@@ -56,6 +59,11 @@ export default function CreateGoodsReceivedNote() {
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
+  const [employees, setEmployees] = useState([])
+
+  useEffect(() => {
+    employeesApi.list({ status: 'active', per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
+  }, [])
 
   /* If we landed here from a PO's "Record GRN" button, pre-fill the
      reference (and the receiving office if the PO has a department).
@@ -208,7 +216,14 @@ export default function CreateGoodsReceivedNote() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Received By *</label>
-              <input type="text" value={form.received_by} onChange={(e) => updateField('received_by', e.target.value)} placeholder="Name of person receiving goods" required />
+              <EmployeePicker
+                employees={employees}
+                value={form.received_by}
+                onSelect={(emp) => updateField('received_by', emp.name || '')}
+                onTextChange={(text) => updateField('received_by', text)}
+                placeholder="Search staff by name…"
+                required
+              />
             </div>
             <div className="hr-form-field">
               <label>Original PO / PR Number *</label>
@@ -291,7 +306,13 @@ export default function CreateGoodsReceivedNote() {
             <div className="hr-form-row">
               <div className="hr-form-field">
                 <label>Name</label>
-                <input type="text" value={form.checked_name} onChange={(e) => updateField('checked_name', e.target.value)} placeholder="Full name" />
+                <EmployeePicker
+                  employees={employees}
+                  value={form.checked_name}
+                  onSelect={(emp) => setForm((p) => ({ ...p, checked_name: emp.name || '', checked_position: emp.position || p.checked_position }))}
+                  onTextChange={(text) => updateField('checked_name', text)}
+                  placeholder="Search staff by name…"
+                />
               </div>
               <div className="hr-form-field">
                 <label>Position</label>
@@ -311,7 +332,13 @@ export default function CreateGoodsReceivedNote() {
             <div className="hr-form-row">
               <div className="hr-form-field">
                 <label>Name</label>
-                <input type="text" value={form.approved_name} onChange={(e) => updateField('approved_name', e.target.value)} placeholder="Full name" />
+                <EmployeePicker
+                  employees={employees}
+                  value={form.approved_name}
+                  onSelect={(emp) => setForm((p) => ({ ...p, approved_name: emp.name || '', approved_position: emp.position || p.approved_position }))}
+                  onTextChange={(text) => updateField('approved_name', text)}
+                  placeholder="Search staff by name…"
+                />
               </div>
               <div className="hr-form-field">
                 <label>Position</label>
