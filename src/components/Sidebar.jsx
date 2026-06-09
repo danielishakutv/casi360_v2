@@ -159,11 +159,11 @@ const navItems = [
     icon: Settings,
     roleRequired: 'admin',
     children: [
-      { label: 'User Management', icon: Users,    path: '/settings/users',     roleRequired: 'admin' },
-      { label: 'Roles & Access',  icon: Shield,   path: '/settings/roles',     roleRequired: 'super_admin' },
-      { label: 'System Settings', icon: Cog,      path: '/settings/general',   roleRequired: 'super_admin' },
-      { label: 'Audit Log',       icon: Clock,    path: '/settings/audit-log', roleRequired: 'super_admin' },
-      { label: 'Data & Backup',   icon: Database, path: '/settings/data',      roleRequired: 'super_admin' },
+      // Grouped into categories; each opens the unified Settings hub on
+      // the matching area (System Settings / Users+Roles / Audit+Data).
+      { label: 'General',        icon: Cog,      path: '/settings/general',   roleRequired: 'super_admin' },
+      { label: 'Administration', icon: Users,    path: '/settings/users',     roleRequired: 'admin' },
+      { label: 'Audit & Backup', icon: Database, path: '/settings/audit-log', roleRequired: 'super_admin' },
     ],
   },
   {

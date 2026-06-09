@@ -81,12 +81,9 @@ const HelpCenter           = lazy(() => import('./pages/HelpCenter'))
 const Profile              = lazy(() => import('./pages/Profile'))
 const NotFound             = lazy(() => import('./pages/NotFound'))
 
-// Settings module
-const UserManagement  = lazy(() => import('./pages/settings/UserManagement'))
-const RolesAccess     = lazy(() => import('./pages/settings/RolesAccess'))
-const SystemSettings  = lazy(() => import('./pages/settings/SystemSettings'))
-const AuditLog        = lazy(() => import('./pages/settings/AuditLog'))
-const DataBackup      = lazy(() => import('./pages/settings/DataBackup'))
+/* The five settings-module pages are now rendered inside the unified
+ * Settings hub (src/pages/Settings.jsx), which lazy-imports them itself.
+ * The /settings/* routes below keep working as deep links into that hub. */
 
 /* ─── Suspense fallback ─── */
 function PageSpinner() {
@@ -212,11 +209,11 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/permissions" element={<PermissionsSettings />} />
-                <Route path="/settings/users" element={<UserManagement />} />
-                <Route path="/settings/roles" element={<RolesAccess />} />
-                <Route path="/settings/general" element={<SystemSettings />} />
-                <Route path="/settings/audit-log" element={<AuditLog />} />
-                <Route path="/settings/data" element={<DataBackup />} />
+                <Route path="/settings/users" element={<Settings section="users" />} />
+                <Route path="/settings/roles" element={<Settings section="roles" />} />
+                <Route path="/settings/general" element={<Settings section="general" />} />
+                <Route path="/settings/audit-log" element={<Settings section="audit" />} />
+                <Route path="/settings/data" element={<Settings section="data" />} />
                 <Route path="/help" element={<HelpCenter />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
