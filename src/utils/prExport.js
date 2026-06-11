@@ -14,8 +14,31 @@ const COL = { num: 8, desc: 72, unit: 20, qty: 14, ucost: 34, total: 34 }
 // 8+72+20+14+34+34 = 182 ✓
 
 /* ── formatters ─────────────────────────────────────────────────────── */
-function fmt(n) {
-  return 'N' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/* PDF text uses plain ASCII symbols (the embedded helvetica font has no
+   glyph for the ₦ sign), so USD shows "$" and NGN shows "N". */
+const SYMBOLS = { USD: '$', NGN: 'N', EUR: 'EUR ', GBP: 'GBP ' }
+function symbolFor(code) {
+  return SYMBOLS[(code || 'USD').toUpperCase()] || `${(code || 'USD').toUpperCase()} `
+}
+function fmtAmt(n) {
+  return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+/* Format an amount in the document currency (defaults to USD). */
+function fmtCur(n, code) {
+  return symbolFor(code) + fmtAmt(n)
+}
+/* Naira equivalent of a USD amount, or '' when no positive rate. */
+function fmtNgn(usdValue, rate) {
+  const r = Number(rate || 0)
+  if (!r || r <= 0) return ''
+  return 'N' + fmtAmt(Number(usdValue || 0) * r)
+}
+/* Est. Cost label: doc-currency amount + Naira equivalent on a second line. */
+function prEstCostLabel(pr) {
+  const code = pr.currency || 'USD'
+  const primary = fmtCur(pr.estimated_cost, code)
+  const ngn = fmtNgn(pr.estimated_cost, pr.exchange_rate)
+  return ngn ? `${primary}\n(${ngn})` : primary
 }
 function fmtDate(d) {
   if (!d) return '—'
@@ -167,7 +190,7 @@ export async function exportPRtoPDF(pr, items = []) {
     body: [
       ['Title',     pr.title || '—',                               'Priority',   (pr.priority || '—')],
       ['Requester', pr.requested_by_name || '—',                   'Department', pr.department || '—'],
-      ['Project',   pr.project_name || pr.project_code || '—',     'Est. Cost',  fmt(pr.estimated_cost)],
+      ['Project',   pr.project_name || pr.project_code || '—',     'Est. Cost',  prEstCostLabel(pr)],
       ['Submitted', fmtDate(pr.submitted_at || pr.created_at),     'Needed By',  fmtDate(pr.needed_by)],
     ],
     theme: 'grid',
@@ -216,22 +239,24 @@ export async function exportPRtoPDF(pr, items = []) {
     doc.setTextColor(0)
     y += 5
 
+    const ccy = pr.currency || 'USD'
+    const sym = symbolFor(ccy).trim()
     const totalCost = items.reduce(
       (s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0,
     )
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Description', 'Unit', 'Qty', 'Unit Cost (N)', 'Total (N)']],
+      head: [['#', 'Description', 'Unit', 'Qty', `Unit Cost (${sym})`, `Total (${sym})`]],
       body: items.map((it, i) => [
         i + 1,
         it.description || '—',
         it.unit || '—',
         it.quantity ?? '—',
-        fmt(it.estimated_unit_cost),
-        fmt((Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0)),
+        fmtCur(it.estimated_unit_cost, ccy),
+        fmtCur((Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), ccy),
       ]),
-      foot: [['', '', '', '', 'Grand Total', fmt(totalCost)]],
+      foot: [['', '', '', '', 'Grand Total', fmtCur(totalCost, ccy)]],
       theme: 'striped',
       styles: { fontSize: 8, overflow: 'linebreak', cellPadding: 2.5 },
       headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 8 },
@@ -248,7 +273,24 @@ export async function exportPRtoPDF(pr, items = []) {
       showFoot: 'lastPage',
       showHead: 'everyPage',
     })
-    y = doc.lastAutoTable.finalY + 7
+    y = doc.lastAutoTable.finalY + 5
+
+    /* Naira equivalent of the grand total, when a budget rate is present. */
+    const ngnTotal = fmtNgn(totalCost, pr.exchange_rate)
+    if (ngnTotal) {
+      if (y + 6 > 297 - MB) { doc.addPage(); y = MT + 2 }
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(80)
+      doc.text(
+        `Naira equivalent of Grand Total: ${ngnTotal}  (${sym}1 = N${fmtAmt(pr.exchange_rate)})`,
+        ML, y,
+      )
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      y += 6
+    }
+    y += 2
   }
 
   /* ── 4. Approvals & Sign-off block ───────────────────────────────── */
@@ -371,7 +413,12 @@ export function exportPRtoCSV(pr, items = []) {
     ['Department',    pr.department || ''],
     ['Project',       pr.project_name || pr.project_code || ''],
     ['Priority',      pr.priority || ''],
+    ['Currency',      pr.currency || 'USD'],
+    ['Exchange Rate (USD to NGN)', pr.exchange_rate ?? ''],
     ['Estimated Cost', pr.estimated_cost || 0],
+    ['Estimated Cost (NGN)', Number(pr.exchange_rate) > 0
+      ? Number(pr.estimated_cost || 0) * Number(pr.exchange_rate)
+      : ''],
     ['Submitted',     fmtDate(pr.submitted_at || pr.created_at)],
     ['Needed By',     fmtDate(pr.needed_by)],
     ['Justification', pr.justification || pr.notes || ''],

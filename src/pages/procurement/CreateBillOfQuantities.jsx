@@ -8,6 +8,13 @@ import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
 import EmployeePicker from '../../components/EmployeePicker'
 import { employeePosition } from '../../utils/employees'
+import { formatMoney, ngnEquivalent } from '../../utils/currency'
+
+const CURRENCY_OPTIONS = [
+  { code: 'USD', symbol: '$', label: 'USD — US Dollar' },
+  { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira' },
+  { code: 'EUR', symbol: '€', label: 'EUR — Euro' },
+]
 
 const EMPTY_LINE_ITEM = {
   section: '', unit: '', quantity: '', description: '', unit_rate: '', comment: '',
@@ -24,6 +31,8 @@ function buildInitialForm() {
     department_id: '',
     project_code: '',
     category: '',
+    currency: 'USD',
+    exchange_rate: '',
     pr_reference: '',
     prepared_by: '',
     prepared_by_position: '',
@@ -103,6 +112,8 @@ export default function CreateBillOfQuantities() {
           department_id: boq.department_id || '',
           project_code: boq.project_code || '',
           category: boq.category || '',
+          currency: boq.currency || 'USD',
+          exchange_rate: boq.exchange_rate != null ? String(boq.exchange_rate) : '',
           pr_reference: boq.pr_reference || '',
           prepared_by: boq.prepared_by || pb.name || '',
           prepared_by_position: pb.position || '',
@@ -145,6 +156,7 @@ export default function CreateBillOfQuantities() {
   /* Line item totals */
   const lineAmount = useCallback((li) => (Number(li.quantity) || 0) * (Number(li.unit_rate) || 0), [])
   const grandTotal = useMemo(() => form.items.reduce((s, li) => s + lineAmount(li), 0), [form.items, lineAmount])
+  const currencyInfo = useMemo(() => CURRENCY_OPTIONS.find((c) => c.code === form.currency) || CURRENCY_OPTIONS[0], [form.currency])
 
   function buildPayload() {
     const signoffs = []
@@ -167,6 +179,8 @@ export default function CreateBillOfQuantities() {
       department_id: form.department_id || undefined,
       project_code: form.project_code || undefined,
       category: form.category || undefined,
+      currency: form.currency || undefined,
+      exchange_rate: form.currency === 'USD' && form.exchange_rate ? Number(form.exchange_rate) : undefined,
       pr_reference: form.pr_reference || undefined,
       prepared_by: form.prepared_by || undefined,
       delivery_location: form.delivery_location || undefined,
@@ -332,6 +346,30 @@ export default function CreateBillOfQuantities() {
 
           <div className="hr-form-row">
             <div className="hr-form-field">
+              <label>Currency</label>
+              <select value={form.currency} onChange={(e) => updateField('currency', e.target.value)}>
+                {CURRENCY_OPTIONS.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+              </select>
+            </div>
+            <div className="hr-form-field">
+              <label>Budget exchange rate — ₦ per $1</label>
+              <input
+                type="number"
+                value={form.exchange_rate}
+                onChange={(e) => updateField('exchange_rate', e.target.value)}
+                placeholder="e.g. 1500"
+                min="0"
+                step="any"
+                disabled={form.currency !== 'USD'}
+              />
+              <span className="hr-form-hint" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                USD → ₦ rate captured when this budget was prepared. Used to show the ₦ equivalent.
+              </span>
+            </div>
+          </div>
+
+          <div className="hr-form-row">
+            <div className="hr-form-field">
               <label>Prepared By</label>
               <div className="pr-requester-field">
                 <User size={14} />
@@ -374,8 +412,8 @@ export default function CreateBillOfQuantities() {
                   <th>Description</th>
                   <th style={{ width: 80 }}>Unit</th>
                   <th style={{ width: 70 }}>Qty</th>
-                  <th style={{ width: 110 }}>Unit Rate (₦)</th>
-                  <th style={{ width: 120 }}>Amount (₦)</th>
+                  <th style={{ width: 110 }}>Unit Rate ({currencyInfo.symbol})</th>
+                  <th style={{ width: 120 }}>Amount ({currencyInfo.symbol})</th>
                   <th style={{ width: 140 }}>Comment</th>
                   <th style={{ width: 36 }}></th>
                 </tr>
@@ -389,7 +427,7 @@ export default function CreateBillOfQuantities() {
                     <td><input type="text" value={li.unit} onChange={(e) => updateLineItem(idx, 'unit', e.target.value)} placeholder="e.g. Pcs" /></td>
                     <td><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)} min="0" /></td>
                     <td><input type="number" value={li.unit_rate} onChange={(e) => updateLineItem(idx, 'unit_rate', e.target.value)} min="0" step="0.01" /></td>
-                    <td className="pr-computed">₦{lineAmount(li).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="pr-computed">{formatMoney(lineAmount(li), form.currency)}</td>
                     <td><input type="text" value={li.comment} onChange={(e) => updateLineItem(idx, 'comment', e.target.value)} placeholder="Optional" /></td>
                     <td>
                       {form.items.length > 1 && (
@@ -402,12 +440,18 @@ export default function CreateBillOfQuantities() {
               <tfoot>
                 <tr className="pr-total-row">
                   <td colSpan={6} style={{ textAlign: 'right', fontWeight: 700 }}>TOTAL</td>
-                  <td className="pr-computed" style={{ fontWeight: 700 }}>₦{grandTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="pr-computed" style={{ fontWeight: 700 }}>{formatMoney(grandTotal, form.currency)}</td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>
             </table>
             <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
+            {form.currency === 'USD' && ngnEquivalent(grandTotal, form.exchange_rate) && (
+              <div className="pr-naira-equivalent">
+                Naira equivalent: <strong>{ngnEquivalent(grandTotal, form.exchange_rate)}</strong>
+                <span className="pr-rate-note"> ({currencyInfo.symbol}1 = ₦{Number(form.exchange_rate).toLocaleString()})</span>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

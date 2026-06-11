@@ -14,8 +14,33 @@ const COL = { num: 8, section: 22, desc: 46, unit: 12, qty: 11, rate: 24, amount
 // 8+22+46+12+11+24+27+32 = 182
 
 /* ── formatters ─────────────────────────────────────────────────────── */
-function fmt(n) {
-  return 'N' + Number(n || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/* PDF text uses plain ASCII symbols (the embedded helvetica font has no
+   glyph for the ₦ sign), so USD shows "$" and NGN shows "N". */
+const SYMBOLS = { USD: '$', NGN: 'N', EUR: 'EUR ', GBP: 'GBP ' }
+function symbolFor(code) {
+  return SYMBOLS[(code || 'USD').toUpperCase()] || `${(code || 'USD').toUpperCase()} `
+}
+function fmtAmt(n) {
+  return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+/* Format an amount in the document currency (defaults to USD). */
+function fmtCur(n, code) {
+  return symbolFor(code) + fmtAmt(n)
+}
+/* Naira equivalent of a USD amount, or '' when no positive rate. */
+function fmtNgn(usdValue, rate) {
+  const r = Number(rate || 0)
+  if (!r || r <= 0) return ''
+  return 'N' + fmtAmt(Number(usdValue || 0) * r)
+}
+/* Grand-total label: doc-currency amount + Naira equivalent on a second line. */
+function boqGrandTotalLabel(boq) {
+  const code = boq.currency || 'USD'
+  const primary = fmtCur(boq.grand_total, code)
+  const ngn = boq.grand_total_ngn != null
+    ? 'N' + fmtAmt(boq.grand_total_ngn)
+    : fmtNgn(boq.grand_total, boq.exchange_rate)
+  return ngn ? `${primary}\n(${ngn})` : primary
 }
 function fmtDate(d) {
   if (!d) return '—'
@@ -151,7 +176,7 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
       ['Prepared By',  boq.prepared_by || '—',        'Department',   boq.department || '—'],
       ['Project',      boq.project_code || '—',       'Category',     boq.category || '—'],
       ['PR Reference', boq.pr_reference || '—',       'Delivery',     boq.delivery_location || '—'],
-      ['Items',        String(boq.item_count ?? items.length ?? 0), 'Grand Total', fmt(boq.grand_total)],
+      ['Items',        String(boq.item_count ?? items.length ?? 0), 'Grand Total', boqGrandTotalLabel(boq)],
     ],
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2.8, overflow: 'linebreak' },
@@ -198,24 +223,26 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
     doc.setTextColor(0)
     y += 5
 
+    const ccy = boq.currency || 'USD'
+    const sym = symbolFor(ccy).trim()
     const totalCost = items.reduce(
       (s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_rate) || 0), 0,
     )
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Section', 'Description', 'Unit', 'Qty', 'Rate (N)', 'Amount (N)', 'Comment']],
+      head: [['#', 'Section', 'Description', 'Unit', 'Qty', `Rate (${sym})`, `Amount (${sym})`, 'Comment']],
       body: items.map((it, i) => [
         i + 1,
         it.section || '—',
         it.description || '—',
         it.unit || '—',
         it.quantity ?? '—',
-        fmt(it.unit_rate),
-        fmt((Number(it.quantity) || 0) * (Number(it.unit_rate) || 0)),
+        fmtCur(it.unit_rate, ccy),
+        fmtCur((Number(it.quantity) || 0) * (Number(it.unit_rate) || 0), ccy),
         it.comment || '',
       ]),
-      foot: [['', '', '', '', '', 'Grand Total', fmt(totalCost), '']],
+      foot: [['', '', '', '', '', 'Grand Total', fmtCur(totalCost, ccy), '']],
       theme: 'striped',
       styles: { fontSize: 7.5, overflow: 'linebreak', cellPadding: 2.2 },
       headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
@@ -234,7 +261,26 @@ export async function exportBOQtoPDF(boq, items = [], signoffs = []) {
       showFoot: 'lastPage',
       showHead: 'everyPage',
     })
-    y = doc.lastAutoTable.finalY + 7
+    y = doc.lastAutoTable.finalY + 5
+
+    /* Naira equivalent of the grand total, when a budget rate is present. */
+    const ngnTotal = boq.grand_total_ngn != null
+      ? 'N' + fmtAmt(boq.grand_total_ngn)
+      : fmtNgn(totalCost, boq.exchange_rate)
+    if (ngnTotal) {
+      if (y + 6 > 297 - MB) { doc.addPage(); y = MT + 2 }
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(80)
+      doc.text(
+        `Naira equivalent of Grand Total: ${ngnTotal}${boq.exchange_rate ? `  (${symbolFor(ccy).trim()}1 = N${fmtAmt(boq.exchange_rate)})` : ''}`,
+        ML, y,
+      )
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0)
+      y += 6
+    }
+    y += 2
   }
 
   /* ── 4. Sign-off block ──────────────────────────────────────────── */
@@ -349,7 +395,12 @@ export function exportBOQtoCSV(boq, items = [], signoffs = []) {
     ['PR Reference', boq.pr_reference || ''],
     ['Delivery Location', boq.delivery_location || ''],
     ['BOQ Date',     fmtDate(boq.date || boq.created_at)],
+    ['Currency',     boq.currency || 'USD'],
+    ['Exchange Rate (USD to NGN)', boq.exchange_rate ?? ''],
     ['Grand Total',  boq.grand_total ?? 0],
+    ['Grand Total (NGN)', boq.grand_total_ngn != null
+      ? boq.grand_total_ngn
+      : (Number(boq.exchange_rate) > 0 ? Number(boq.grand_total || 0) * Number(boq.exchange_rate) : '')],
     ['Notes',        boq.notes || ''],
     [],
     ['Itemized List'],

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Pencil, Trash2, Eye, Send, AlertCircle, Download, FileText } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
-import { naira } from '../../utils/currency'
+import { formatMoney, ngnEquivalent } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { purchaseRequestsApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -203,7 +203,13 @@ export default function HRPurchaseRequests() {
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.title}</td>
                   <td>{r.requested_by_name || '—'}</td>
                   <td>{r.department || '—'}</td>
-                  <td style={{ fontWeight: 600 }}>{naira(r.estimated_cost)}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {formatMoney(r.estimated_cost, r.currency || 'USD')}
+                    {(() => {
+                      const ngn = ngnEquivalent(r.estimated_cost, r.exchange_rate)
+                      return ngn ? <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>{ngn}</span> : null
+                    })()}
+                  </td>
                   <td>
                     <span className={`card-badge ${r.priority === 'high' || r.priority === 'urgent' ? 'red' : r.priority === 'medium' ? 'orange' : 'green'}`}>
                       {capitalize(r.priority)}
@@ -252,7 +258,13 @@ export default function HRPurchaseRequests() {
                 <div><strong>Department</strong><span>{pr.department || '—'}</span></div>
                 <div><strong>Project</strong><span>{pr.project_name || pr.project_code || '—'}</span></div>
                 {(pr.project_manager_name || pr.project_manager?.name) && <div><strong>Project Manager</strong><span>{pr.project_manager_name || pr.project_manager?.name}</span></div>}
-                <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>{naira(pr.estimated_cost)}</span></div>
+                <div><strong>Est. Cost</strong><span style={{ fontWeight: 700 }}>
+                  {formatMoney(pr.estimated_cost, pr.currency || 'USD')}
+                  {(() => {
+                    const ngn = ngnEquivalent(pr.estimated_cost, pr.exchange_rate)
+                    return ngn ? <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>{ngn}</span> : null
+                  })()}
+                </span></div>
                 <div><strong>Items</strong><span>{viewExtra?.item_count ?? pr.item_count ?? 0}</span></div>
                 <div><strong>Priority</strong><span>{capitalize(pr.priority || 'normal')}</span></div>
                 {(viewExtra?.needed_by ?? pr.needed_by) && <div><strong>Needed By</strong><span>{fmtDate(viewExtra?.needed_by ?? pr.needed_by)}</span></div>}
@@ -285,8 +297,8 @@ export default function HRPurchaseRequests() {
                                 <td>{it.description || '—'}{it.budget_line ? <span className="pr-item-sub">{it.budget_line}</span> : null}</td>
                                 <td>{it.unit || '—'}</td>
                                 <td style={{ textAlign: 'right' }}>{it.quantity ?? '—'}</td>
-                                <td style={{ textAlign: 'right' }}>{naira(it.estimated_unit_cost)}</td>
-                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{naira(total)}</td>
+                                <td style={{ textAlign: 'right' }}>{formatMoney(it.estimated_unit_cost, pr.currency || 'USD')}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatMoney(total, pr.currency || 'USD')}</td>
                               </tr>
                             )
                           })}
@@ -295,7 +307,7 @@ export default function HRPurchaseRequests() {
                           <tr>
                             <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700 }}>Grand Total</td>
                             <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                              {naira(viewExtra.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0))}
+                              {formatMoney(viewExtra.items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.estimated_unit_cost) || 0), 0), pr.currency || 'USD')}
                             </td>
                           </tr>
                         </tfoot>

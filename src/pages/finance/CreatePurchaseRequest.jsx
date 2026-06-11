@@ -7,6 +7,7 @@ import { projectsApi, projectDonorsApi, projectBudgetApi } from '../../services/
 import { departmentsApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import { useAuth } from '../../contexts/AuthContext'
+import { ngnEquivalent } from '../../utils/currency'
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent']
 
@@ -19,8 +20,8 @@ const PURCHASE_SCENARIOS = [
 ]
 
 const CURRENCY_OPTIONS = [
-  { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira' },
   { code: 'USD', symbol: '$', label: 'USD — US Dollar' },
+  { code: 'NGN', symbol: '₦', label: 'NGN — Nigerian Naira' },
   { code: 'EUR', symbol: '€', label: 'EUR — Euro' },
 ]
 
@@ -46,7 +47,7 @@ function buildInitialForm() {
     project_id: '',
     project_code: '',
     donor: '',
-    currency: 'NGN',
+    currency: 'USD',
     exchange_rate: '',
     items: [{ ...EMPTY_LINE_ITEM }],
     justification: '',
@@ -105,7 +106,7 @@ export default function FinanceCreatePurchaseRequest() {
           project_id: pr.project_id ? String(pr.project_id) : '',
           project_code: pr.project_code || '',
           donor: pr.donor || '',
-          currency: pr.currency || 'NGN',
+          currency: pr.currency || 'USD',
           exchange_rate: pr.exchange_rate || '',
           items: (pr.items || []).length > 0
             ? pr.items.map((it) => ({
@@ -391,8 +392,8 @@ export default function FinanceCreatePurchaseRequest() {
           {form.currency !== 'NGN' && (
             <div className="hr-form-row">
               <div className="hr-form-field">
-                <label>Exchange Rate (to NGN) *</label>
-                <input type="number" value={form.exchange_rate} onChange={(e) => updateField('exchange_rate', e.target.value)} placeholder="e.g. 1500" min="0" step="0.01" required />
+                <label>Exchange Rate (USD → ₦) *</label>
+                <input type="number" value={form.exchange_rate} onChange={(e) => updateField('exchange_rate', e.target.value)} placeholder="e.g. 1500" min="0" step="any" required />
               </div>
               <div className="hr-form-field" />
             </div>
@@ -600,9 +601,9 @@ export default function FinanceCreatePurchaseRequest() {
 
           <button type="button" className="pr-add-row" onClick={addLineItem}><PlusCircle size={14} /> Add Row</button>
 
-          {form.currency !== 'NGN' && form.exchange_rate && (
+          {form.currency !== 'NGN' && ngnEquivalent(grandTotal, form.exchange_rate) && (
             <div className="pr-naira-equivalent">
-              Naira equivalent: <strong>₦{(grandTotal * Number(form.exchange_rate)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              Naira equivalent: <strong>{ngnEquivalent(grandTotal, form.exchange_rate)}</strong>
               <span className="pr-rate-note">({currencyInfo.symbol}1 = ₦{Number(form.exchange_rate).toLocaleString()})</span>
             </div>
           )}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Pencil, Trash2, Eye, AlertCircle, Send, Download, FileText } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
-import { naira } from '../../utils/currency'
+import { naira, formatMoney, ngnEquivalent } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
 import { boqApi } from '../../services/procurement'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -153,7 +153,13 @@ export default function BillOfQuantities() {
                   <td>{r.department || '\u2014'}</td>
                   <td><span className={`status-badge ${statusColor(r.status)}`}><span className="status-dot" />{fmtStatus(r.status)}</span></td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(r.date || r.created_at)}</td>
-                  <td style={{ fontWeight: 600 }}>{naira(r.grand_total)}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {formatMoney(r.grand_total, r.currency || 'USD')}
+                    {(() => {
+                      const ngn = r.grand_total_ngn != null ? naira(r.grand_total_ngn) : ngnEquivalent(r.grand_total, r.exchange_rate)
+                      return ngn ? <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>{ngn}</span> : null
+                    })()}
+                  </td>
                   <td>
                     <div className="hr-actions">
                       <button className="hr-action-btn" onClick={() => openView(r)} title="View"><Eye size={15} /></button>
@@ -198,7 +204,16 @@ export default function BillOfQuantities() {
               <div className="view-modal-field"><label>Delivery Location</label><p>{viewItem.delivery_location || '\u2014'}</p></div>
               <div className="view-modal-field"><label>Date</label><p>{fmtDate(viewItem.date || viewItem.created_at)}</p></div>
               <div className="view-modal-field"><label>Status</label><p><span className={`status-badge ${statusColor(viewItem.status)}`}><span className="status-dot" />{fmtStatus(viewItem.status)}</span></p></div>
-              <div className="view-modal-field"><label>Grand Total</label><p style={{ fontWeight: 700 }}>{naira(viewItem.grand_total)}</p></div>
+              <div className="view-modal-field"><label>Grand Total</label><p style={{ fontWeight: 700 }}>
+                {(() => {
+                  const rec = viewDetail || viewItem
+                  const ngn = rec.grand_total_ngn != null ? naira(rec.grand_total_ngn) : ngnEquivalent(rec.grand_total, rec.exchange_rate)
+                  return <>
+                    {formatMoney(rec.grand_total, rec.currency || 'USD')}
+                    {ngn ? <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>{ngn}</span> : null}
+                  </>
+                })()}
+              </p></div>
               <div className="view-modal-field"><label>Items</label><p>{viewItem.item_count ?? '\u2014'}</p></div>
               {viewItem.notes && <div className="view-modal-field full"><label>Notes</label><p>{viewItem.notes}</p></div>}
             </div>
@@ -219,8 +234,8 @@ export default function BillOfQuantities() {
                           <td>{it.description}</td>
                           <td>{it.unit || '\u2014'}</td>
                           <td>{it.quantity}</td>
-                          <td>{naira(it.unit_rate)}</td>
-                          <td style={{ fontWeight: 600 }}>{naira(it.total)}</td>
+                          <td>{formatMoney(it.unit_rate, viewDetail.currency || viewItem.currency || 'USD')}</td>
+                          <td style={{ fontWeight: 600 }}>{formatMoney(it.total, viewDetail.currency || viewItem.currency || 'USD')}</td>
                           <td>{it.comment || '\u2014'}</td>
                         </tr>
                       ))}
