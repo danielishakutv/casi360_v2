@@ -120,6 +120,19 @@ export function AuthProvider({ children }) {
     return user?.role === 'super_admin'
   }, [user])
 
+  const isCountryDirector = useCallback(() => {
+    return user?.role === 'country_director'
+  }, [user])
+
+  /**
+   * Whether the current user sees data across every department (dashboards,
+   * cross-department lists). Resolved on the backend (admins, Country
+   * Director, and Operations managers/leads) and surfaced on the user object.
+   */
+  const canSeeAllDepartments = useCallback(() => {
+    return user?.can_see_all_departments === true
+  }, [user])
+
   const isAuthenticated = !!user
   const mustChangePassword = !!user?.force_password_change
 
@@ -133,13 +146,15 @@ export function AuthProvider({ children }) {
     can,
     isAdmin,
     isSuperAdmin,
+    isCountryDirector,
+    canSeeAllDepartments,
     fetchPermissions,
     login,
     logout,
     updateUser,
     checkSession,
     setError,
-  }), [user, loading, error, isAuthenticated, mustChangePassword, permissions, can, isAdmin, isSuperAdmin, fetchPermissions, login, logout, updateUser, checkSession])
+  }), [user, loading, error, isAuthenticated, mustChangePassword, permissions, can, isAdmin, isSuperAdmin, isCountryDirector, canSeeAllDepartments, fetchPermissions, login, logout, updateUser, checkSession])
 
   return (
     <AuthContext.Provider value={value}>
