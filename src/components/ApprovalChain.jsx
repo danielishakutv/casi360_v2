@@ -79,13 +79,18 @@ export function buildChainFromDemo(item) {
   ]
 }
 
-/* ─── Helper: derive chain from live API PR fields (fallback) ─── */
+/* ─── Helper: derive chain from live API PR fields (fallback) ───
+   Live PRs return `approval_chain`; this only runs if it's missing.
+   Chain: Budget Holder → Finance → Procurement → Operations (final). */
 export function buildChainFromPR(pr) {
   if (pr.approval_chain?.length) return pr.approval_chain
-  const active = pr.active_stage
-  return [
-    { stage: 'budget_holder', stage_label: 'Budget Holder', stage_order: 1, status: active === 'budget_holder' ? 'pending' : (active ? 'approved' : 'waiting') },
-    { stage: 'finance',       stage_label: 'Finance',       stage_order: 2, status: active === 'finance'       ? 'pending' : (active === 'operations' || active === 'procurement' ? 'approved' : 'waiting') },
-    { stage: 'operations',    stage_label: 'Operations',    stage_order: 3, status: active === 'operations' || active === 'procurement' ? 'pending' : 'waiting' },
-  ]
+  const order = ['budget_holder', 'finance', 'procurement', 'operations']
+  const labels = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Operations' }
+  const activeIdx = order.indexOf(pr.active_stage)
+  return order.map((stage, i) => ({
+    stage,
+    stage_label: labels[stage],
+    stage_order: i + 1,
+    status: activeIdx === -1 ? 'waiting' : (i < activeIdx ? 'approved' : i === activeIdx ? 'pending' : 'waiting'),
+  }))
 }

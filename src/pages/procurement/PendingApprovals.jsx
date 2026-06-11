@@ -220,7 +220,10 @@ export default function PendingApprovals() {
   }
   function closeBoqDetail() { setBoqView(null); setBoqDetail(null); setBoqAuditLog([]) }
 
-  const canApproveBoq = can('procurement.boq.approve')
+  // BOQs are approved by Operations (admins included). The boq.approve
+  // entitlement is held by all managers, so also require the server-resolved
+  // Operations-approver flag to avoid showing a dead Approve button.
+  const canApproveBoq = can('procurement.boq.approve') && user?.is_operations_approver === true
   const canApprovePR  = can('procurement.approvals.budget_holder')
   const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0
 
