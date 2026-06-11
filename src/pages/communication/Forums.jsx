@@ -5,6 +5,7 @@ import { fmtDate } from '../../utils/formatDate'
 import { forumsApi } from '../../services/communication'
 import { departmentsApi } from '../../services/hr'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
+import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -66,6 +67,27 @@ export default function Forums() {
   useEffect(() => {
     if (activeForum) loadMessages(activeForum.id, msgPage)
   }, [msgPage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Near real-time refresh ──
+     While viewing a forum, silently re-fetch its posts (and the open reply
+     thread) every few seconds so new messages appear without a manual refresh.
+     No spinner is toggled, so it never disrupts reading or typing. */
+  usePolling(async () => {
+    if (!activeForum) return
+    try {
+      const res = await forumsApi.listMessages(activeForum.id, { page: msgPage, per_page: 20 })
+      const data = res?.data || res
+      setMessages(data?.messages || extractItems(res))
+      setMsgMeta(data?.meta || extractMeta(res))
+    } catch { /* silent */ }
+    if (expandedMsg) {
+      try {
+        const res = await forumsApi.listReplies(activeForum.id, expandedMsg)
+        const data = res?.data || res
+        setMsgReplies(data?.replies || data?.messages || extractItems(res))
+      } catch { /* silent */ }
+    }
+  }, 8000)
 
   /* Post new message */
   async function handlePost(e) {

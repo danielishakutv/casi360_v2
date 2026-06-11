@@ -4,6 +4,7 @@ import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
+import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
 import Pagination from '../../components/Pagination'
@@ -55,6 +56,34 @@ export default function Messages() {
   useEffect(() => {
     messagesApi.unreadCount().then((r) => setUnreadCount(r?.data?.unread_count ?? 0)).catch(() => {})
   }, [])
+
+  /* ── Near real-time refresh ──
+     Silently re-fetch (no spinner) every few seconds while the tab is open.
+     When a thread is open we refresh its replies; otherwise the list + unread
+     badge. The communication read endpoints are uncached server-side so new
+     messages appear within seconds without a manual page refresh. */
+  const pollList = useCallback(async () => {
+    try {
+      const res = await messagesApi.list({ box, search: debouncedSearch || undefined, page, per_page: PER_PAGE })
+      const data = res?.data || res
+      setItems(data?.messages || extractItems(res))
+      setMeta(data?.meta || extractMeta(res))
+      if (data?.unread_count != null) setUnreadCount(data.unread_count)
+      else messagesApi.unreadCount().then((r) => setUnreadCount(r?.data?.unread_count ?? 0)).catch(() => {})
+    } catch { /* silent — keep showing the last good data */ }
+  }, [box, debouncedSearch, page])
+
+  usePolling(async () => {
+    if (thread) {
+      try {
+        const res = await messagesApi.thread(thread.id)
+        const data = res?.data || res
+        if (data?.replies) setReplies(data.replies)
+      } catch { /* silent */ }
+    } else {
+      await pollList()
+    }
+  }, 8000)
 
   /* Open thread */
   async function openThread(msg) {
