@@ -11,3 +11,20 @@ export function fmtDate(dateStr) {
     day: 'numeric',
   })
 }
+
+/**
+ * Format an ISO datetime string to a readable date + time, for transparency
+ * and accountability on dashboards and activity feeds.
+ * @param {string} dateStr  e.g. "2026-03-15T14:30:00Z"
+ * @returns {string} e.g. "Mar 15, 2026, 2:30 PM" or "—" if falsy
+ */
+export function fmtDateTime(dateStr) {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}

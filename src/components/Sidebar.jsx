@@ -121,15 +121,13 @@ const navItems = [
     ],
   },
   {
-    /* Operations section drives executive-level approvals (RFP final sign-off).
-       Restricted to admins by default; a department gate is also applied so an
-       Operations-dept manager (e.g. Operations Director) sees it without needing
-       the admin role. */
+    /* Operations section drives organisation-wide oversight and the final
+       approval stage (PR/BOQ/RFQ). Visible to users with org-wide access —
+       admins, the Country Director, and Operations managers/leads. */
     id: 'operations',
     label: 'Operations',
     icon: Forklift,
-    roleRequired: 'admin',
-    department: DEPT.OPERATIONS,
+    seeAll: true,
     children: [
       { label: 'Overview',  icon: Eye,           path: '/operations' },
       { label: 'Approvals', icon: ClipboardCheck, path: '/operations/approvals' },
@@ -177,12 +175,13 @@ const navItems = [
 export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout, can } = useAuth()
+  const { user, logout, can, canSeeAllDepartments } = useAuth()
   const [openMenus, setOpenMenus] = useState({})
 
   const userRole = user?.role
   const userDept = (user?.department || '').toString().trim()
   const isAdminLike = userRole === 'super_admin' || userRole === 'admin'
+  const canSeeAll = canSeeAllDepartments()
 
   function hasRole(required) {
     if (!required) return true
@@ -196,7 +195,9 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
      code (e.g. "FINANCE") or any of the configured display names. */
   function inDepartment(dept) {
     if (!dept) return true
-    if (isAdminLike) return true
+    // Admins and org-wide users (Country Director, Operations managers) see
+    // every department's section so they can monitor all departments.
+    if (isAdminLike || canSeeAll) return true
     if (!userDept) return false
     if (userDept.toLowerCase() === dept.code.toLowerCase()) return true
     return (dept.names || []).some((n) => n.toLowerCase() === userDept.toLowerCase())
@@ -204,6 +205,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
 
   function passesGates(item) {
     if (item.roleRequired && !hasRole(item.roleRequired)) return false
+    if (item.seeAll && !canSeeAll) return false
     if (item.department && !inDepartment(item.department)) return false
     if (item.permission && !can(item.permission)) return false
     return true
@@ -213,6 +215,7 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
   const visibleItems = navItems.reduce((acc, item) => {
     // Group-level role / department gates
     if (item.roleRequired && !hasRole(item.roleRequired)) return acc
+    if (item.seeAll && !canSeeAll) return acc
     if (item.department && !inDepartment(item.department)) return acc
 
     // Top-level item with a direct path — check its permission too
