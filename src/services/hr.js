@@ -81,3 +81,35 @@ export const holidaysApi = {
   update: (id, data)       => api.patch(`/hr/holidays/${id}`, data),
   delete: (id)             => api.delete(`/hr/holidays/${id}`),
 }
+
+/* ------------------------------------------------------------------ */
+/* Attendance (daily sign in / sign out)                              */
+/* ------------------------------------------------------------------ */
+
+export const attendanceApi = {
+  /** Self sign in for today. */
+  clockIn:  ()             => api.post('/hr/attendance/clock-in'),
+  /** Self sign out for today. */
+  clockOut: ()             => api.post('/hr/attendance/clock-out'),
+  /** Current user's today record + recent history. */
+  me:       (params)       => api.get('/hr/attendance/me', params),
+  /** Org-wide summary + records for today (needs hr.attendance.view_all). */
+  today:    ()             => api.get('/hr/attendance/today'),
+  /** Filterable attendance list (needs hr.attendance.view). */
+  list:     (params)       => api.get('/hr/attendance', params),
+  /** Adjust a record (needs hr.attendance.manage). */
+  update:   (id, data)     => api.patch(`/hr/attendance/${id}`, data),
+}
+
+/* ------------------------------------------------------------------ */
+/* Timesheets (monthly attendance summaries, derived from attendance) */
+/* ------------------------------------------------------------------ */
+
+export const timesheetsApi = {
+  /** Current user's monthly timesheet. */
+  mine:     (params)           => api.get('/hr/timesheets/mine', params),
+  /** All-staff monthly summary (needs hr.attendance.view_all). */
+  monthly:  (params)           => api.get('/hr/timesheets', params),
+  /** A single employee's monthly daily breakdown. */
+  employee: (employeeId, params) => api.get(`/hr/timesheets/${employeeId}`, params),
+}

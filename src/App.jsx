@@ -26,6 +26,8 @@ const StaffList               = lazy(() => import('./pages/hr/StaffList'))
 const Departments             = lazy(() => import('./pages/hr/Departments'))
 const Designations            = lazy(() => import('./pages/hr/Designations'))
 const HRNotes                 = lazy(() => import('./pages/hr/Notes'))
+const HRAttendance            = lazy(() => import('./pages/hr/Attendance'))
+const HRTimesheets            = lazy(() => import('./pages/hr/Timesheets'))
 const HRPurchaseRequests      = lazy(() => import('./pages/hr/PurchaseRequests'))
 const HRCreatePurchaseRequest = lazy(() => import('./pages/hr/CreatePurchaseRequest'))
 
@@ -151,6 +153,8 @@ function AppLayout({ theme, toggleTheme }) {
                 <Route path="/hr/departments" element={<Departments />} />
                 <Route path="/hr/designations" element={<Designations />} />
                 <Route path="/hr/notes" element={<HRNotes />} />
+                <Route path="/hr/attendance" element={<HRAttendance />} />
+                <Route path="/hr/timesheets" element={<HRTimesheets />} />
                 <Route path="/hr/purchase-requests" element={<HRPurchaseRequests />} />
                 <Route path="/hr/purchase-requests/create" element={<HRCreatePurchaseRequest />} />
                 <Route path="/hr/purchase-requests/:id/edit" element={<HRCreatePurchaseRequest />} />

@@ -12,6 +12,8 @@ const pageTitles = {
   '/hr/staff':                { title: 'Staff List',       sub: 'Manage all staff members' },
   '/hr/departments':          { title: 'Departments',      sub: 'Organizational departments' },
   '/hr/designations':         { title: 'Designations',     sub: 'Staff roles & designations' },
+  '/hr/attendance':           { title: 'Attendance',       sub: 'Daily sign in & sign out' },
+  '/hr/timesheets':           { title: 'Timesheets',       sub: 'Monthly attendance summary' },
   '/hr/notes':                { title: 'Notes',            sub: 'HR notes & memos' },
   '/hr/settings':             { title: 'HR Settings',      sub: 'HR module configuration' },
   '/procurement':                    { title: 'Procurement',            sub: 'Procurement overview & analytics' },

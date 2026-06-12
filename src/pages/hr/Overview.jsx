@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Users, UserCheck, Building2, Clock, UserX, Briefcase,
-  AlertCircle, RefreshCw,
+  AlertCircle, RefreshCw, ChevronRight,
 } from 'lucide-react'
-import { employeesApi, departmentsApi, designationsApi } from '../../services/hr'
+import { employeesApi, departmentsApi, designationsApi, attendanceApi } from '../../services/hr'
 import { capitalize } from '../../utils/capitalize'
 import { extractItems } from '../../utils/apiHelpers'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function HROverview() {
+  const { can } = useAuth()
+  const canViewAll = can('hr.attendance.view_all')
+
   const [employees, setEmployees] = useState([])
   const [departments, setDepartments] = useState([])
   const [designations, setDesignations] = useState([])
+  const [attendance, setAttendance] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -34,6 +40,17 @@ export default function HROverview() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  /* Today's attendance summary — only for staff who can see all staff.
+     Loaded independently so any error here never blocks the Overview. */
+  useEffect(() => {
+    if (!canViewAll) return
+    let active = true
+    attendanceApi.today()
+      .then((res) => { if (active) setAttendance(res?.data?.summary ?? null) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [canViewAll])
 
   /* ---------- Loading state ---------- */
   if (loading) {
@@ -96,6 +113,40 @@ export default function HROverview() {
           )
         })}
       </div>
+
+      {/* Today's attendance widget — only for staff who can see all staff */}
+      {canViewAll && attendance && (
+        <div className="card animate-in">
+          <div className="card-header">
+            <h3><Clock size={16} style={{ verticalAlign: '-2px', marginRight: 6 }} />Today’s Attendance</h3>
+            <Link to="/hr/attendance" className="hr-card-link">
+              View attendance <ChevronRight size={14} />
+            </Link>
+          </div>
+          <div className="card-body">
+            <div className="hr-attendance-mini">
+              <div className="hr-attendance-mini-stat">
+                <span className="hr-attendance-mini-value" style={{ color: 'var(--success)' }}>
+                  {Number(attendance.signed_in || 0).toLocaleString()}
+                </span>
+                <span className="hr-attendance-mini-label">Signed In</span>
+              </div>
+              <div className="hr-attendance-mini-stat">
+                <span className="hr-attendance-mini-value" style={{ color: 'var(--danger)' }}>
+                  {Number(attendance.not_signed_in || 0).toLocaleString()}
+                </span>
+                <span className="hr-attendance-mini-label">Not Signed In</span>
+              </div>
+              <div className="hr-attendance-mini-stat">
+                <span className="hr-attendance-mini-value" style={{ color: 'var(--warning)' }}>
+                  {Number(attendance.late || 0).toLocaleString()}
+                </span>
+                <span className="hr-attendance-mini-label">Late</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Departments table */}
       <div className="card animate-in">

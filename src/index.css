@@ -3866,6 +3866,93 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .hr-error-dismiss:hover { opacity: 0.7; }
 
+/* ---- Success banner (mirrors .hr-error-banner) ---- */
+.hr-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--success-light);
+  color: var(--success);
+  font-size: 13px;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  margin-bottom: 16px;
+}
+
+/* ---- Attendance sign in / out clock ---- */
+.attendance-clock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.attendance-clock-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.attendance-clock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  background: var(--primary-100);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.attendance-clock-status { margin-bottom: 6px; }
+
+.attendance-clock-line {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* ---- Overview "Today's Attendance" mini widget ---- */
+.hr-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.hr-card-link:hover { text-decoration: underline; }
+
+.hr-attendance-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.hr-attendance-mini-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 90px;
+}
+
+.hr-attendance-mini-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.hr-attendance-mini-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 /* ---- Misc ---- */
 .hr-dept-name-cell {
   display: flex;
@@ -3890,6 +3977,15 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 /* ---- Additional status badge variants ---- */
 .status-badge.on_leave  { background: var(--warning-light); color: var(--warning); }
 .status-badge.terminated { background: rgba(231, 76, 60, 0.10); color: #e74c3c; }
+
+/* ---- Attendance status badge variants ---- */
+.status-badge.present    { background: var(--success-light); color: var(--success); }
+.status-badge.late       { background: var(--warning-light); color: var(--warning); }
+.status-badge.absent     { background: var(--danger-light);  color: var(--danger); }
+.status-badge.holiday    { background: var(--info-light);    color: var(--info); }
+.status-badge.signed_in  { background: var(--success-light); color: var(--success); }
+.status-badge.signed_out { background: var(--primary-100);   color: var(--primary); }
+.status-badge.not_signed_in { background: var(--status-inactive-bg); color: var(--status-inactive-fg); }
 
 /* =============== HR Notes =============== */
 .notes-empty {
