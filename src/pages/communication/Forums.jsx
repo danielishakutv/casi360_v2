@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Send, AlertCircle, ArrowLeft, MessageSquare, Trash2, Pencil, Hash, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Plus, Send, AlertCircle, ArrowLeft, MessageSquare, Trash2, Hash, ChevronDown } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { forumsApi } from '../../services/communication'
@@ -7,9 +7,11 @@ import { departmentsApi } from '../../services/hr'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
+import { renderRichText } from '../../utils/richText'
 import Modal from '../../components/Modal'
 import Avatar from '../../components/Avatar'
 import Pagination from '../../components/Pagination'
+import FormatToolbar from '../../components/FormatToolbar'
 
 export default function Forums() {
   const { user, can } = useAuth()
@@ -38,6 +40,20 @@ export default function Forums() {
   const [createForm, setCreateForm] = useState({ name: '', description: '', type: 'general', department_id: '' })
   const [createSubmitting, setCreateSubmitting] = useState(false)
   const [departments, setDepartments] = useState([])
+
+  /* Chat scroll panel — autoscroll to the newest post (bottom), but never yank
+     a reader who has scrolled up. */
+  const chatRef = useRef(null)
+  const newPostRef = useRef(null)
+  const scrollToBottom = () => {
+    const el = chatRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }
+  const nearBottom = () => {
+    const el = chatRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
 
   /* Load forums */
   const loadForums = useCallback(async () => {
@@ -69,6 +85,13 @@ export default function Forums() {
     if (activeForum) loadMessages(activeForum.id, msgPage)
   }, [msgPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* Autoscroll the posts panel to the newest post (bottom) on open and after
+     posting. The 8s poll only sticks to the bottom when the user is already
+     there (see usePolling below). */
+  useEffect(() => {
+    if (activeForum && !msgLoading) requestAnimationFrame(scrollToBottom)
+  }, [activeForum?.id, msgPage, messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Near real-time refresh ──
      While viewing a forum, silently re-fetch its posts (and the open reply
      thread) every few seconds so new messages appear without a manual refresh.
@@ -76,10 +99,12 @@ export default function Forums() {
   usePolling(async () => {
     if (!activeForum) return
     try {
+      const stick = nearBottom()
       const res = await forumsApi.listMessages(activeForum.id, { page: msgPage, per_page: 20 })
       const data = res?.data || res
       setMessages(data?.messages || extractItems(res))
       setMsgMeta(data?.meta || extractMeta(res))
+      if (stick) requestAnimationFrame(scrollToBottom)
     } catch { /* silent */ }
     if (expandedMsg) {
       try {
@@ -146,7 +171,7 @@ export default function Forums() {
     return (
       <>
         {error && <div className="hr-error-banner"><AlertCircle size={16} /><span>{error}</span><button onClick={() => setError('')} className="hr-error-dismiss">&times;</button></div>}
-        <div className="card animate-in">
+        <div className="card animate-in comm-thread-card">
           <div className="card-header comm-detail-header">
             <button className="hr-btn-secondary comm-back-btn" onClick={() => setActiveForum(null)}><ArrowLeft size={14} /> Back</button>
             <div className="comm-detail-title">
@@ -155,32 +180,26 @@ export default function Forums() {
             </div>
             <span className="card-badge blue comm-detail-count">{activeForum.message_count ?? messages.length} posts</span>
           </div>
-          <div className="card-body">
-            {/* New post */}
-            {can('communication.forums.create') && (
-              <form onSubmit={handlePost} className="comm-composer">
-                <Avatar name={user?.name} size="md" />
-                <div className="comm-composer-main">
-                  <textarea className="comm-composer-input" value={newPost} onChange={(e) => setNewPost(e.target.value)} rows={2} placeholder="Start a new discussion…" />
-                  <div className="comm-composer-actions">
-                    <button className="hr-btn-primary" type="submit" disabled={posting || !newPost.trim()}>
-                      <Send size={14} /> {posting ? '…' : 'Post'}
-                    </button>
-                  </div>
-                </div>
-              </form>
+          <div className="card-body comm-thread-body">
+            {/* Older posts pagination — secondary, above the conversation */}
+            {msgMeta && msgMeta.last_page > 1 && (
+              <div className="comm-older-posts">
+                <span className="comm-older-label">Older posts</span>
+                <Pagination meta={msgMeta} onPageChange={setMsgPage} />
+              </div>
             )}
 
             {msgLoading ? (
               <div className="comm-loading"><div className="auth-spinner large" /></div>
             ) : messages.length === 0 ? (
-              <div className="comm-empty">
+              <div className="comm-empty comm-chat-scroll" ref={chatRef}>
                 <MessageSquare size={28} />
                 <p>No posts yet. Be the first!</p>
               </div>
             ) : (
-              <div className="comm-post-list">
-                {messages.map((m) => {
+              <div className="comm-post-list comm-chat-scroll" ref={chatRef}>
+                {/* Posts arrive newest-first; reverse so newest sits at the bottom (chat order) */}
+                {[...messages].reverse().map((m) => {
                   const replyCount = m.reply_count ?? 0
                   const open = expandedMsg === m.id
                   return (
@@ -196,7 +215,7 @@ export default function Forums() {
                           )}
                         </div>
                       </div>
-                      <p className="comm-post-body">{m.body}</p>
+                      <p className="comm-post-body">{renderRichText(m.body)}</p>
                       <button className={`comm-replies-toggle${open ? ' open' : ''}`} onClick={() => toggleReplies(m.id)}>
                         <MessageSquare size={13} /> {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
                         <ChevronDown size={14} className="comm-chevron" />
@@ -215,7 +234,7 @@ export default function Forums() {
                                     <strong className="comm-reply-author">{r.user_name}</strong>
                                     <span className="comm-time">{fmtDate(r.created_at)}</span>
                                   </div>
-                                  <p className="comm-reply-body">{r.body}</p>
+                                  <p className="comm-reply-body">{renderRichText(r.body)}</p>
                                 </div>
                               </div>
                             ))
@@ -235,7 +254,24 @@ export default function Forums() {
                 )})}
               </div>
             )}
-            {msgMeta && <Pagination meta={msgMeta} onPageChange={setMsgPage} />}
+
+            {/* New post composer — pinned at the bottom (chat style) */}
+            {can('communication.forums.create') && (
+              <form onSubmit={handlePost} className="comm-composer comm-thread-composer">
+                <Avatar name={user?.name} size="md" />
+                <div className="comm-composer-main">
+                  <div className="comm-composer-box">
+                    <FormatToolbar targetRef={newPostRef} value={newPost} onChange={setNewPost} compact />
+                    <textarea ref={newPostRef} className="comm-composer-input comm-composer-input-flush" value={newPost} onChange={(e) => setNewPost(e.target.value)} rows={2} placeholder="Start a new discussion…" />
+                  </div>
+                  <div className="comm-composer-actions">
+                    <button className="hr-btn-primary" type="submit" disabled={posting || !newPost.trim()}>
+                      <Send size={14} /> {posting ? '…' : 'Post'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       </>

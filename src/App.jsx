@@ -70,10 +70,11 @@ const BudgetCategories = lazy(() => import('./pages/projects/BudgetCategories'))
 const ProjectReports   = lazy(() => import('./pages/projects/ProjectReports'))
 
 // Communication
-const CommOverview = lazy(() => import('./pages/communication/Overview'))
-const Messages     = lazy(() => import('./pages/communication/Messages'))
-const Forums       = lazy(() => import('./pages/communication/Forums'))
-const SendNotice   = lazy(() => import('./pages/communication/SendNotice'))
+const CommOverview   = lazy(() => import('./pages/communication/Overview'))
+const Messages       = lazy(() => import('./pages/communication/Messages'))
+const ComposeMessage = lazy(() => import('./pages/communication/ComposeMessage'))
+const Forums         = lazy(() => import('./pages/communication/Forums'))
+const SendNotice     = lazy(() => import('./pages/communication/SendNotice'))
 
 // Other
 const Reports              = lazy(() => import('./pages/Reports'))
@@ -204,6 +205,7 @@ function AppLayout({ theme, toggleTheme }) {
                 {/* Communication */}
                 <Route path="/communication" element={<CommOverview />} />
                 <Route path="/communication/messages" element={<Messages />} />
+                <Route path="/communication/messages/new" element={<ComposeMessage />} />
                 <Route path="/communication/forums" element={<Forums />} />
                 <Route path="/communication/notices" element={<SendNotice />} />
                 <Route path="/communication/notice" element={<SendNotice />} />

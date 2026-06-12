@@ -1,19 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, X, MailOpen } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, MailOpen } from 'lucide-react'
 import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
-import Modal from '../../components/Modal'
+import { renderRichText } from '../../utils/richText'
 import Avatar from '../../components/Avatar'
 import Pagination from '../../components/Pagination'
+import FormatToolbar from '../../components/FormatToolbar'
 
 const PER_PAGE = 20
 
 export default function Messages() {
   const { user, can } = useAuth()
+  const navigate = useNavigate()
   const [box, setBox] = useState('inbox')
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState(null)
@@ -31,13 +34,18 @@ export default function Messages() {
   const [replyText, setReplyText] = useState('')
   const [replySending, setReplySending] = useState(false)
 
-  /* Compose */
-  const [composeOpen, setComposeOpen] = useState(false)
-  const [composeForm, setComposeForm] = useState({ recipient_ids: [], subject: '', body: '' })
-  const [composeSending, setComposeSending] = useState(false)
-  const [composeErrors, setComposeErrors] = useState(null)
-  const [staffList, setStaffList] = useState([])
-  const [recipientQuery, setRecipientQuery] = useState('')
+  /* Chat scroll panel — autoscroll to newest, but never yank a reader. */
+  const chatRef = useRef(null)
+  const replyRef = useRef(null)
+  const scrollToBottom = () => {
+    const el = chatRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }
+  const nearBottom = () => {
+    const el = chatRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
 
   /* Fetch messages */
   const fetchList = useCallback(async () => {
@@ -58,6 +66,14 @@ export default function Messages() {
     messagesApi.unreadCount().then((r) => setUnreadCount(r?.data?.unread_count ?? 0)).catch(() => {})
   }, [])
 
+  /* Autoscroll the chat panel to the newest message after the thread/replies
+     change. On the silent poll we only scroll when the user is already near the
+     bottom (see usePolling below) so it never disrupts someone reading older
+     posts. */
+  useEffect(() => {
+    if (thread) requestAnimationFrame(scrollToBottom)
+  }, [thread?.id, replies.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Near real-time refresh ──
      Silently re-fetch (no spinner) every few seconds while the tab is open.
      When a thread is open we refresh its replies; otherwise the list + unread
@@ -77,9 +93,13 @@ export default function Messages() {
   usePolling(async () => {
     if (thread) {
       try {
+        const stick = nearBottom()
         const res = await messagesApi.thread(thread.id)
         const data = res?.data || res
-        if (data?.replies) setReplies(data.replies)
+        if (data?.replies) {
+          setReplies(data.replies)
+          if (stick) requestAnimationFrame(scrollToBottom)
+        }
       } catch { /* silent */ }
     } else {
       await pollList()
@@ -114,42 +134,6 @@ export default function Messages() {
     try { await messagesApi.delete(id); setThread(null); fetchList() } catch (e) { setError(e.message) }
   }
 
-  /* Compose */
-  const staffName = (s) => s?.name || [s?.first_name, s?.last_name].filter(Boolean).join(' ') || s?.email || 'Unknown'
-
-  function openCompose() {
-    setComposeForm({ recipient_ids: [], subject: '', body: '' }); setComposeErrors(null); setRecipientQuery(''); setComposeOpen(true)
-    if (!staffList.length) {
-      messagesApi.recipients().then((r) => setStaffList(extractItems(r))).catch(() => {})
-    }
-  }
-
-  const addRecipient = (id) => {
-    setComposeForm((p) => p.recipient_ids.includes(id) ? p : { ...p, recipient_ids: [...p.recipient_ids, id] })
-    setRecipientQuery('')
-  }
-  const removeRecipient = (id) =>
-    setComposeForm((p) => ({ ...p, recipient_ids: p.recipient_ids.filter((r) => r !== id) }))
-
-  async function handleCompose(e) {
-    e.preventDefault(); setComposeErrors(null)
-    if (!composeForm.recipient_ids.length) {
-      setComposeErrors({ general: ['Select at least one recipient.'] }); return
-    }
-    setComposeSending(true)
-    try {
-      // Backend sends to one recipient per request — fan out so a group
-      // selection delivers an individual copy to each person.
-      await Promise.all(composeForm.recipient_ids.map((rid) =>
-        messagesApi.send({ recipient_id: rid, subject: composeForm.subject, body: composeForm.body })
-      ))
-      setComposeOpen(false); fetchList()
-    } catch (err) {
-      if (err.status === 422 && err.errors) setComposeErrors(err.errors)
-      else setComposeErrors({ general: [err.message] })
-    } finally { setComposeSending(false) }
-  }
-
   /* ─── Thread view ─── */
   if (thread) {
     return (
@@ -166,8 +150,8 @@ export default function Messages() {
               <div className="comm-loading"><div className="auth-spinner large" /></div>
             ) : (
               <>
-                <div className="comm-chat">
-                  {/* Original message */}
+                <div className="comm-chat comm-chat-scroll" ref={chatRef}>
+                  {/* Original message (oldest — top) */}
                   {(() => {
                     const mine = thread.sender_name === user?.name
                     return (
@@ -178,13 +162,13 @@ export default function Messages() {
                             <strong className="comm-bubble-author">{thread.sender_name}</strong>
                             <span className="comm-time">{fmtDate(thread.created_at)}</span>
                           </div>
-                          <p className="comm-bubble-body">{thread.body}</p>
+                          <p className="comm-bubble-body">{renderRichText(thread.body)}</p>
                         </div>
                         {mine && <Avatar name={thread.sender_name} size="sm" />}
                       </div>
                     )
                   })()}
-                  {/* Replies */}
+                  {/* Replies (chronological — newest at bottom) */}
                   {replies.map((r) => {
                     const mine = r.sender_name === user?.name
                     return (
@@ -195,19 +179,22 @@ export default function Messages() {
                             <strong className="comm-bubble-author">{r.sender_name}</strong>
                             <span className="comm-time">{fmtDate(r.created_at)}</span>
                           </div>
-                          <p className="comm-bubble-body">{r.body}</p>
+                          <p className="comm-bubble-body">{renderRichText(r.body)}</p>
                         </div>
                         {mine && <Avatar name={r.sender_name} size="sm" />}
                       </div>
                     )
                   })}
                 </div>
-                {/* Reply input */}
+                {/* Reply composer (pinned at bottom) */}
                 {can('communication.messages.create') && (
                   <form onSubmit={sendReply} className="comm-composer comm-thread-composer">
                     <Avatar name={user?.name} size="md" />
                     <div className="comm-composer-main">
-                      <textarea className="comm-composer-input" value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} placeholder="Type a reply…" />
+                      <div className="comm-composer-box">
+                        <FormatToolbar targetRef={replyRef} value={replyText} onChange={setReplyText} compact />
+                        <textarea ref={replyRef} className="comm-composer-input comm-composer-input-flush" value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} placeholder="Type a reply…" />
+                      </div>
                       <div className="comm-composer-actions">
                         <button className="hr-btn-primary" type="submit" disabled={replySending || !replyText.trim()}>
                           <Send size={14} /> {replySending ? '…' : 'Send'}
@@ -244,7 +231,7 @@ export default function Messages() {
           </div>
           <div className="hr-toolbar-right">
             {can('communication.messages.create') && (
-              <button className="hr-btn-primary" onClick={openCompose}><Plus size={16} /> Compose</button>
+              <button className="hr-btn-primary" onClick={() => navigate('/communication/messages/new')}><Plus size={16} /> Compose</button>
             )}
           </div>
         </div>
@@ -276,84 +263,6 @@ export default function Messages() {
         </div>
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
-
-      {/* ─── Compose ─── */}
-      <Modal open={composeOpen} onClose={() => setComposeOpen(false)} title="New Message" size="md">
-        <form onSubmit={handleCompose} className="hr-form">
-          {composeErrors && (
-            <div className="hr-error-banner" style={{ marginBottom: 12 }}>
-              <AlertCircle size={16} />
-              <span>{composeErrors.general ? composeErrors.general[0] : 'Please fix the errors below.'}</span>
-            </div>
-          )}
-          <div className="hr-form-field">
-            <label>To *</label>
-            {/* Selected recipients as removable chips */}
-            {composeForm.recipient_ids.length > 0 && (
-              <div className="comm-chips">
-                {composeForm.recipient_ids.map((rid) => {
-                  const s = staffList.find((x) => x.id === rid)
-                  return (
-                    <span key={rid} className="comm-chip">
-                      <Avatar name={staffName(s)} size="sm" />
-                      {staffName(s)}
-                      <button type="button" onClick={() => removeRecipient(rid)} aria-label="Remove recipient" className="comm-chip-remove">
-                        <X size={12} />
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            <input
-              type="text"
-              value={recipientQuery}
-              onChange={(e) => setRecipientQuery(e.target.value)}
-              placeholder="Search staff by name or email…"
-            />
-            {/* Always-visible scrollable candidate list */}
-            <div className="comm-candidate-list">
-              {(() => {
-                const q = recipientQuery.trim().toLowerCase()
-                const candidates = staffList
-                  .filter((s) => s.id !== user?.id && !composeForm.recipient_ids.includes(s.id))
-                  .filter((s) => !q || staffName(s).toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
-                if (!staffList.length) return <div className="comm-candidate-empty">Loading staff…</div>
-                if (!candidates.length) return <div className="comm-candidate-empty">No matching staff</div>
-                return candidates.map((s) => (
-                  <button
-                    type="button"
-                    key={s.id}
-                    onClick={() => addRecipient(s.id)}
-                    className="comm-candidate"
-                  >
-                    <Avatar name={staffName(s)} size="sm" />
-                    <span className="comm-candidate-text">
-                      <span className="comm-candidate-name">{staffName(s)}</span>
-                      {s.email ? <span className="comm-candidate-email">{s.email}</span> : null}
-                    </span>
-                  </button>
-                ))
-              })()}
-            </div>
-            <span className="comm-field-hint">
-              Select one or more recipients. Each person receives their own copy.
-            </span>
-          </div>
-          <div className="hr-form-field">
-            <label>Subject *</label>
-            <input type="text" value={composeForm.subject} onChange={(e) => setComposeForm((p) => ({ ...p, subject: e.target.value }))} required placeholder="Message subject" />
-          </div>
-          <div className="hr-form-field">
-            <label>Message *</label>
-            <textarea value={composeForm.body} onChange={(e) => setComposeForm((p) => ({ ...p, body: e.target.value }))} required rows={6} placeholder="Type your message…" />
-          </div>
-          <div className="hr-form-actions">
-            <button type="button" className="hr-btn-secondary" onClick={() => setComposeOpen(false)}>Cancel</button>
-            <button type="submit" className="hr-btn-primary" disabled={composeSending}><Send size={14} /> {composeSending ? 'Sending…' : 'Send Message'}</button>
-          </div>
-        </form>
-      </Modal>
     </>
   )
 }
