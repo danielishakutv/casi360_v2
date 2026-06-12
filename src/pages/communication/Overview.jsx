@@ -68,33 +68,37 @@ export default function CommOverview() {
         <div className="card-header">
           <h3>Recent Notices</h3>
         </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr><th>Title</th><th>Priority</th><th>Read</th><th>Date</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={5} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '16px auto' }} /></td></tr>
-                ) : recentNotices.length === 0 ? (
-                  <tr><td colSpan={5} className="hr-empty-cell">No notices yet</td></tr>
-                ) : recentNotices.map((n) => (
-                  <tr key={n.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{n.title}</td>
-                    <td><span className={`card-badge ${n.priority === 'critical' ? 'red' : n.priority === 'important' ? 'orange' : 'green'}`}>{capitalize(n.priority)}</span></td>
-                    <td>{n.read_count ?? 0}</td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(n.publish_date || n.created_at)}</td>
-                    <td>
-                      <span className={`status-badge ${n.status === 'published' ? 'active' : 'pending'}`}>
-                        <span className="status-dot" />{capitalize(n.status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="card-body">
+          {loading ? (
+            <div className="comm-loading"><div className="auth-spinner large" /></div>
+          ) : recentNotices.length === 0 ? (
+            <div className="comm-empty">
+              <Bell size={28} />
+              <p>No notices yet</p>
+            </div>
+          ) : (
+            <div className="comm-notice-list">
+              {recentNotices.map((n) => {
+                const prio = n.priority || 'normal'
+                return (
+                  <div key={n.id} className={`comm-notice-row prio-${prio}`}>
+                    <span className="comm-notice-accent" />
+                    <div className="comm-notice-main">
+                      <div className="comm-notice-title">{n.title}</div>
+                      <div className="comm-notice-meta">
+                        <span className={`card-badge ${prio === 'critical' ? 'red' : prio === 'important' ? 'orange' : 'green'}`}>{capitalize(prio)}</span>
+                        <span className="comm-notice-stat">{n.read_count ?? 0} reads</span>
+                        <span className="comm-notice-stat">{fmtDate(n.publish_date || n.created_at)}</span>
+                      </div>
+                    </div>
+                    <span className={`status-badge ${n.status === 'published' ? 'active' : 'pending'}`}>
+                      <span className="status-dot" />{capitalize(n.status)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </>

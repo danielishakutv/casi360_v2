@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Send, AlertCircle, ArrowLeft, MessageSquare, Trash2, Pencil } from 'lucide-react'
+import { Plus, Send, AlertCircle, ArrowLeft, MessageSquare, Trash2, Pencil, Hash, ChevronDown } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
 import { fmtDate } from '../../utils/formatDate'
 import { forumsApi } from '../../services/communication'
@@ -8,6 +8,7 @@ import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
+import Avatar from '../../components/Avatar'
 import Pagination from '../../components/Pagination'
 
 export default function Forums() {
@@ -146,74 +147,92 @@ export default function Forums() {
       <>
         {error && <div className="hr-error-banner"><AlertCircle size={16} /><span>{error}</span><button onClick={() => setError('')} className="hr-error-dismiss">&times;</button></div>}
         <div className="card animate-in">
-          <div className="card-header">
-            <button className="hr-btn-secondary" onClick={() => setActiveForum(null)} style={{ marginRight: 12 }}><ArrowLeft size={14} /> Back</button>
-            <div>
+          <div className="card-header comm-detail-header">
+            <button className="hr-btn-secondary comm-back-btn" onClick={() => setActiveForum(null)}><ArrowLeft size={14} /> Back</button>
+            <div className="comm-detail-title">
               <h3>{activeForum.name}</h3>
-              {activeForum.description && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{activeForum.description}</p>}
+              {activeForum.description && <p className="comm-detail-desc">{activeForum.description}</p>}
             </div>
-            <span className="card-badge blue" style={{ marginLeft: 'auto' }}>{activeForum.message_count ?? messages.length} posts</span>
+            <span className="card-badge blue comm-detail-count">{activeForum.message_count ?? messages.length} posts</span>
           </div>
           <div className="card-body">
             {/* New post */}
             {can('communication.forums.create') && (
-              <form onSubmit={handlePost} style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
-                <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} rows={2} placeholder="Start a new discussion…" style={{ flex: 1, resize: 'vertical' }} />
-                <button className="hr-btn-primary" type="submit" disabled={posting || !newPost.trim()} style={{ height: 42 }}>
-                  <Send size={14} /> {posting ? '…' : 'Post'}
-                </button>
+              <form onSubmit={handlePost} className="comm-composer">
+                <Avatar name={user?.name} size="md" />
+                <div className="comm-composer-main">
+                  <textarea className="comm-composer-input" value={newPost} onChange={(e) => setNewPost(e.target.value)} rows={2} placeholder="Start a new discussion…" />
+                  <div className="comm-composer-actions">
+                    <button className="hr-btn-primary" type="submit" disabled={posting || !newPost.trim()}>
+                      <Send size={14} /> {posting ? '…' : 'Post'}
+                    </button>
+                  </div>
+                </div>
               </form>
             )}
 
             {msgLoading ? (
-              <div style={{ padding: 24, textAlign: 'center' }}><div className="auth-spinner large" /></div>
+              <div className="comm-loading"><div className="auth-spinner large" /></div>
             ) : messages.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>No posts yet. Be the first!</p>
+              <div className="comm-empty">
+                <MessageSquare size={28} />
+                <p>No posts yet. Be the first!</p>
+              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {messages.map((m) => (
-                  <div key={m.id} style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <strong style={{ fontSize: 13 }}>{m.user_name}</strong>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(m.created_at)}</span>
-                        {(m.user_id === user?.id || can('communication.forums.manage')) && (
-                          <button className="hr-action-btn danger" onClick={() => deleteMsg(m.id)} title="Delete" style={{ padding: 2 }}><Trash2 size={13} /></button>
-                        )}
+              <div className="comm-post-list">
+                {messages.map((m) => {
+                  const replyCount = m.reply_count ?? 0
+                  const open = expandedMsg === m.id
+                  return (
+                  <div key={m.id} className="comm-post">
+                    <Avatar name={m.user_name} size="md" />
+                    <div className="comm-post-main">
+                      <div className="comm-post-head">
+                        <strong className="comm-post-author">{m.user_name}</strong>
+                        <div className="comm-post-meta">
+                          <span className="comm-time">{fmtDate(m.created_at)}</span>
+                          {(m.user_id === user?.id || can('communication.forums.manage')) && (
+                            <button className="hr-action-btn danger comm-icon-btn" onClick={() => deleteMsg(m.id)} title="Delete"><Trash2 size={13} /></button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <p style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{m.body}</p>
-                    <button className="hr-action-btn" onClick={() => toggleReplies(m.id)} style={{ marginTop: 6, fontSize: 12 }}>
-                      <MessageSquare size={12} /> {m.reply_count ?? 0} {(m.reply_count ?? 0) === 1 ? 'reply' : 'replies'}
-                    </button>
+                      <p className="comm-post-body">{m.body}</p>
+                      <button className={`comm-replies-toggle${open ? ' open' : ''}`} onClick={() => toggleReplies(m.id)}>
+                        <MessageSquare size={13} /> {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+                        <ChevronDown size={14} className="comm-chevron" />
+                      </button>
 
-                    {expandedMsg === m.id && (
-                      <div style={{ marginTop: 8, paddingLeft: 16, borderLeft: '2px solid var(--border)' }}>
-                        {repliesLoading ? (
-                          <div style={{ padding: 8 }}><div className="auth-spinner" /></div>
-                        ) : (
-                          msgReplies.map((r) => (
-                            <div key={r.id} style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                                <strong style={{ fontSize: 12 }}>{r.user_name}</strong>
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</span>
+                      {open && (
+                        <div className="comm-thread">
+                          {repliesLoading ? (
+                            <div className="comm-loading sm"><div className="auth-spinner" /></div>
+                          ) : (
+                            msgReplies.map((r) => (
+                              <div key={r.id} className="comm-reply">
+                                <Avatar name={r.user_name} size="sm" />
+                                <div className="comm-reply-main">
+                                  <div className="comm-reply-head">
+                                    <strong className="comm-reply-author">{r.user_name}</strong>
+                                    <span className="comm-time">{fmtDate(r.created_at)}</span>
+                                  </div>
+                                  <p className="comm-reply-body">{r.body}</p>
+                                </div>
                               </div>
-                              <p style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{r.body}</p>
-                            </div>
-                          ))
-                        )}
-                        {can('communication.forums.create') && (
-                          <form onSubmit={(e) => sendReply(e, m.id)} style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                            <input type="text" value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Write a reply…" style={{ flex: 1, fontSize: 13 }} />
-                            <button className="hr-btn-primary" type="submit" disabled={replySending || !replyText.trim()} style={{ padding: '4px 10px', fontSize: 12 }}>
-                              <Send size={12} />
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    )}
+                            ))
+                          )}
+                          {can('communication.forums.create') && (
+                            <form onSubmit={(e) => sendReply(e, m.id)} className="comm-reply-form">
+                              <input type="text" value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Write a reply…" className="comm-reply-input" />
+                              <button className="hr-btn-primary comm-reply-send" type="submit" disabled={replySending || !replyText.trim()} title="Send reply">
+                                <Send size={14} />
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
             {msgMeta && <Pagination meta={msgMeta} onPageChange={setMsgPage} />}
@@ -238,30 +257,35 @@ export default function Forums() {
             )}
           </div>
         </div>
-        <div className="card-body" style={{ padding: 0 }}>
+        <div className="card-body">
           {loading ? (
-            <div style={{ padding: 24, textAlign: 'center' }}><div className="auth-spinner large" /></div>
+            <div className="comm-loading"><div className="auth-spinner large" /></div>
           ) : forums.length === 0 ? (
-            <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No forums found.</p>
+            <div className="comm-empty">
+              <MessageSquare size={28} />
+              <p>No forums found.</p>
+            </div>
           ) : (
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead><tr><th>Forum</th><th>Type</th><th>Posts</th><th>Last Activity</th><th>Status</th></tr></thead>
-                <tbody>
-                  {forums.map((f) => (
-                    <tr key={f.id} onClick={() => openForum(f)} style={{ cursor: 'pointer' }}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{f.name}</div>
-                        {f.description && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.description}</div>}
-                      </td>
-                      <td><span className={`card-badge ${f.type === 'general' ? 'blue' : 'green'}`}>{capitalize(f.type)}</span></td>
-                      <td style={{ fontWeight: 600 }}>{f.message_count ?? 0}</td>
-                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.last_activity_at ? fmtDate(f.last_activity_at) : '—'}</td>
-                      <td><span className={`status-badge ${f.status}`}><span className="status-dot" />{capitalize(f.status || 'active')}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="comm-forum-grid">
+              {forums.map((f) => {
+                const isGeneral = f.type === 'general'
+                return (
+                  <button key={f.id} type="button" className="comm-forum-card" onClick={() => openForum(f)}>
+                    <span className={`comm-forum-icon ${isGeneral ? 'blue' : 'green'}`}>
+                      {isGeneral ? <MessageSquare size={20} /> : <Hash size={20} />}
+                    </span>
+                    <span className="comm-forum-body">
+                      <span className="comm-forum-name">{f.name}</span>
+                      {f.description && <span className="comm-forum-desc">{f.description}</span>}
+                      <span className="comm-forum-footer">
+                        <span className={`card-badge ${isGeneral ? 'blue' : 'green'}`}>{capitalize(f.type)}</span>
+                        <span className="comm-forum-stat"><MessageSquare size={12} /> {f.message_count ?? 0} posts</span>
+                        <span className="comm-forum-stat comm-forum-date">{f.last_activity_at ? fmtDate(f.last_activity_at) : 'No activity'}</span>
+                      </span>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

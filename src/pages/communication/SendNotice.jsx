@@ -332,7 +332,10 @@ export default function SendNotice() {
                 <tr key={n.id} className={n.is_read === false ? 'notice-unread-row' : ''}>
                   <td>{n.is_pinned ? <Pin size={14} style={{ color: 'var(--primary)' }} /> : null}</td>
                   <td>
-                    <span style={{ fontWeight: n.is_read === false ? 700 : 600, color: 'var(--text-secondary)' }}>{n.title}</span>
+                    <span className="comm-notice-title-cell">
+                      <span className={`comm-prio-dot prio-${n.priority || 'normal'}`} title={capitalize(n.priority || 'normal')} />
+                      <span style={{ fontWeight: n.is_read === false ? 700 : 600, color: 'var(--text-secondary)' }}>{n.title}</span>
+                    </span>
                   </td>
                   <td>
                     <span className="comm-audience-badge">

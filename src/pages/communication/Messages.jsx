@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, X } from 'lucide-react'
+import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, X, MailOpen } from 'lucide-react'
 import { fmtDate } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -7,6 +7,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/Modal'
+import Avatar from '../../components/Avatar'
 import Pagination from '../../components/Pagination'
 
 const PER_PAGE = 20
@@ -154,42 +155,65 @@ export default function Messages() {
     return (
       <>
         {error && <div className="hr-error-banner"><AlertCircle size={16} /><span>{error}</span><button onClick={() => setError('')} className="hr-error-dismiss">&times;</button></div>}
-        <div className="card animate-in">
-          <div className="card-header">
-            <button className="hr-btn-secondary" onClick={() => { setThread(null); fetchList() }} style={{ marginRight: 12 }}><ArrowLeft size={14} /> Back</button>
-            <h3 style={{ flex: 1 }}>{thread.subject || '(No subject)'}</h3>
+        <div className="card animate-in comm-thread-card">
+          <div className="card-header comm-detail-header">
+            <button className="hr-btn-secondary comm-back-btn" onClick={() => { setThread(null); fetchList() }}><ArrowLeft size={14} /> Back</button>
+            <h3 className="comm-detail-title-flex">{thread.subject || '(No subject)'}</h3>
             <button className="hr-action-btn danger" onClick={() => deleteMessage(thread.id)} title="Delete"><Trash2 size={15} /></button>
           </div>
-          <div className="card-body">
+          <div className="card-body comm-thread-body">
             {threadLoading ? (
-              <div style={{ padding: 24, textAlign: 'center' }}><div className="auth-spinner large" /></div>
+              <div className="comm-loading"><div className="auth-spinner large" /></div>
             ) : (
               <>
-                {/* Original message */}
-                <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <strong>{thread.sender_name}</strong>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(thread.created_at)}</span>
-                  </div>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{thread.body}</p>
+                <div className="comm-chat">
+                  {/* Original message */}
+                  {(() => {
+                    const mine = thread.sender_name === user?.name
+                    return (
+                      <div className={`comm-bubble-row${mine ? ' mine' : ''}`}>
+                        {!mine && <Avatar name={thread.sender_name} size="sm" />}
+                        <div className="comm-bubble">
+                          <div className="comm-bubble-head">
+                            <strong className="comm-bubble-author">{thread.sender_name}</strong>
+                            <span className="comm-time">{fmtDate(thread.created_at)}</span>
+                          </div>
+                          <p className="comm-bubble-body">{thread.body}</p>
+                        </div>
+                        {mine && <Avatar name={thread.sender_name} size="sm" />}
+                      </div>
+                    )
+                  })()}
+                  {/* Replies */}
+                  {replies.map((r) => {
+                    const mine = r.sender_name === user?.name
+                    return (
+                      <div key={r.id} className={`comm-bubble-row${mine ? ' mine' : ''}`}>
+                        {!mine && <Avatar name={r.sender_name} size="sm" />}
+                        <div className="comm-bubble">
+                          <div className="comm-bubble-head">
+                            <strong className="comm-bubble-author">{r.sender_name}</strong>
+                            <span className="comm-time">{fmtDate(r.created_at)}</span>
+                          </div>
+                          <p className="comm-bubble-body">{r.body}</p>
+                        </div>
+                        {mine && <Avatar name={r.sender_name} size="sm" />}
+                      </div>
+                    )
+                  })}
                 </div>
-                {/* Replies */}
-                {replies.map((r) => (
-                  <div key={r.id} style={{ padding: 12, borderBottom: '1px solid var(--border)', background: r.sender_name === user?.name ? 'var(--bg-secondary)' : 'transparent' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <strong>{r.sender_name}</strong>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</span>
-                    </div>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{r.body}</p>
-                  </div>
-                ))}
                 {/* Reply input */}
                 {can('communication.messages.create') && (
-                  <form onSubmit={sendReply} style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-end' }}>
-                    <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} placeholder="Type a reply…" style={{ flex: 1, resize: 'vertical' }} />
-                    <button className="hr-btn-primary" type="submit" disabled={replySending || !replyText.trim()} style={{ height: 40 }}>
-                      <Send size={14} /> {replySending ? '…' : 'Send'}
-                    </button>
+                  <form onSubmit={sendReply} className="comm-composer comm-thread-composer">
+                    <Avatar name={user?.name} size="md" />
+                    <div className="comm-composer-main">
+                      <textarea className="comm-composer-input" value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} placeholder="Type a reply…" />
+                      <div className="comm-composer-actions">
+                        <button className="hr-btn-primary" type="submit" disabled={replySending || !replyText.trim()}>
+                          <Send size={14} /> {replySending ? '…' : 'Send'}
+                        </button>
+                      </div>
+                    </div>
                   </form>
                 )}
               </>
@@ -208,13 +232,15 @@ export default function Messages() {
       <div className="card animate-in">
         <div className="hr-toolbar">
           <div className="hr-toolbar-left">
-            <button className={`hr-action-btn${box === 'inbox' ? ' primary' : ''}`} onClick={() => setBox('inbox')} style={{ borderBottom: box === 'inbox' ? '2px solid var(--primary)' : 'none' }}>
-              <Inbox size={14} /> Inbox {unreadCount > 0 && <span className="card-badge blue" style={{ marginLeft: 4 }}>{unreadCount}</span>}
-            </button>
-            <button className={`hr-action-btn${box === 'sent' ? ' primary' : ''}`} onClick={() => setBox('sent')} style={{ borderBottom: box === 'sent' ? '2px solid var(--primary)' : 'none' }}>
-              <SendHorizontal size={14} /> Sent
-            </button>
-            <div className="search-box" style={{ marginLeft: 12 }}><Search size={16} className="search-icon" /><input type="text" placeholder="Search messages…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <div className="comm-tabs">
+              <button className={`comm-tab${box === 'inbox' ? ' active' : ''}`} onClick={() => setBox('inbox')}>
+                <Inbox size={14} /> Inbox {unreadCount > 0 && <span className="comm-tab-badge">{unreadCount}</span>}
+              </button>
+              <button className={`comm-tab${box === 'sent' ? ' active' : ''}`} onClick={() => setBox('sent')}>
+                <SendHorizontal size={14} /> Sent
+              </button>
+            </div>
+            <div className="search-box"><Search size={16} className="search-icon" /><input type="text" placeholder="Search messages…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
           </div>
           <div className="hr-toolbar-right">
             {can('communication.messages.create') && (
@@ -223,26 +249,30 @@ export default function Messages() {
           </div>
         </div>
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr><th>{box === 'inbox' ? 'From' : 'To'}</th><th>Subject</th><th>Replies</th><th>Date</th></tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '20px auto' }} /></td></tr>
-              ) : items.length === 0 ? (
-                <tr><td colSpan={4} className="hr-empty-cell">No messages</td></tr>
-              ) : items.map((m) => (
-                <tr key={m.id} onClick={() => openThread(m)} style={{ cursor: 'pointer', fontWeight: !m.is_read && box === 'inbox' ? 700 : 400 }}>
-                  <td style={{ color: 'var(--text-secondary)' }}>{box === 'inbox' ? m.sender_name : m.recipient_name}</td>
-                  <td>{m.subject || '(No subject)'}</td>
-                  <td><span className="card-badge blue">{m.reply_count ?? 0}</span></td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(m.latest_reply_at || m.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="comm-msg-list">
+          {loading ? (
+            <div className="comm-loading"><div className="auth-spinner large" /></div>
+          ) : items.length === 0 ? (
+            <div className="comm-empty">
+              <MailOpen size={28} />
+              <p>No messages</p>
+            </div>
+          ) : items.map((m) => {
+            const who = box === 'inbox' ? m.sender_name : m.recipient_name
+            const unread = !m.is_read && box === 'inbox'
+            return (
+              <button key={m.id} type="button" className={`comm-msg-row${unread ? ' unread' : ''}`} onClick={() => openThread(m)}>
+                {unread && <span className="comm-unread-dot" aria-label="Unread" />}
+                <Avatar name={who} size="sm" />
+                <span className="comm-msg-main">
+                  <span className="comm-msg-name">{who}</span>
+                  <span className="comm-msg-subject">{m.subject || '(No subject)'}</span>
+                </span>
+                {(m.reply_count ?? 0) > 0 && <span className="comm-msg-chip">{m.reply_count}</span>}
+                <span className="comm-msg-date">{fmtDate(m.latest_reply_at || m.created_at)}</span>
+              </button>
+            )
+          })}
         </div>
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
@@ -260,13 +290,14 @@ export default function Messages() {
             <label>To *</label>
             {/* Selected recipients as removable chips */}
             {composeForm.recipient_ids.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+              <div className="comm-chips">
                 {composeForm.recipient_ids.map((rid) => {
                   const s = staffList.find((x) => x.id === rid)
                   return (
-                    <span key={rid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-secondary, #f1f5f9)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 14, padding: '2px 8px', fontSize: 13 }}>
+                    <span key={rid} className="comm-chip">
+                      <Avatar name={staffName(s)} size="sm" />
                       {staffName(s)}
-                      <button type="button" onClick={() => removeRecipient(rid)} aria-label="Remove recipient" style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'inline-flex', color: 'var(--text-muted)' }}>
+                      <button type="button" onClick={() => removeRecipient(rid)} aria-label="Remove recipient" className="comm-chip-remove">
                         <X size={12} />
                       </button>
                     </span>
@@ -281,30 +312,31 @@ export default function Messages() {
               placeholder="Search staff by name or email…"
             />
             {/* Always-visible scrollable candidate list */}
-            <div style={{ marginTop: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border, #e5e7eb)', borderRadius: 6 }}>
+            <div className="comm-candidate-list">
               {(() => {
                 const q = recipientQuery.trim().toLowerCase()
                 const candidates = staffList
                   .filter((s) => s.id !== user?.id && !composeForm.recipient_ids.includes(s.id))
                   .filter((s) => !q || staffName(s).toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
-                if (!staffList.length) return <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' }}>Loading staff…</div>
-                if (!candidates.length) return <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)' }}>No matching staff</div>
+                if (!staffList.length) return <div className="comm-candidate-empty">Loading staff…</div>
+                if (!candidates.length) return <div className="comm-candidate-empty">No matching staff</div>
                 return candidates.map((s) => (
                   <button
                     type="button"
                     key={s.id}
                     onClick={() => addRecipient(s.id)}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border, #f1f5f9)', cursor: 'pointer', fontSize: 13 }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-secondary, #f8fafc)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                    className="comm-candidate"
                   >
-                    <span style={{ fontWeight: 600 }}>{staffName(s)}</span>
-                    {s.email ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}> · {s.email}</span> : ''}
+                    <Avatar name={staffName(s)} size="sm" />
+                    <span className="comm-candidate-text">
+                      <span className="comm-candidate-name">{staffName(s)}</span>
+                      {s.email ? <span className="comm-candidate-email">{s.email}</span> : null}
+                    </span>
                   </button>
                 ))
               })()}
             </div>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+            <span className="comm-field-hint">
               Select one or more recipients. Each person receives their own copy.
             </span>
           </div>
