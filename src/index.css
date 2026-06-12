@@ -1409,9 +1409,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
     font-size: 22px;
   }
 
-  .search-box {
-    display: none;
-  }
+  /* Phones: hide only the decorative top-bar search. Functional toolbar
+     searches (users, staff, vendors, …) stay visible and go full-width so
+     the app remains usable on mobile. */
+  .top-bar .search-box { display: none; }
+  .hr-toolbar-left { flex-wrap: wrap; }
+  .hr-toolbar .search-box { width: 100%; }
 
   .quick-actions {
     grid-template-columns: 1fr;
@@ -2353,6 +2356,28 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   grid-template-columns: 260px 1fr;
   gap: 20px;
   align-items: start;
+}
+
+/* The 1fr content track must be allowed to shrink (its default min-width is
+   `auto`), otherwise a wide table forces the whole layout past the viewport
+   and clips the toolbar / Create button on the right. With min-width:0 the
+   table scrolls inside its own .table-wrapper instead. */
+.settings-content { min-width: 0; }
+
+/* Tablet / phone: stack the category rail above the content and turn the
+   vertical nav into a horizontal scroller so Settings is fully usable. */
+@media (max-width: 880px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-sidebar { position: static; top: auto; }
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .settings-nav-btn { width: auto; flex-shrink: 0; white-space: nowrap; }
+  .settings-nav-btn .settings-nav-chevron { display: none; }
 }
 
 /* ---- Sidebar ---- */
@@ -8230,8 +8255,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
    (oldest at top, newest at bottom). The composer is a sibling below it. */
 .comm-chat-scroll {
   overflow-y: auto;
-  min-height: 240px;
+  min-height: 200px;
   max-height: calc(100vh - 360px);
+  max-height: calc(100dvh - 360px); /* dvh excludes mobile browser chrome */
 }
 
 /* Older-posts pagination shown above the forum conversation (secondary) */
@@ -8351,6 +8377,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .comm-link-btn:disabled { color: var(--text-faint); cursor: not-allowed; }
 
 @media (max-width: 768px) {
-  .comm-chat-scroll { max-height: calc(100vh - 280px); }
+  .comm-chat-scroll {
+    max-height: calc(100vh - 260px);
+    max-height: calc(100dvh - 260px);
+  }
   .comm-format-hint { display: none; }
 }
