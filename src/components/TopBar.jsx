@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Search, Bell, Sun, Moon, User, Settings, LogOut, ChevronDown, Pin } from 'lucide-react'
+import { Menu, Search, Bell, Sun, Moon, User, Settings, LogOut, ChevronDown, Pin, MessageSquare } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
-import { noticesApi } from '../services/communication'
+import { noticesApi, messagesApi } from '../services/communication'
 import { extractItems } from '../utils/apiHelpers'
 
 const pageTitles = {
@@ -57,7 +57,7 @@ function timeAgo(dateStr) {
 export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, can } = useAuth()
   const page = pageTitles[location.pathname] || { title: 'CASI360', sub: '' }
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
@@ -65,6 +65,8 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
   const notifRef = useRef(null)
   const [notices, setNotices] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [msgUnread, setMsgUnread] = useState(0)
+  const canMessages = can('communication.messages.view')
 
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
@@ -87,13 +89,33 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
     return () => clearTimeout(timer)
   }, [fetchNotices])
 
-  /* Poll every 60s and on window focus */
+  /* Notices: poll every 30s (matches the 30s server cache) + on window focus. */
   useEffect(() => {
-    const interval = setInterval(fetchNotices, 60000)
+    const interval = setInterval(fetchNotices, 30000)
     const onFocus = () => fetchNotices()
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
   }, [fetchNotices])
+
+  /* Global unread-messages badge — so new direct messages notify you on ANY
+     page, not just inside Messages. Polls every 10s while the tab is visible
+     (the on-page Messages view refreshes faster, every 5s). */
+  const fetchMsgUnread = useCallback(async () => {
+    if (!canMessages || document.hidden) return
+    try {
+      const r = await messagesApi.unreadCount()
+      setMsgUnread(r?.data?.unread_count ?? 0)
+    } catch { /* ignore */ }
+  }, [canMessages])
+
+  useEffect(() => {
+    if (!canMessages) return
+    fetchMsgUnread()
+    const interval = setInterval(fetchMsgUnread, 10000)
+    const onFocus = () => fetchMsgUnread()
+    window.addEventListener('focus', onFocus)
+    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
+  }, [canMessages, fetchMsgUnread])
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -126,6 +148,18 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
         <button className="top-bar-btn" title="Toggle theme" onClick={onToggleTheme}>
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
+
+        {canMessages && (
+          <button
+            className="top-bar-btn"
+            title={msgUnread > 0 ? `${msgUnread} unread message${msgUnread === 1 ? '' : 's'}` : 'Messages'}
+            aria-label="Messages"
+            onClick={() => navigate('/communication/messages')}
+          >
+            <MessageSquare size={20} />
+            {msgUnread > 0 && <span className="notif-badge" aria-hidden="true">{msgUnread > 9 ? '9+' : msgUnread}</span>}
+          </button>
+        )}
 
         <div className="notif-bell-wrap" ref={notifRef}>
           <button className="top-bar-btn" title="Notifications" aria-label="Notifications" onClick={() => setNotifOpen((p) => !p)}>

@@ -104,7 +104,7 @@ export default function Messages() {
     } else {
       await pollList()
     }
-  }, 8000)
+  }, 5000)
 
   /* Open thread */
   async function openThread(msg) {

@@ -113,7 +113,7 @@ export default function Forums() {
         setMsgReplies(data?.replies || data?.messages || extractItems(res))
       } catch { /* silent */ }
     }
-  }, 8000)
+  }, 5000)
 
   /* Post new message */
   async function handlePost(e) {

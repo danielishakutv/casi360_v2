@@ -19,7 +19,7 @@ import { useEffect, useRef } from 'react'
  * @param {boolean}    options.enabled    When false, polling is off.
  * @param {boolean}    options.immediate  Fire once as soon as polling starts.
  */
-export function usePolling(callback, intervalMs = 8000, { enabled = true, immediate = false } = {}) {
+export function usePolling(callback, intervalMs = 5000, { enabled = true, immediate = false } = {}) {
   const savedCallback = useRef(callback)
 
   // Keep the ref pointed at the latest callback every render.
