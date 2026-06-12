@@ -145,12 +145,12 @@ export default function Attendance() {
     { key: 'signed_in',  label: 'Signed In',         value: summary.signed_in,         icon: UserCheck,  color: 'green' },
     { key: 'signed_out', label: 'Signed Out',        value: summary.signed_out,        icon: LogOut,     color: 'purple' },
     { key: 'late',       label: 'Late',              value: summary.late,              icon: AlarmClock, color: 'orange' },
-    { key: 'not_in',     label: 'Not Signed In',     value: summary.not_signed_in,     icon: UserX,      color: 'red' },
-    { key: 'still_in',   label: 'Still Clocked In',  value: summary.still_clocked_in,  icon: Timer,      color: 'indigo' },
+    { key: 'not_in',     label: 'Not Signed In',     value: summary.not_signed_in,     icon: UserX,      color: 'rose' },
+    { key: 'still_in',   label: 'Still Clocked In',  value: summary.still_clocked_in,  icon: Timer,      color: 'cyan' },
   ] : []
 
   return (
-    <>
+    <div className="page-stack">
       {error && (
         <div className="hr-error-banner">
           <AlertCircle size={16} />
@@ -311,6 +311,6 @@ export default function Attendance() {
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }

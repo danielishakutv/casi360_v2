@@ -846,6 +846,24 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   overflow-x: clip;
 }
 
+/* Vertical rhythm for pages that stack bare cards + stat grids (e.g. HR
+   Attendance/Timesheets). A bare .card has no margin, so use a flex column
+   with a consistent gap; neutralise the grids' own margin so spacing stays
+   uniform. Works the same on desktop and mobile. */
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.page-stack > .stats-grid,
+.page-stack > .dashboard-grid,
+.page-stack > .dashboard-grid-full {
+  margin-bottom: 0;
+}
+@media (max-width: 768px) {
+  .page-stack { gap: 16px; }
+}
+
 /* ===== DASHBOARD STATS ===== */
 .stats-grid {
   display: grid;

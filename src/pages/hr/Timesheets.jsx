@@ -43,7 +43,7 @@ function SummaryStats({ summary, workingDays }) {
     { key: 'late',    label: 'Days Late',    value: summary.days_late,    icon: AlarmClock,   color: 'orange' },
     { key: 'leave',   label: 'Days On Leave', value: summary.days_on_leave, icon: Plane,       color: 'purple' },
     { key: 'hours',   label: 'Total Hours',  value: Number(summary.total_hours || 0).toFixed(1), icon: Timer, color: 'blue' },
-    { key: 'working', label: 'Working Days', value: workingDays, icon: CalendarClock, color: 'indigo' },
+    { key: 'working', label: 'Working Days', value: workingDays, icon: CalendarClock, color: 'cyan' },
   ]
   return (
     <div className="stats-grid">
@@ -181,7 +181,7 @@ export default function Timesheets() {
   /* Render                                                           */
   /* ================================================================ */
   return (
-    <>
+    <div className="page-stack">
       {error && (
         <div className="hr-error-banner">
           <AlertCircle size={16} />
@@ -289,6 +289,6 @@ export default function Timesheets() {
           </>
         )}
       </Modal>
-    </>
+    </div>
   )
 }
