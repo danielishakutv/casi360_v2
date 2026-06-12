@@ -1,10 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Search, Bell, Sun, Moon, User, Settings, LogOut, ChevronDown, Pin, MessageSquare } from 'lucide-react'
+import { Menu, Search, Bell, Sun, Moon, User, Settings, LogOut, ChevronDown, MessageSquare, Megaphone, MessagesSquare, ClipboardCheck, FileText } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { capitalize } from '../utils/capitalize'
-import { noticesApi, messagesApi } from '../services/communication'
+import { notificationsApi, messagesApi } from '../services/communication'
 import { extractItems } from '../utils/apiHelpers'
+
+/* Map a notification type to an icon for the bell dropdown. */
+const NOTIF_ICON = {
+  forum: MessagesSquare,
+  notice: Megaphone,
+  approval: ClipboardCheck,
+  requisition: FileText,
+  boq: FileText,
+}
 
 const pageTitles = {
   '/':                        { title: 'Dashboard',        sub: 'Welcome back! Here\'s your overview.' },
@@ -63,7 +72,7 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
   const profileRef = useRef(null)
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef(null)
-  const [notices, setNotices] = useState([])
+  const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [msgUnread, setMsgUnread] = useState(0)
   const canMessages = can('communication.messages.view')
@@ -74,28 +83,38 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
   const displayRole = user?.role ? capitalize(user.role.replace('_', ' ')) : ''
   const displayName = user?.name || 'User'
 
-  /* Fetch recent notices for the bell dropdown */
-  const fetchNotices = useCallback(async () => {
+  /* Unified notification bell — forum activity, notices, and approval
+     requests/decisions across the whole app. Polls every 10s while visible. */
+  const fetchNotifications = useCallback(async () => {
+    if (document.hidden) return
     try {
-      const res = await noticesApi.list({ per_page: 5, sort_by: 'created_at', sort_dir: 'desc' })
-      const items = extractItems(res)
-      setNotices(items)
-      setUnreadCount(items.filter((n) => n.is_read === false).length)
+      const res = await notificationsApi.list({ per_page: 8 })
+      const data = res?.data || res
+      setNotifications(data?.notifications || extractItems(res))
+      setUnreadCount(data?.unread_count ?? 0)
     } catch { /* ignore */ }
   }, [])
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchNotices(), 0)
-    return () => clearTimeout(timer)
-  }, [fetchNotices])
-
-  /* Notices: poll every 30s (matches the 30s server cache) + on window focus. */
-  useEffect(() => {
-    const interval = setInterval(fetchNotices, 30000)
-    const onFocus = () => fetchNotices()
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 10000)
+    const onFocus = () => fetchNotifications()
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(interval); window.removeEventListener('focus', onFocus) }
-  }, [fetchNotices])
+  }, [fetchNotifications])
+
+  async function openNotification(n) {
+    setNotifOpen(false)
+    try { if (!n.is_read) await notificationsApi.markRead(n.id) } catch { /* ignore */ }
+    if (n.url) navigate(n.url)
+    fetchNotifications()
+  }
+
+  async function markAllNotificationsRead() {
+    try { await notificationsApi.markAllRead() } catch { /* ignore */ }
+    setUnreadCount(0)
+    fetchNotifications()
+  }
 
   /* Global unread-messages badge — so new direct messages notify you on ANY
      page, not just inside Messages. Polls every 10s while the tab is visible
@@ -171,29 +190,31 @@ export default function TopBar({ onMobileMenuClick, theme, onToggleTheme }) {
             <div className="notif-dropdown">
               <div className="notif-dropdown-header">
                 <strong>Notifications</strong>
-                {unreadCount > 0 && <span className="notif-unread-label">{unreadCount} unread</span>}
+                {unreadCount > 0 && (
+                  <button className="notif-markall" onClick={markAllNotificationsRead}>Mark all read</button>
+                )}
               </div>
               <div className="notif-dropdown-list">
-                {notices.length === 0 ? (
-                  <div className="notif-dropdown-empty">No notices yet</div>
-                ) : notices.map((n) => (
-                  <button
-                    key={n.id}
-                    className={`notif-dropdown-item${n.is_read === false ? ' unread' : ''}`}
-                    onClick={() => { setNotifOpen(false); navigate('/communication/notices') }}
-                  >
-                    <div className="notif-item-row">
-                      {n.is_pinned && <Pin size={12} className="notif-pin" />}
-                      <span className="notif-item-title">{n.title}</span>
-                      <span className={`notif-priority-dot ${n.priority}`} title={capitalize(n.priority)} />
-                    </div>
-                    <div className="notif-item-meta">{timeAgo(n.created_at)}</div>
-                  </button>
-                ))}
+                {notifications.length === 0 ? (
+                  <div className="notif-dropdown-empty">You&apos;re all caught up</div>
+                ) : notifications.map((n) => {
+                  const Icon = NOTIF_ICON[n.type] || Bell
+                  return (
+                    <button
+                      key={n.id}
+                      className={`notif-dropdown-item${!n.is_read ? ' unread' : ''}`}
+                      onClick={() => openNotification(n)}
+                    >
+                      <span className="notif-item-icon"><Icon size={15} /></span>
+                      <span className="notif-item-body">
+                        <span className="notif-item-title">{n.title}</span>
+                        {n.body && <span className="notif-item-text">{n.body}</span>}
+                        <span className="notif-item-meta">{timeAgo(n.created_at)}</span>
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
-              <button className="notif-dropdown-footer" onClick={() => { setNotifOpen(false); navigate('/communication/notices') }}>
-                View All Notices
-              </button>
             </div>
           )}
         </div>

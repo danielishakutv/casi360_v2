@@ -112,6 +112,10 @@ export const authApi = {
   updateProfile: (data) =>
     api.patch('/auth/profile', data),
 
+  /** Update notification preferences (e.g. { email_notifications: false }). */
+  updatePreferences: (data) =>
+    api.patch('/auth/preferences', data),
+
   changePassword: (current_password, new_password, new_password_confirmation) =>
     api.post('/auth/change-password', { current_password, new_password, new_password_confirmation }),
 

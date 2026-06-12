@@ -167,6 +167,9 @@ export default function Profile() {
   const [deactivating, setDeactivating] = useState(false)
   const [deactivateMsg, setDeactivateMsg] = useState(null)
 
+  // --- Notification preferences ---
+  const [prefSaving, setPrefSaving] = useState(false)
+
   // --- Live profile data ---
   const [loadingData, setLoadingData] = useState(true)
   const [activity, setActivity] = useState([])
@@ -290,6 +293,24 @@ export default function Profile() {
       setMessage({ type: 'error', text: err.message || 'Failed to update profile.' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Toggle the personal "receive email notifications" preference. In-app
+  // notifications are unaffected — only emails are turned on/off.
+  const emailOn = user?.email_notifications !== false
+  const toggleEmailNotifications = async () => {
+    const next = !emailOn
+    setPrefSaving(true)
+    setMessage(null)
+    try {
+      const res = await authApi.updatePreferences({ email_notifications: next })
+      updateUser(res.data.user)
+      setMessage({ type: 'success', text: next ? 'Email notifications turned on.' : 'Email notifications turned off.' })
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to update preference.' })
+    } finally {
+      setPrefSaving(false)
     }
   }
 
@@ -434,6 +455,34 @@ export default function Profile() {
                     <div className="profile-info-value">{formatDateTime(user?.last_login_at)}</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notification Preferences */}
+          <div className="card">
+            <div className="card-header">
+              <h3><Mail size={16} style={{ marginRight: 6, verticalAlign: -2 }} />Notification Preferences</h3>
+            </div>
+            <div className="card-body">
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <div className="settings-toggle-label">Email notifications</div>
+                  <div className="settings-toggle-desc">
+                    Receive emails for new messages, forum activity, notices, and approval
+                    requests &amp; decisions. The in-app notification bell stays on regardless.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`settings-switch ${emailOn ? 'on' : ''}`}
+                  onClick={toggleEmailNotifications}
+                  disabled={prefSaving}
+                  aria-pressed={emailOn}
+                  aria-label="Toggle email notifications"
+                >
+                  <span className="settings-switch-thumb" />
+                </button>
               </div>
             </div>
           </div>

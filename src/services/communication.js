@@ -51,4 +51,15 @@ export const noticesApi = {
   reads:  (id)         => api.get(`/communication/notices/${id}/reads`),
 }
 
+/* ------------------------------------------------------------------ */
+/* Notifications (unified in-app bell)                                 */
+/* ------------------------------------------------------------------ */
+
+export const notificationsApi = {
+  list:        (params) => api.get('/notifications', params),
+  unreadCount: ()       => api.get('/notifications/unread-count'),
+  markRead:    (id)     => api.post(`/notifications/${id}/read`),
+  markAllRead: ()       => api.post('/notifications/read-all'),
+}
+
 
