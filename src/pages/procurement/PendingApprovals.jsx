@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle, ChevronDown, Download, Eye, FileText, Refresh
 import { capitalize } from '../../utils/capitalize'
 import { naira } from '../../utils/currency'
 import { fmtDate } from '../../utils/formatDate'
-import { approvalsApi, boqApi, purchaseOrdersApi, purchaseRequestsApi } from '../../services/procurement'
+import { approvalsApi, boqApi, purchaseOrdersApi, purchaseRequestsApi, rfpApi } from '../../services/procurement'
 import { exportPRtoPDF, exportPRtoCSV } from '../../utils/prExport'
 import { exportBOQtoPDF, exportBOQtoCSV } from '../../utils/boqExport'
 import { useAuth } from '../../contexts/AuthContext'
@@ -37,6 +37,7 @@ export default function PendingApprovals() {
   const [pos, setPos] = useState([])
   const [reqs, setReqs] = useState([])
   const [boqs, setBoqs] = useState([])
+  const [rfps, setRfps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -79,6 +80,7 @@ export default function PendingApprovals() {
       const d = res?.data || res || {}
       setPos(d.purchase_orders || [])
       setReqs(d.requisitions || [])
+      setRfps(d.rfps || [])
       // Pending-approvals endpoint may already include BOQs. If not, fetch them separately.
       if (Array.isArray(d.boqs)) {
         setBoqs(d.boqs)
@@ -188,6 +190,8 @@ export default function PendingApprovals() {
           }
         }
         await boqApi.processApproval(target.item.id, payload)
+      } else if (target.type === 'rfp') {
+        await rfpApi.processApproval(target.item.id, payload)
       } else {
         await purchaseRequestsApi.processApproval(target.item.id, payload)
       }
@@ -225,7 +229,7 @@ export default function PendingApprovals() {
   // Operations-approver flag to avoid showing a dead Approve button.
   const canApproveBoq = can('procurement.boq.approve') && user?.is_operations_approver === true
   const canApprovePR  = can('procurement.approvals.budget_holder')
-  const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0
+  const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0 && rfps.length === 0
 
   return (
     <>
@@ -441,6 +445,48 @@ export default function PendingApprovals() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Requests (RFP) */}
+      {rfps.length > 0 && (
+        <div className="card animate-in">
+          <div className="card-header">
+            <h3>Payment Requests</h3>
+            <span className="card-badge orange">{rfps.length} pending</span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr><th>RFP #</th><th>Payee</th><th>Amount</th><th>Status</th><th>Approval Chain</th><th style={{ width: 160 }}>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {rfps.map((rfp) => (
+                    <tr key={rfp.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--primary)', fontSize: 12 }}>{rfp.rfp_number}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{rfp.payee || rfp.vendor_name || '—'}</td>
+                      <td style={{ fontWeight: 600 }}>{naira(rfp.total_amount)}</td>
+                      <td><span className={`status-badge ${rfp.status}`}><span className="status-dot" />{fmtStatus(rfp.status)}</span></td>
+                      <td>
+                        {rfp.approval_chain?.length
+                          ? <ApprovalChain chain={rfp.approval_chain} />
+                          : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rfp.approval_progress?.completed ?? 0}/{rfp.approval_progress?.total ?? 0} stages</span>
+                        }
+                      </td>
+                      <td>
+                        <div className="approvals-action-row">
+                          <button className="approval-action-btn approve"  onClick={() => openAction('rfp', rfp, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                          <button className="approval-action-btn revision" onClick={() => openAction('rfp', rfp, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
+                          <button className="approval-action-btn reject"   onClick={() => openAction('rfp', rfp, 'reject')}   title="Reject"><XCircle size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -828,9 +874,11 @@ export default function PendingApprovals() {
               <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
                 {target.type === 'po' ? target.item.po_number
                   : target.type === 'boq' ? target.item.boq_number
+                  : target.type === 'rfp' ? target.item.rfp_number
                   : target.item.requisition_number}
               </div>
               {(target.type === 'req' || target.type === 'boq') && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.item.title}</div>}
+              {target.type === 'rfp' && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{target.item.payee || target.item.vendor_name}</div>}
             </div>
 
             {/* Action selector */}

@@ -141,11 +141,13 @@ export const grnApi = {
 /* ------------------------------------------------------------------ */
 
 export const rfpApi = {
-  list:   (params)     => api.get('/procurement/rfp', params),
-  get:    (id)         => api.get(`/procurement/rfp/${id}`),
-  create: (data)       => api.post('/procurement/rfp', data),
-  update: (id, data)   => api.patch(`/procurement/rfp/${id}`, data),
-  delete: (id)         => api.delete(`/procurement/rfp/${id}`),
+  list:           (params)   => api.get('/procurement/rfp', params),
+  get:            (id)       => api.get(`/procurement/rfp/${id}`),
+  create:         (data)     => api.post('/procurement/rfp', data),
+  update:         (id, data) => api.patch(`/procurement/rfp/${id}`, data),
+  delete:         (id)       => api.delete(`/procurement/rfp/${id}`),
+  submit:         (id)       => api.post(`/procurement/rfp/${id}/submit`),
+  processApproval:(id, data) => api.patch(`/procurement/rfp/${id}/approval`, data),
 }
 
 /* ------------------------------------------------------------------ */
