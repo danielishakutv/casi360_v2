@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
-import { rfpApi, invoicesApi } from '../../services/procurement'
+import { rfpApi, invoicesApi, purchaseRequestsApi, purchaseOrdersApi, grnApi } from '../../services/procurement'
 import { projectsApi } from '../../services/projects'
 import { employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import EmployeePicker from '../../components/EmployeePicker'
+import SearchableMultiSelect from '../../components/SearchableMultiSelect'
+import { useAuth } from '../../contexts/AuthContext'
 
 /* ─── Constants ─── */
 const PAYMENT_MODES = ['Bank Transfer', 'Cash', 'Cheque']
@@ -57,10 +59,10 @@ function generateRFPNumber() {
 function buildInitialForm() {
   return {
     rfp_number: generateRFPNumber(),
-    /* Header references */
-    pr_nos: '',
-    po_nos: '',
-    grn_nos: '',
+    /* Header references — multi-selected document numbers */
+    pr_references: [],
+    po_references: [],
+    grn_references: [],
     invoice_id: '',  // approved supplier invoice this RFP pays
     rfp_date: todayStr(),
     payment_due_date: '',
@@ -97,10 +99,14 @@ export default function CreateRequestForPayment() {
   const [searchParams] = useSearchParams()
   const incomingInvoiceId = searchParams.get('invoice_id')
 
+  const { user } = useAuth()
   const [form, setForm] = useState(buildInitialForm)
   const [projects, setProjects] = useState([])
   const [employees, setEmployees] = useState([])
   const [approvedInvoices, setApprovedInvoices] = useState([])
+  const [prOptions, setPrOptions] = useState([])
+  const [poOptions, setPoOptions] = useState([])
+  const [grnOptions, setGrnOptions] = useState([])
   /* Tracks the most-recently-applied invoice so we don't re-apply on every
      re-render. Stored separately so we can show a small "Auto-filled from
      invoice X" badge until the user changes the selection. */
@@ -117,7 +123,40 @@ export default function CreateRequestForPayment() {
     invoicesApi.list({ status: 'approved', per_page: 100, mine: 0 })
       .then((res) => setApprovedInvoices(extractItems(res)))
       .catch(() => {})
+
+    // Existing PR / PO / GRN documents — for the searchable reference pickers
+    // so the user links real documents instead of retyping numbers.
+    purchaseRequestsApi.list({ per_page: 0 })
+      .then((res) => setPrOptions(extractItems(res)
+        .map((x) => ({ value: x.requisition_number, label: x.title ? `${x.requisition_number} — ${x.title}` : x.requisition_number }))
+        .filter((o) => o.value)))
+      .catch(() => {})
+    purchaseOrdersApi.list({ per_page: 0 })
+      .then((res) => setPoOptions(extractItems(res)
+        .map((x) => ({ value: x.po_number, label: x.vendor ? `${x.po_number} — ${x.vendor}` : x.po_number }))
+        .filter((o) => o.value)))
+      .catch(() => {})
+    grnApi.list({ per_page: 0 })
+      .then((res) => setGrnOptions(extractItems(res)
+        .map((x) => ({ value: x.grn_number, label: x.po_reference ? `${x.grn_number} — ${x.po_reference}` : x.grn_number }))
+        .filter((o) => o.value)))
+      .catch(() => {})
   }, [])
+
+  /* Auto-fill the requester + procurement person with the signed-in user so
+     they don't retype themselves (both stay editable). Only fills blanks. */
+  useEffect(() => {
+    if (!user) return
+    setForm((p) => ({
+      ...p,
+      procurement_person: p.procurement_person || user.name || '',
+      requester: {
+        ...p.requester,
+        name: p.requester.name || user.name || '',
+        position: p.requester.position || user.position || user.designation || user.department || '',
+      },
+    }))
+  }, [user])
 
   /* If we landed here from an invoice's "Pay" button, pre-select it. We
      wait until the invoice list has loaded so the dropdown actually
@@ -154,15 +193,16 @@ export default function CreateRequestForPayment() {
         if (!invoice) return
         const chain = invoice.chain || {}
 
+        const addRef = (arr, num) => (num && !arr.includes(num)) ? [...arr, num] : arr
         setForm((p) => ({
           ...p,
           payment_amount: p.payment_amount || (invoice.amount != null ? String(invoice.amount) : p.payment_amount),
           currency:       p.currency       || invoice.currency       || 'NGN',
           payment_due_date: p.payment_due_date || invoice.due_date   || '',
           payee_name:     p.payee_name     || invoice.vendor_name    || '',
-          pr_nos:         p.pr_nos         || chain.pr?.number       || '',
-          po_nos:         p.po_nos         || chain.po?.number       || invoice.po_number || '',
-          grn_nos:        p.grn_nos        || chain.grn?.number      || '',
+          pr_references:  addRef(p.pr_references, chain.pr?.number),
+          po_references:  addRef(p.po_references, chain.po?.number || invoice.po_number),
+          grn_references: addRef(p.grn_references, chain.grn?.number),
         }))
         setAutofilledFromInvoiceId(invoice.id)
         setAutofilledInvoiceLabel(invoice.invoice_number)
@@ -237,9 +277,9 @@ export default function CreateRequestForPayment() {
       const payload = {
         rfp_date: form.rfp_date,
         payment_due_date: form.payment_due_date,
-        pr_nos: form.pr_nos || undefined,
-        po_nos: form.po_nos || undefined,
-        grn_nos: form.grn_nos || undefined,
+        pr_references: form.pr_references,
+        po_references: form.po_references,
+        grn_references: form.grn_references,
         invoice_id: form.invoice_id || undefined,
         procurement_person: form.procurement_person || undefined,
         payee_name: form.payee_name,
@@ -336,18 +376,36 @@ export default function CreateRequestForPayment() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>PR No(s)</label>
-              <input type="text" value={form.pr_nos} onChange={(e) => updateField('pr_nos', e.target.value)} placeholder="e.g. PR-2026-001, PR-2026-002" />
+              <SearchableMultiSelect
+                options={prOptions}
+                selected={form.pr_references}
+                onChange={(v) => updateField('pr_references', v)}
+                placeholder="Search purchase requests…"
+                emptyHint="No purchase requests found."
+              />
             </div>
             <div className="hr-form-field">
               <label>PO No(s)</label>
-              <input type="text" value={form.po_nos} onChange={(e) => updateField('po_nos', e.target.value)} placeholder="e.g. PO-2026-001" />
+              <SearchableMultiSelect
+                options={poOptions}
+                selected={form.po_references}
+                onChange={(v) => updateField('po_references', v)}
+                placeholder="Search purchase orders…"
+                emptyHint="No purchase orders found."
+              />
             </div>
           </div>
 
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>GRN No(s)</label>
-              <input type="text" value={form.grn_nos} onChange={(e) => updateField('grn_nos', e.target.value)} placeholder="e.g. GRN-2026-001" />
+              <SearchableMultiSelect
+                options={grnOptions}
+                selected={form.grn_references}
+                onChange={(v) => updateField('grn_references', v)}
+                placeholder="Search goods received notes…"
+                emptyHint="No goods received notes found."
+              />
             </div>
             <div className="hr-form-field">
               <label>Payment Due Date *</label>
