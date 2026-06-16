@@ -74,6 +74,10 @@ function buildInitialForm() {
     payee_address: '',
     /* Supporting documents */
     supporting_docs: [],
+    /* Procurement compliance (v2 §3.2 — mandatory before raising payment) */
+    procurement_compliance: '',      // '' | 'followed' | 'waived'
+    compliance_justification: '',
+    compliance_document_url: '',
     /* Payment info */
     payment_amount: '',
     amount_in_words: '',
@@ -214,8 +218,21 @@ export default function CreateRequestForPayment() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setSubmitting(true)
     setFormError('')
+
+    // §3.2 compliance gate — also enforced server-side. Block before we even
+    // flip into the submitting state so the button doesn't flicker.
+    if (!form.procurement_compliance) {
+      setFormError('Please complete the Procurement Compliance checklist before submitting.')
+      return
+    }
+    if (form.procurement_compliance === 'waived'
+        && (!form.compliance_justification.trim() || !form.compliance_document_url.trim())) {
+      setFormError('A justification and a document link/reference are required when the procurement process is waived.')
+      return
+    }
+
+    setSubmitting(true)
     try {
       const payload = {
         rfp_date: form.rfp_date,
@@ -232,6 +249,9 @@ export default function CreateRequestForPayment() {
         payee_contact: form.payee_contact || undefined,
         payee_address: form.payee_address || undefined,
         supporting_docs: form.supporting_docs,
+        procurement_compliance: form.procurement_compliance,
+        compliance_justification: form.procurement_compliance === 'waived' ? form.compliance_justification : undefined,
+        compliance_document_url: form.procurement_compliance === 'waived' ? form.compliance_document_url : undefined,
         payment_amount: Number(form.payment_amount) || 0,
         amount_in_words: form.amount_in_words || undefined,
         currency: form.currency,
@@ -435,6 +455,58 @@ export default function CreateRequestForPayment() {
               </div>
             </div>
           </div>
+
+          {/* ── Procurement Compliance (v2 §3.2 — mandatory before raising payment) ── */}
+          <p className="hr-form-section-title">Procurement Compliance (mandatory)</p>
+          <p style={{ margin: '-4px 0 10px', fontSize: 12.5, color: 'var(--text-muted)' }}>
+            Confirm the procurement process before this payment request can be raised.
+          </p>
+
+          <div className="rfp-docs-checklist">
+            <label className="rfq-checkbox-label">
+              <input
+                type="radio"
+                name="procurement_compliance"
+                checked={form.procurement_compliance === 'followed'}
+                onChange={() => updateField('procurement_compliance', 'followed')}
+              />
+              <span>All procurement procedures have been duly followed</span>
+            </label>
+            <label className="rfq-checkbox-label">
+              <input
+                type="radio"
+                name="procurement_compliance"
+                checked={form.procurement_compliance === 'waived'}
+                onChange={() => updateField('procurement_compliance', 'waived')}
+              />
+              <span>Procurement process waived — justification required</span>
+            </label>
+          </div>
+
+          {form.procurement_compliance === 'waived' && (
+            <div className="hr-form-row" style={{ alignItems: 'flex-start', marginTop: 10 }}>
+              <div className="hr-form-field" style={{ flex: 1 }}>
+                <label>Waiver Justification *</label>
+                <textarea
+                  value={form.compliance_justification}
+                  onChange={(e) => updateField('compliance_justification', e.target.value)}
+                  placeholder="Explain why the standard procurement process was waived"
+                  rows={3}
+                  required
+                />
+              </div>
+              <div className="hr-form-field" style={{ flex: 1 }}>
+                <label>Justification Document Link / Reference *</label>
+                <input
+                  type="text"
+                  value={form.compliance_document_url}
+                  onChange={(e) => updateField('compliance_document_url', e.target.value)}
+                  placeholder="Paste a link (Drive/SharePoint) or document reference"
+                  required
+                />
+              </div>
+            </div>
+          )}
 
           {/* ── Payment Info ── */}
           <p className="hr-form-section-title">Payment Information</p>
