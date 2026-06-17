@@ -116,4 +116,29 @@ The approval engine resolves approvers by **department code + manager role**. Ma
 - The written approval-limits matrix → then I'll build amount-based routing.
 - Whether to add real file uploads (currently the waiver "document" is a link/reference).
 
-*Generated overnight. Review, deploy, and smoke-test top to bottom. Ping me with anything that needs adjusting.*
+---
+
+## 6. Addendum — later same-day fixes (frontend only unless noted)
+
+These are additional commits after the main batch; deploy the same way (`~/deploy-web.sh`; no new backend migration here).
+
+### H. Payment Request (RFP) form — now actually saves its fields *(`3ea9444`)*
+The RFP form was sending field names the API didn't recognise, so **payee showed "—" and amount showed ₦0**. Fixed the mapping to the real columns (payee, amount, payment method, dates, bank details).
+- [ ] Create a new Payment Request, fill payee + amount + bank + method + due date → save.
+- [ ] Reopen it from the list → **Payee, Amount, Payment date, Method, and Bank details all show correctly** (previously blank/zero).
+
+### I. Reports page — redesigned + mobile-friendly *(`24b1127`)*
+- [ ] Open **Reports** on a **phone** (or narrow window) → reports show as **cards that stack**; buttons wrap, nothing overflows.
+- [ ] Click **Preview** → opens a **modal** with a scrollable table + inline CSV/Excel/PDF buttons.
+- [ ] Downloads (CSV/Excel/PDF) still work from both the card and the preview modal.
+
+### J. Approval order & visibility — confirmed (no code change needed)
+Verified across **all** approval pages (Procurement, Finance, Operations):
+- [ ] Log in as a **later-stage** approver (e.g. Finance) while a PR is still at Budget Holder → it does **not** appear in your pending list, and you cannot approve it.
+- [ ] After the earlier stage approves → it appears for the next approver, in order.
+- [ ] A **super_admin/admin** sees all pending items (oversight); regular users see only their own turn.
+- [ ] The person who **raised** a request can't approve it (segregation of duties).
+
+---
+
+*Generated overnight + early-morning follow-ups. Review, deploy, and smoke-test top to bottom. Ping me with anything that needs adjusting.*
