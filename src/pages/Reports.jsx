@@ -28,9 +28,8 @@ const REPORT_CATALOG = [
 ]
 
 const FORMATS = [
-  { key: 'csv',   label: 'CSV' },
-  { key: 'excel', label: 'Excel' },
-  { key: 'pdf',   label: 'PDF' },
+  { key: 'csv', label: 'CSV' },
+  { key: 'pdf', label: 'PDF' },
 ]
 
 const CATEGORY_META = {
@@ -70,8 +69,11 @@ export default function Reports() {
   }, [])
 
   function handleDownload(report, format) {
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://api.casi360.com/api/v1'
-    window.open(`${baseUrl}${report.endpoint}?format=${format}`, '_blank')
+    // The API base is VITE_API_URL + '/api/v1' (same as the api client). The
+    // env var is just the origin (e.g. https://api.casi360.com), so the
+    // '/api/v1' prefix must be added here too — otherwise the download 404s.
+    const apiBase = (import.meta.env.VITE_API_URL || 'https://api.casi360.com') + '/api/v1'
+    window.open(`${apiBase}${report.endpoint}?format=${format}`, '_blank')
   }
 
   const categories = [...new Set(visibleReports.map((r) => r.category))]
