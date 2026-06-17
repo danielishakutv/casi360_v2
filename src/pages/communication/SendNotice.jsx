@@ -4,7 +4,7 @@ import {
   AlertCircle, Pin, ArrowUpDown, X,
 } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
-import { fmtDate } from '../../utils/formatDate'
+import { fmtDate, fmtDateTime } from '../../utils/formatDate'
 import { noticesApi } from '../../services/communication'
 import { departmentsApi } from '../../services/hr'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -431,7 +431,7 @@ export default function SendNotice() {
                     {readData.reads.map((r) => (
                       <tr key={r.user_id}>
                         <td style={{ fontWeight: 600 }}>{r.user_name}</td>
-                        <td style={{ fontSize: 12 }}>{fmtDate(r.read_at)}</td>
+                        <td style={{ fontSize: 12 }}>{fmtDateTime(r.read_at)}</td>
                       </tr>
                     ))}
                   </tbody>

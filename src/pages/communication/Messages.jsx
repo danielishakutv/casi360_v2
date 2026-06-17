@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, Trash2, Send, AlertCircle, ArrowLeft, Inbox, SendHorizontal, MailOpen } from 'lucide-react'
-import { fmtDate } from '../../utils/formatDate'
+import { fmtDateTime } from '../../utils/formatDate'
 import { messagesApi } from '../../services/communication'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
 import { useDebounce } from '../../hooks/useDebounce'
@@ -160,7 +160,7 @@ export default function Messages() {
                         <div className="comm-bubble">
                           <div className="comm-bubble-head">
                             <strong className="comm-bubble-author">{thread.sender_name}</strong>
-                            <span className="comm-time">{fmtDate(thread.created_at)}</span>
+                            <span className="comm-time">{fmtDateTime(thread.created_at)}</span>
                           </div>
                           <p className="comm-bubble-body">{renderRichText(thread.body)}</p>
                         </div>
@@ -177,7 +177,7 @@ export default function Messages() {
                         <div className="comm-bubble">
                           <div className="comm-bubble-head">
                             <strong className="comm-bubble-author">{r.sender_name}</strong>
-                            <span className="comm-time">{fmtDate(r.created_at)}</span>
+                            <span className="comm-time">{fmtDateTime(r.created_at)}</span>
                           </div>
                           <p className="comm-bubble-body">{renderRichText(r.body)}</p>
                         </div>
@@ -256,7 +256,7 @@ export default function Messages() {
                   <span className="comm-msg-subject">{m.subject || '(No subject)'}</span>
                 </span>
                 {(m.reply_count ?? 0) > 0 && <span className="comm-msg-chip">{m.reply_count}</span>}
-                <span className="comm-msg-date">{fmtDate(m.latest_reply_at || m.created_at)}</span>
+                <span className="comm-msg-date">{fmtDateTime(m.latest_reply_at || m.created_at)}</span>
               </button>
             )
           })}

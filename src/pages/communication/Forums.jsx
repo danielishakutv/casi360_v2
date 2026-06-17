@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Send, AlertCircle, ArrowLeft, MessageSquare, Trash2, Hash, ChevronDown } from 'lucide-react'
 import { capitalize } from '../../utils/capitalize'
-import { fmtDate } from '../../utils/formatDate'
+import { fmtDateTime } from '../../utils/formatDate'
 import { forumsApi } from '../../services/communication'
 import { departmentsApi } from '../../services/hr'
 import { extractItems, extractMeta } from '../../utils/apiHelpers'
@@ -209,7 +209,7 @@ export default function Forums() {
                       <div className="comm-post-head">
                         <strong className="comm-post-author">{m.user_name}</strong>
                         <div className="comm-post-meta">
-                          <span className="comm-time">{fmtDate(m.created_at)}</span>
+                          <span className="comm-time">{fmtDateTime(m.created_at)}</span>
                           {(m.user_id === user?.id || can('communication.forums.manage')) && (
                             <button className="hr-action-btn danger comm-icon-btn" onClick={() => deleteMsg(m.id)} title="Delete"><Trash2 size={13} /></button>
                           )}
@@ -232,7 +232,7 @@ export default function Forums() {
                                 <div className="comm-reply-main">
                                   <div className="comm-reply-head">
                                     <strong className="comm-reply-author">{r.user_name}</strong>
-                                    <span className="comm-time">{fmtDate(r.created_at)}</span>
+                                    <span className="comm-time">{fmtDateTime(r.created_at)}</span>
                                   </div>
                                   <p className="comm-reply-body">{renderRichText(r.body)}</p>
                                 </div>
@@ -316,7 +316,7 @@ export default function Forums() {
                       <span className="comm-forum-footer">
                         <span className={`card-badge ${isGeneral ? 'blue' : 'green'}`}>{capitalize(f.type)}</span>
                         <span className="comm-forum-stat"><MessageSquare size={12} /> {f.message_count ?? 0} posts</span>
-                        <span className="comm-forum-stat comm-forum-date">{f.last_activity_at ? fmtDate(f.last_activity_at) : 'No activity'}</span>
+                        <span className="comm-forum-stat comm-forum-date">{f.last_activity_at ? fmtDateTime(f.last_activity_at) : 'No activity'}</span>
                       </span>
                     </span>
                   </button>
