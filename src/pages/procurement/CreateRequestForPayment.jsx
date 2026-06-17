@@ -274,36 +274,56 @@ export default function CreateRequestForPayment() {
 
     setSubmitting(true)
     try {
-      const payload = {
-        rfp_date: form.rfp_date,
-        payment_due_date: form.payment_due_date,
-        pr_references: form.pr_references,
-        po_references: form.po_references,
-        grn_references: form.grn_references,
-        invoice_id: form.invoice_id || undefined,
-        procurement_person: form.procurement_person || undefined,
-        payee_name: form.payee_name,
-        payee_bank_name: form.payee_bank_name,
-        payee_account_no: form.payee_account_no,
-        payee_tin: form.payee_tin || undefined,
-        payee_contact: form.payee_contact || undefined,
-        payee_address: form.payee_address || undefined,
-        supporting_docs: form.supporting_docs,
-        procurement_compliance: form.procurement_compliance,
-        compliance_justification: form.procurement_compliance === 'waived' ? form.compliance_justification : undefined,
-        compliance_document_url: form.procurement_compliance === 'waived' ? form.compliance_document_url : undefined,
-        payment_amount: Number(form.payment_amount) || 0,
-        amount_in_words: form.amount_in_words || undefined,
-        currency: form.currency,
-        mode_of_payment: form.mode_of_payment,
-        items: form.line_items.map((li) => ({
+      // Map the form fields onto the API's actual columns. Bank details collapse
+      // into the single `bank_details` text column; the payment amount is the
+      // figure to pay (no extra sales tax applied, so tax_rate = 0).
+      const bankDetails = [
+        form.payee_bank_name && `Bank: ${form.payee_bank_name}`,
+        form.payee_account_no && `Acct: ${form.payee_account_no}`,
+        form.payee_tin && `TIN: ${form.payee_tin}`,
+        form.payee_contact && `Contact: ${form.payee_contact}`,
+        form.payee_address && `Address: ${form.payee_address}`,
+      ].filter(Boolean).join(' | ')
+
+      const methodMap = { 'Bank Transfer': 'bank_transfer', Cash: 'cash', Cheque: 'cheque' }
+
+      const lineItems = form.line_items
+        .filter((li) => li.description)
+        .map((li) => ({
           description: li.description,
           project_code: li.project_code || undefined,
           budget_line: li.budget_line || undefined,
           quantity: Number(li.quantity) || 0,
           unit_cost: Number(li.unit_cost) || 0,
           dept: li.dept || undefined,
-        })),
+        }))
+
+      const notes = [
+        form.amount_in_words ? `Amount in words: ${form.amount_in_words}` : null,
+        form.procurement_person ? `Procurement person: ${form.procurement_person}` : null,
+      ].filter(Boolean).join('\n')
+
+      const payload = {
+        date: form.rfp_date,
+        payment_date: form.payment_due_date || undefined,
+        pr_references: form.pr_references,
+        po_references: form.po_references,
+        grn_references: form.grn_references,
+        invoice_id: form.invoice_id || undefined,
+        payee: form.payee_name || undefined,
+        bank_details: bankDetails || undefined,
+        payment_method: methodMap[form.mode_of_payment] || undefined,
+        currency: form.currency,
+        subtotal: Number(form.payment_amount) || 0,
+        tax_rate: 0,
+        supporting_docs: form.supporting_docs,
+        procurement_compliance: form.procurement_compliance,
+        compliance_justification: form.procurement_compliance === 'waived' ? form.compliance_justification : undefined,
+        compliance_document_url: form.procurement_compliance === 'waived' ? form.compliance_document_url : undefined,
+        notes: notes || undefined,
+        // Only send line items if the user actually itemised; otherwise the
+        // single payment amount above is the total.
+        items: lineItems.length ? lineItems : undefined,
         signoffs: [
           { type: 'Requester', name: form.requester.name, position: form.requester.position, date: todayStr(), signature: form.requester.signature },
           { type: 'Finance', name: form.finance.name, position: form.finance.position, date: todayStr(), signature: form.finance.signature },

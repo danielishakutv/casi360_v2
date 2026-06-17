@@ -102,7 +102,7 @@ export default function RequestForPayment() {
                   <td style={{ fontSize: 12 }}>{r.grn_reference || '—'}</td>
                   <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.payee || '—'}</td>
                   <td style={{ fontWeight: 600 }}>{naira(r.total_amount)}</td>
-                  <td style={{ fontSize: 12 }}>{fmtDate(r.due_date)}</td>
+                  <td style={{ fontSize: 12 }}>{fmtDate(r.payment_date)}</td>
                   <td style={{ fontSize: 12 }}>{r.payment_method ? capitalize(r.payment_method.replace(/_/g, ' ')) : '—'}</td>
                   <td><span className={`status-badge ${r.status.replace(/ /g, '_')}`}><span className="status-dot" />{fmtStatus(r.status)}</span></td>
                   <td>
@@ -130,8 +130,9 @@ export default function RequestForPayment() {
               <span><strong>PO Reference:</strong> {viewItem.po_reference || '—'}</span>
               <span><strong>GRN Reference:</strong> {viewItem.grn_reference || '—'}</span>
               <span><strong>Payee:</strong> {viewItem.payee || '—'}</span>
-              <span><strong>Due date:</strong> {fmtDate(viewItem.due_date)}</span>
+              <span><strong>Payment date:</strong> {fmtDate(viewItem.payment_date)}</span>
               <span><strong>Payment method:</strong> {viewItem.payment_method ? capitalize(viewItem.payment_method.replace(/_/g, ' ')) : '—'}</span>
+              {viewItem.bank_details && <span><strong>Bank details:</strong> {viewItem.bank_details}</span>}
               <span><strong>Status:</strong> {fmtStatus(viewItem.status)}</span>
             </div>
             {viewItem.items && viewItem.items.length > 0 && (
@@ -156,7 +157,7 @@ export default function RequestForPayment() {
                 </div>
                 <div style={{ textAlign: 'right', marginTop: 8, fontSize: 13 }}>
                   <div><strong>Subtotal:</strong> {naira(viewItem.subtotal)}</div>
-                  <div><strong>Sales Tax:</strong> {naira(viewItem.sales_tax)}</div>
+                  <div><strong>Tax:</strong> {naira(viewItem.tax_amount)}</div>
                   <div style={{ fontSize: 15, fontWeight: 700 }}><strong>Total:</strong> {naira(viewItem.total_amount)}</div>
                 </div>
               </div>
