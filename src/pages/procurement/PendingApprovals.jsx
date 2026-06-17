@@ -28,7 +28,7 @@ const AUDIT_LABELS = {
 const STAGE_LABELS = { budget_holder: 'Budget Holder', finance: 'Finance', procurement: 'Procurement', operations: 'Operations' }
 
 export default function PendingApprovals() {
-  const { can, user } = useAuth()
+  const { can } = useAuth()
   // Org-wide history is gated on procurement.approvals.view_all.
   // Without it, send mine=1 so the backend scopes results to records that
   // concern the current user (created, named on, acted on, or department-mate).
@@ -168,27 +168,7 @@ export default function PendingApprovals() {
       if (target.type === 'po') {
         await purchaseOrdersApi.processApproval(target.item.id, payload)
       } else if (target.type === 'boq') {
-        // When approving a BOQ, stamp the Budget Holder sign-off with the approver's details.
-        if (action === 'approve' && user) {
-          try {
-            const cur = await boqApi.get(target.item.id)
-            const boq = cur?.data?.boq || cur?.data || cur || {}
-            const existing = (boq.signoffs || []).filter((s) => s.type !== 'budget_holder')
-            const today = new Date().toISOString().slice(0, 10)
-            const bhSignoff = {
-              type: 'budget_holder',
-              name: user.name || '',
-              position: user.department || (user.role ? user.role.replace(/_/g, ' ') : ''),
-              email: user.email || '',
-              signature: user.name || '',
-              date: today,
-              budget_available: 'YES',
-            }
-            await boqApi.update(target.item.id, { signoffs: [...existing, bhSignoff] })
-          } catch {
-            // Non-fatal: approval still proceeds even if signoff write fails
-          }
-        }
+        // Backend records the per-stage approver in the chain + signoffs.
         await boqApi.processApproval(target.item.id, payload)
       } else if (target.type === 'rfp') {
         await rfpApi.processApproval(target.item.id, payload)
@@ -224,10 +204,9 @@ export default function PendingApprovals() {
   }
   function closeBoqDetail() { setBoqView(null); setBoqDetail(null); setBoqAuditLog([]) }
 
-  // BOQs are approved by Operations (admins included). The boq.approve
-  // entitlement is held by all managers, so also require the server-resolved
-  // Operations-approver flag to avoid showing a dead Approve button.
-  const canApproveBoq = can('procurement.boq.approve') && user?.is_operations_approver === true
+  // BOQs now follow the 4-stage chain; the backend returns only the BOQs the
+  // caller can act on at the current stage, so action buttons are always valid
+  // for the rows shown here (no extra client gate needed).
   const canApprovePR  = can('procurement.approvals.budget_holder')
   const empty = !loading && pos.length === 0 && reqs.length === 0 && boqs.length === 0 && rfps.length === 0
 
@@ -395,15 +374,16 @@ export default function PendingApprovals() {
                     <span>{boq.prepared_by || '—'}</span>
                     <span className="approval-card-amount">{naira(boq.grand_total)}</span>
                   </div>
+                  {boq.approval_chain?.length > 0 && (
+                    <div className="approval-card-chain"><ApprovalChain chain={boq.approval_chain} /></div>
+                  )}
                   <div className="approval-card-actions">
                     <button className="approval-card-view-btn" onClick={() => openBoqDetail(boq)}><Eye size={14} /> View Details</button>
-                    {canApproveBoq && (
-                      <div className="approval-card-quick">
-                        <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}><CheckCircle size={12} /> Approve</button>
-                        <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')}><RotateCcw size={12} /></button>
-                        <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}><XCircle size={12} /></button>
-                      </div>
-                    )}
+                    <div className="approval-card-quick">
+                      <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}><CheckCircle size={12} /> Approve</button>
+                      <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')}><RotateCcw size={12} /></button>
+                      <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}><XCircle size={12} /></button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -413,7 +393,7 @@ export default function PendingApprovals() {
               <div className="table-wrapper">
                 <table className="data-table">
                   <thead>
-                    <tr><th>BOQ # / Title</th><th>Prepared By</th><th>Department</th><th>Grand Total</th><th>Date</th><th style={{ width: 180 }}>Actions</th></tr>
+                    <tr><th>BOQ # / Title</th><th>Prepared By</th><th>Department</th><th>Grand Total</th><th>Approval Chain</th><th style={{ width: 180 }}>Actions</th></tr>
                   </thead>
                   <tbody>
                     {boqs.map((boq) => (
@@ -427,17 +407,18 @@ export default function PendingApprovals() {
                         <td style={{ fontSize: 12 }}>{boq.prepared_by || '—'}</td>
                         <td style={{ fontSize: 12 }}>{boq.department || '—'}</td>
                         <td style={{ fontWeight: 600 }}>{naira(boq.grand_total)}</td>
-                        <td style={{ fontSize: 12 }}>{fmtDate(boq.date || boq.created_at)}</td>
+                        <td>
+                          {boq.approval_chain?.length
+                            ? <ApprovalChain chain={boq.approval_chain} />
+                            : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(boq.date || boq.created_at)}</span>
+                          }
+                        </td>
                         <td>
                           <div className="approvals-action-row">
                             <button className="hr-action-btn" onClick={() => openBoqDetail(boq)} title="View full details"><Eye size={13} /></button>
-                            {canApproveBoq && (
-                              <>
-                                <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
-                                <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
-                                <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}   title="Reject"><XCircle size={13} /></button>
-                              </>
-                            )}
+                            <button className="approval-action-btn approve"  onClick={() => openAction('boq', boq, 'approve')}  title="Approve"><CheckCircle size={13} /> Approve</button>
+                            <button className="approval-action-btn revision" onClick={() => openAction('boq', boq, 'revision')} title="Request Revision"><RotateCcw size={13} /></button>
+                            <button className="approval-action-btn reject"   onClick={() => openAction('boq', boq, 'reject')}   title="Reject"><XCircle size={13} /></button>
                           </div>
                         </td>
                       </tr>
@@ -825,6 +806,13 @@ export default function PendingApprovals() {
                 </div>
               )}
 
+              {merged.approval_chain?.length > 0 && (
+                <div style={{ marginTop: 16, marginBottom: 4 }}>
+                  <p className="pr-audit-title">Approval Chain</p>
+                  <ApprovalChain chain={merged.approval_chain} compact={false} />
+                </div>
+              )}
+
               <div className="pr-audit-log">
                 <p className="pr-audit-title">Activity Log</p>
                 {boqAuditLoading
@@ -855,7 +843,7 @@ export default function PendingApprovals() {
                 <button className="hr-btn-secondary" disabled={boqDetailLoading}
                   onClick={() => exportBOQtoPDF(merged, items, signoffs)}
                   title="Download PDF"><FileText size={14} /> PDF</button>
-                {canApproveBoq && merged.status === 'submitted' && (
+                {merged.status === 'pending_approval' && (
                   <button className="hr-btn-primary" onClick={() => { closeBoqDetail(); openAction('boq', boqView, 'approve') }}>
                     Take Action
                   </button>

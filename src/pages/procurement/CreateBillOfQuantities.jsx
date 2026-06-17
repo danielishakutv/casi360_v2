@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, PlusCircle, X, AlertCircle, User } from 'lucide-react'
-import { boqApi } from '../../services/procurement'
+import { ArrowLeft, PlusCircle, X, AlertCircle } from 'lucide-react'
+import { boqApi, purchaseRequestsApi } from '../../services/procurement'
 import { projectsApi, budgetCategoriesApi } from '../../services/projects'
 import { departmentsApi, employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
@@ -37,6 +37,8 @@ function buildInitialForm() {
     prepared_by: '',
     prepared_by_position: '',
     prepared_by_email: '',
+    budget_holder_id: '',
+    budget_holder_name: '',
     delivery_location: '',
     notes: '',
     market_survey_1: { ...EMPTY_SIGNOFF_MS },
@@ -56,6 +58,7 @@ export default function CreateBillOfQuantities() {
   const [departments, setDepartments] = useState([])
   const [categories, setCategories] = useState([])
   const [employees, setEmployees] = useState([])
+  const [prs, setPrs] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadingEdit, setLoadingEdit] = useState(isEdit)
@@ -68,6 +71,8 @@ export default function CreateBillOfQuantities() {
       .then((res) => setCategories(extractItems(res))).catch(() => {})
     employeesApi.list({ status: 'active', per_page: 0 })
       .then((res) => setEmployees(extractItems(res))).catch(() => {})
+    purchaseRequestsApi.list({ per_page: 0 })
+      .then((res) => setPrs(extractItems(res))).catch(() => {})
   }, [])
 
   /* Auto-fill fields from the logged-in user (new mode only) */
@@ -118,6 +123,8 @@ export default function CreateBillOfQuantities() {
           prepared_by: boq.prepared_by || pb.name || '',
           prepared_by_position: pb.position || '',
           prepared_by_email: pb.email || '',
+          budget_holder_id: boq.budget_holder_id || '',
+          budget_holder_name: boq.budget_holder_name || '',
           delivery_location: boq.delivery_location || '',
           notes: boq.notes || '',
           market_survey_1: { name: ms1.name || '', position: ms1.position || '', email: ms1.email || '', signature: ms1.signature || '', date: ms1.date || '' },
@@ -183,6 +190,7 @@ export default function CreateBillOfQuantities() {
       exchange_rate: form.currency === 'USD' && form.exchange_rate ? Number(form.exchange_rate) : undefined,
       pr_reference: form.pr_reference || undefined,
       prepared_by: form.prepared_by || undefined,
+      budget_holder_id: form.budget_holder_id || undefined,
       delivery_location: form.delivery_location || undefined,
       notes: form.notes || undefined,
       signoffs: signoffs.length ? signoffs : undefined,
@@ -214,6 +222,10 @@ export default function CreateBillOfQuantities() {
   }
 
   async function handleSaveAndSubmit() {
+    if (!form.budget_holder_id) {
+      setFormError('Please select a Budget Holder before submitting for approval.')
+      return
+    }
     setSubmitting(true)
     setFormError('')
     try {
@@ -340,7 +352,17 @@ export default function CreateBillOfQuantities() {
             </div>
             <div className="hr-form-field">
               <label>PR Reference</label>
-              <input type="text" value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)} placeholder="e.g. PR-2025-001" />
+              <select value={form.pr_reference} onChange={(e) => updateField('pr_reference', e.target.value)}>
+                <option value="">— Select a Purchase Request —</option>
+                {prs.map((pr) => (
+                  <option key={pr.id} value={pr.requisition_number}>
+                    {pr.requisition_number}{pr.title ? ` — ${pr.title}` : ''}
+                  </option>
+                ))}
+                {form.pr_reference && !prs.some((pr) => pr.requisition_number === form.pr_reference) && (
+                  <option value={form.pr_reference}>{form.pr_reference}</option>
+                )}
+              </select>
             </div>
           </div>
 
@@ -371,10 +393,13 @@ export default function CreateBillOfQuantities() {
           <div className="hr-form-row">
             <div className="hr-form-field">
               <label>Prepared By</label>
-              <div className="pr-requester-field">
-                <User size={14} />
-                {form.prepared_by || user?.name || '—'}
-              </div>
+              <EmployeePicker
+                employees={employees}
+                value={form.prepared_by}
+                onSelect={(emp) => setForm((p) => ({ ...p, prepared_by: emp.name || '', prepared_by_position: employeePosition(emp), prepared_by_email: emp.email || '' }))}
+                onTextChange={(v) => updateField('prepared_by', v)}
+                placeholder="Search staff by name…"
+              />
             </div>
             <div className="hr-form-field">
               <label>Delivery Location</label>
@@ -394,11 +419,23 @@ export default function CreateBillOfQuantities() {
             {renderMarketSurvey('Staff 2', 'market_survey_2')}
           </div>
 
-          {/* Budget Holder Check is captured automatically when the BOQ is approved. */}
-          <p className="hr-form-section-title">Budget Holder Check</p>
-          <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>
-            The Budget Holder sign-off is captured automatically when the BOQ is approved from the Pending Approvals page by a manager or admin (typically the linked project&apos;s manager).
+          {/* Budget Holder — first approval stage of the BOQ chain. */}
+          <p className="hr-form-section-title">Budget Holder</p>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+            First approver in the BOQ chain (Budget Holder → Finance → Procurement → Operations). Required to submit for approval. If you select yourself, your stage is auto-skipped.
           </p>
+          <div className="hr-form-row">
+            <div className="hr-form-field">
+              <label>Budget Holder *</label>
+              <EmployeePicker
+                employees={employees}
+                value={form.budget_holder_name}
+                onSelect={(emp) => setForm((p) => ({ ...p, budget_holder_id: emp.id || '', budget_holder_name: emp.name || '' }))}
+                onTextChange={(v) => setForm((p) => ({ ...p, budget_holder_name: v, budget_holder_id: '' }))}
+                placeholder="Search staff by name…"
+              />
+            </div>
+          </div>
 
           {/* Itemized List */}
           <p className="hr-form-section-title">Itemized List</p>
