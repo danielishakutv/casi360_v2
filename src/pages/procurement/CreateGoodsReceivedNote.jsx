@@ -5,6 +5,7 @@ import { grnApi, purchaseOrdersApi } from '../../services/procurement'
 import { employeesApi } from '../../services/hr'
 import { extractItems } from '../../utils/apiHelpers'
 import EmployeePicker from '../../components/EmployeePicker'
+import { useAuth } from '../../contexts/AuthContext'
 
 /* ─── Constants ─── */
 const QUALITY_OPTIONS = ['Pass', 'Fail', 'Pending Inspection']
@@ -56,6 +57,7 @@ export default function CreateGoodsReceivedNote() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const incomingPoId = searchParams.get('po_id')
+  const { user } = useAuth()
   const [form, setForm] = useState(buildInitialForm)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
@@ -64,6 +66,12 @@ export default function CreateGoodsReceivedNote() {
   useEffect(() => {
     employeesApi.list({ status: 'active', per_page: 0 }).then((r) => setEmployees(extractItems(r))).catch(() => {})
   }, [])
+
+  /* Auto-fill "Received By" with the signed-in user (still editable). */
+  useEffect(() => {
+    if (!user) return
+    setForm((p) => (p.received_by ? p : { ...p, received_by: user.name || '' }))
+  }, [user])
 
   /* If we landed here from a PO's "Record GRN" button, pre-fill the
      reference (and the receiving office if the PO has a department).

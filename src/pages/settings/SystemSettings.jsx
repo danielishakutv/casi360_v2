@@ -1017,6 +1017,7 @@ export default function SystemSettings() {
     const g = {}
     settings.forEach((s) => {
       const k = s.group || 'general'
+      if (k === 'appearance') return // Appearance settings are hidden from the UI.
       if (!g[k]) g[k] = []
       g[k].push(s)
     })
@@ -1037,9 +1038,11 @@ export default function SystemSettings() {
     if (!debouncedSearch) return null
     const q = debouncedSearch.toLowerCase()
     return settings.filter((s) =>
-      (s.label || '').toLowerCase().includes(q) ||
-      (s.description || '').toLowerCase().includes(q) ||
-      (s.key || '').toLowerCase().includes(q)
+      (s.group || 'general') !== 'appearance' && (
+        (s.label || '').toLowerCase().includes(q) ||
+        (s.description || '').toLowerCase().includes(q) ||
+        (s.key || '').toLowerCase().includes(q)
+      )
     )
   }, [debouncedSearch, settings])
 
