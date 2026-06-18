@@ -206,6 +206,10 @@ html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
   color-scheme: light;
+  /* iOS Safari honours horizontal-overflow clamping on the documentElement,
+     not just <body>; set it here too so a stray wide descendant can never
+     widen the layout viewport and push content/controls off-screen. */
+  overflow-x: hidden;
 }
 
 html[data-theme="dark"] {
@@ -229,6 +233,16 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* React mount point — keep it pinned to the viewport width so no page can
+   introduce a horizontal scrollbar on small screens. */
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 a { text-decoration: none; color: inherit; }
@@ -605,6 +619,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   display: flex;
   align-items: center;
   gap: 16px;
+  /* Grow to fill the gap but allow shrinking below content size so the title
+     truncates instead of shoving the right-hand controls off the screen. */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .mobile-menu-btn {
@@ -622,23 +640,35 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   background: var(--bg-card-hover);
 }
 
+.page-title-section {
+  min-width: 0;
+}
+
 .page-title-section h2 {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .page-title-section p {
   font-size: 12.5px;
   color: var(--text-muted);
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top-bar-right {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Never let the action buttons / avatar be squeezed or clipped. */
+  flex-shrink: 0;
 }
 
 .top-bar-btn {
@@ -1286,6 +1316,14 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   height: 200px;
   background: rgba(255,255,255,0.04);
   border-radius: 50%;
+}
+
+.welcome-banner h2,
+.welcome-banner p,
+.welcome-date {
+  /* Long names / timestamps must wrap, never extend past the banner edge. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .welcome-banner h2 {
@@ -3241,7 +3279,8 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 /* RFQ type checkboxes */
 .rfq-type-checkboxes {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 12px 24px;
   padding: 4px 0 8px;
 }
 .rfq-checkbox-label {
@@ -4376,8 +4415,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
     grid-template-columns: repeat(3, 1fr);
   }
   .notif-dropdown {
-    width: 300px;
-    right: -40px;
+    /* Never exceed the viewport: cap to the available width and keep the
+       right edge aligned under the bell so it can't push the page sideways. */
+    width: min(340px, calc(100vw - 24px));
+    right: 0;
   }
 }
 .note-detail-meta span {
@@ -4714,6 +4755,19 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   margin-bottom: 12px;
 }
 
+/* Phones: stack the tab toolbar (title / filter / action) into a full-width
+   column so selects and buttons are tappable instead of squeezed. */
+@media (max-width: 600px) {
+  .project-tab-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .project-tab-toolbar select,
+  .project-tab-toolbar > button {
+    width: 100%;
+  }
+}
+
 /* Budget summary */
 .project-budget-summary {
   padding: 16px;
@@ -4822,6 +4876,13 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   font-size: 14px;
   color: var(--text);
   line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+/* Detail modals (project team/activity/budget/etc.) — the 2-column field
+   grid is far too tight on a phone, so drop to a single column. */
+@media (max-width: 640px) {
+  .view-modal-grid { grid-template-columns: 1fr; }
 }
 
 /* Activity progress slider */
@@ -5074,6 +5135,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 @media (max-width: 640px) {
   .approval-chain.compact .approval-chain-step-name { display: none; }
   .approval-chain.compact .approval-chain-step { padding: 2px 5px; }
+  /* Non-compact chains (cards / detail modals) wrap onto multiple rows
+     instead of overflowing the card on a phone. */
+  .approval-chain { flex-wrap: wrap; row-gap: 4px; }
   .approvals-budget-row { flex-wrap: wrap; gap: 10px; }
   .approvals-action-row { gap: 4px; }
   .approval-action-btn  { padding: 4px 8px; font-size: 11px; }
@@ -5244,6 +5308,10 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 @media (max-width: 480px) {
   .pr-detail-meta-grid { grid-template-columns: 1fr; }
+  /* Tighter overlay gutters so modals get more usable width on phones. */
+  .modal-overlay { padding: 12px; }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 16px 16px 18px; }
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -8248,6 +8316,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   .comm-msg-row { padding: 12px 16px; }
   .comm-msg-chip { display: none; }
   .comm-notice-row { gap: 10px; padding: 12px 14px 12px 16px; }
+}
+
+@media (max-width: 480px) {
+  /* On the narrowest phones give chat bubbles the full row so long words
+     and addresses have room to wrap. */
+  .comm-bubble-row { max-width: 100%; }
 }
 
 /* ================= CHAT PANEL + FORMATTING (added) ================= */
