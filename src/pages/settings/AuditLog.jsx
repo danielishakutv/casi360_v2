@@ -10,6 +10,42 @@ import Pagination from '../../components/Pagination'
 const PER_PAGE = 30
 
 /* ──────────────────────────────────────────────────────────────────
+ * Date range presets. The log defaults to "today & yesterday" so the
+ * page opens on what's most relevant; pick a wider preset or "Custom
+ * range" to dig further back.
+ * ────────────────────────────────────────────────────────────────── */
+
+const RANGE_OPTIONS = [
+  { value: 'recent', label: 'Today & yesterday' },
+  { value: 'today',  label: 'Today' },
+  { value: '7d',     label: 'Last 7 days' },
+  { value: '30d',    label: 'Last 30 days' },
+  { value: 'all',    label: 'All time' },
+  { value: 'custom', label: 'Custom range' },
+]
+
+/* Local YYYY-MM-DD (avoids the UTC off-by-one that toISOString causes). */
+function ymd(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function rangeDates(preset) {
+  const today = new Date()
+  const start = new Date(today)
+  switch (preset) {
+    case 'today':  return { from: ymd(today), to: ymd(today) }
+    case 'recent': start.setDate(today.getDate() - 1); return { from: ymd(start), to: ymd(today) }
+    case '7d':     start.setDate(today.getDate() - 6); return { from: ymd(start), to: ymd(today) }
+    case '30d':    start.setDate(today.getDate() - 29); return { from: ymd(start), to: ymd(today) }
+    case 'all':    return { from: '', to: '' }
+    default:       return { from: '', to: '' } // custom — keep whatever the user typed
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────
  * Plain-English helpers — turn raw audit rows ("notice_updated",
  * "User #a213…") into something any reader can understand.
  * ────────────────────────────────────────────────────────────────── */
@@ -223,10 +259,10 @@ export default function AuditLog() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
-  const [actionFilter, setActionFilter] = useState('')
   const [entityFilter, setEntityFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [range, setRange] = useState('recent')
+  const [dateFrom, setDateFrom] = useState(() => rangeDates('recent').from)
+  const [dateTo, setDateTo] = useState(() => rangeDates('recent').to)
   const [page, setPage] = useState(1)
   const [expanded, setExpanded] = useState({})
 
@@ -237,7 +273,6 @@ export default function AuditLog() {
         page,
         per_page: PER_PAGE,
         search: debouncedSearch || undefined,
-        action: actionFilter || undefined,
         entity_type: entityFilter || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
@@ -248,10 +283,19 @@ export default function AuditLog() {
       setMeta(data?.meta || extractMeta(res))
     } catch (err) { setError(err.message || 'Failed to load audit log') }
     finally { setLoading(false) }
-  }, [debouncedSearch, actionFilter, entityFilter, dateFrom, dateTo, page])
+  }, [debouncedSearch, entityFilter, dateFrom, dateTo, page])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
-  useEffect(() => { setPage(1) }, [debouncedSearch, actionFilter, entityFilter, dateFrom, dateTo])
+  useEffect(() => { setPage(1) }, [debouncedSearch, entityFilter, dateFrom, dateTo])
+
+  function applyRange(preset) {
+    setRange(preset)
+    if (preset !== 'custom') {
+      const r = rangeDates(preset)
+      setDateFrom(r.from)
+      setDateTo(r.to)
+    }
+  }
 
   function toggleExpand(id) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -290,60 +334,107 @@ export default function AuditLog() {
                 <option key={val} value={val}>{label}</option>
               ))}
             </select>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-              <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ fontSize: 12 }} />
-              <span style={{ color: 'var(--text-muted)' }}>to</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ fontSize: 12 }} />
-            </div>
+            <select className="hr-filter-select" value={range} onChange={(e) => applyRange(e.target.value)}>
+              {RANGE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {range === 'custom' && (
+              <div className="audit-daterange">
+                <Calendar size={14} />
+                <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setRange('custom'); setDateFrom(e.target.value) }} aria-label="From date" />
+                <span>to</span>
+                <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setRange('custom'); setDateTo(e.target.value) }} aria-label="To date" />
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}></th>
-                <th>What happened</th>
-                <th>Action</th>
-                <th>Person</th>
-                <th>When</th>
-                <th>IP Address</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
-              ) : items.length === 0 ? (
-                <tr><td colSpan={6} className="hr-empty-cell">No audit logs found</td></tr>
-              ) : items.map((log) => {
-                const isOpen = !!expanded[log.id]
-                const hasDetail = log.old_values || log.new_values
-                return (
-                  <Fragment key={log.id}>
-                    <tr style={{ cursor: hasDetail ? 'pointer' : 'default' }} onClick={() => hasDetail && toggleExpand(log.id)}>
-                      <td style={{ textAlign: 'center' }}>
-                        {hasDetail && (isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
-                      </td>
-                      <td style={{ fontSize: 13, minWidth: 240, maxWidth: 420 }}>{describe(log)}</td>
-                      <td>{actionBadge(log.action)}</td>
-                      <td style={{ fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap' }}>{log.user || '—'}</td>
-                      <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDateTime(log.timestamp)}</td>
-                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{log.ip_address || '—'}</td>
-                    </tr>
-                    {isOpen && (
-                      <tr>
-                        <td colSpan={6} style={{ background: 'var(--bg-card-hover)', padding: '8px 16px' }}>
-                          <DiffDisplay oldValues={log.old_values} newValues={log.new_values} />
+        {/* ── Desktop: table ── */}
+        <div className="audit-table-desktop">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 36 }}></th>
+                  <th>What happened</th>
+                  <th>Action</th>
+                  <th>Person</th>
+                  <th>When</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={6} className="hr-empty-cell"><div className="auth-spinner large" style={{ margin: '12px auto' }} /></td></tr>
+                ) : items.length === 0 ? (
+                  <tr><td colSpan={6} className="hr-empty-cell">No activity in this period</td></tr>
+                ) : items.map((log) => {
+                  const isOpen = !!expanded[log.id]
+                  const hasDetail = log.old_values || log.new_values
+                  return (
+                    <Fragment key={log.id}>
+                      <tr style={{ cursor: hasDetail ? 'pointer' : 'default' }} onClick={() => hasDetail && toggleExpand(log.id)}>
+                        <td style={{ textAlign: 'center' }}>
+                          {hasDetail && (isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
                         </td>
+                        <td style={{ fontSize: 13, minWidth: 240, maxWidth: 420 }}>{describe(log)}</td>
+                        <td>{actionBadge(log.action)}</td>
+                        <td style={{ fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap' }}>{log.user || '—'}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDateTime(log.timestamp)}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{log.ip_address || '—'}</td>
                       </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} style={{ background: 'var(--bg-card-hover)', padding: '8px 16px' }}>
+                            <DiffDisplay oldValues={log.old_values} newValues={log.new_values} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {/* ── Mobile: stacked cards (read + tap to expand, no sideways scroll) ── */}
+        <div className="audit-cards-mobile">
+          {loading ? (
+            <div className="audit-card-empty"><div className="auth-spinner large" style={{ margin: '0 auto' }} /></div>
+          ) : items.length === 0 ? (
+            <div className="audit-card-empty">No activity in this period</div>
+          ) : items.map((log) => {
+            const isOpen = !!expanded[log.id]
+            const hasDetail = log.old_values || log.new_values
+            return (
+              <div
+                key={log.id}
+                className={`audit-card ${hasDetail ? 'clickable' : ''}`}
+                onClick={() => hasDetail && toggleExpand(log.id)}
+                role={hasDetail ? 'button' : undefined}
+                tabIndex={hasDetail ? 0 : undefined}
+                onKeyDown={(e) => { if (hasDetail && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleExpand(log.id) } }}
+              >
+                <div className="audit-card-top">
+                  {actionBadge(log.action)}
+                  <span className="audit-card-when">{fmtDateTime(log.timestamp)}</span>
+                </div>
+                <p className="audit-card-what">{describe(log)}</p>
+                <div className="audit-card-foot">
+                  <span className="audit-card-person">{log.user || 'System'}</span>
+                  {log.ip_address && <span className="audit-card-ip">{log.ip_address}</span>}
+                  {hasDetail && <span className="audit-card-expand">{isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>}
+                </div>
+                {isOpen && (
+                  <div className="audit-card-detail">
+                    <DiffDisplay oldValues={log.old_values} newValues={log.new_values} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
         {meta && <Pagination meta={meta} onPageChange={setPage} />}
       </div>
     </>

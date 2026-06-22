@@ -284,8 +284,16 @@ export default function Sidebar({ collapsed, mobileOpen, onToggle, onCloseMobile
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
-      {/* Brand */}
-      <div className="sidebar-header">
+      {/* Brand — click to return to the dashboard */}
+      <div
+        className="sidebar-header"
+        onClick={() => handleNav('/')}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNav('/') } }}
+        role="button"
+        tabIndex={0}
+        aria-label="Go to dashboard"
+        style={{ cursor: 'pointer' }}
+      >
         <div className="sidebar-logo">C3</div>
         <div className="sidebar-brand">
           <h1>CASI360</h1>
