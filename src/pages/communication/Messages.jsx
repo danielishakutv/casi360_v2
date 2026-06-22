@@ -245,8 +245,10 @@ export default function Messages() {
               <p>No messages</p>
             </div>
           ) : items.map((m) => {
-            const who = box === 'inbox' ? m.sender_name : m.recipient_name
-            const unread = !m.is_read && box === 'inbox'
+            // Always show the OTHER participant, so a thread you started that
+            // now has a reply doesn't show your own name in the Inbox.
+            const who = m.sender_id === user?.id ? m.recipient_name : m.sender_name
+            const unread = box === 'inbox' && ((m.unread_replies ?? 0) > 0 || (!m.is_read && m.recipient_id === user?.id))
             return (
               <button key={m.id} type="button" className={`comm-msg-row${unread ? ' unread' : ''}`} onClick={() => openThread(m)}>
                 {unread && <span className="comm-unread-dot" aria-label="Unread" />}
