@@ -94,6 +94,15 @@ export default function CreatePurchaseRequest() {
       .catch(() => {})
   }, [])
 
+  /* Auto-select the requester's department once departments have loaded
+     (new PR only) so the request is tagged with where it came from. */
+  useEffect(() => {
+    if (isEdit || !user?.department || !departments.length) return
+    const match = departments.find((d) => d.name === user.department)
+    if (!match) return
+    setForm((p) => (p.department_id ? p : { ...p, department_id: match.id }))
+  }, [user, departments, isEdit])
+
   /* Load existing PR for edit mode */
   useEffect(() => {
     if (!isEdit) return

@@ -63,6 +63,21 @@ const navItems = [
     path: '/',
   },
   {
+    /* Generic requests hub — shown to EVERYONE regardless of department.
+       Each item is permission-gated, so a user who can't approve anything
+       only sees Purchase Requests + Bills of Quantities. The list/approval
+       endpoints already scope results to the user's own + their department's
+       records, so nothing leaks across departments. */
+    id: 'requests',
+    label: 'Requests',
+    icon: ClipboardList,
+    children: [
+      { label: 'Purchase Requests',   icon: FileText,       path: '/procurement/purchase-requests', permission: 'procurement.requisitions.view' },
+      { label: 'Bills of Quantities', icon: ListOrdered,    path: '/procurement/boq',               permission: 'procurement.boq.view' },
+      { label: 'Approvals',           icon: ClipboardCheck, path: '/procurement/pending-approvals', permission: 'procurement.approvals.view' },
+    ],
+  },
+  {
     /* Department-scoped: only HR-dept users (or org-wide oversight roles —
        admins, Country Director, Operations) see the HR module. */
     id: 'hr',
@@ -77,7 +92,6 @@ const navItems = [
       { label: 'Attendance',         icon: Clock,         path: '/hr/attendance',            permission: 'hr.attendance.view' },
       { label: 'Timesheets',         icon: CalendarClock, path: '/hr/timesheets',            permission: 'hr.attendance.view' },
       { label: 'Notes',              icon: StickyNote,    path: '/hr/notes',                 permission: 'hr.notes.view' },
-      { label: 'Purchase Requests',  icon: ClipboardList, path: '/hr/purchase-requests',     permission: 'procurement.requisitions.view' },
     ],
   },
   {
@@ -88,13 +102,11 @@ const navItems = [
     icon: ShoppingCart,
     department: DEPT.PROCUREMENT,
     children: [
-      // Cross-cutting views first
+      // Overview first. Purchase Requests, Bills of Quantities and Approvals
+      // now live in the shared "Requests" hub above (used by every department).
       { label: 'Overview',              icon: Eye,           path: '/procurement',                  permission: 'procurement.requisitions.view' },
-      { label: 'Pending Approvals',     icon: ClipboardCheck,path: '/procurement/pending-approvals', permission: 'procurement.approvals.view' },
 
       // Procurement workflow — ordered by document flow
-      { label: 'Bill of Quantities',    icon: ListOrdered,   path: '/procurement/boq',              permission: 'procurement.boq.view' },
-      { label: 'Purchase Requests',     icon: ClipboardList, path: '/procurement/purchase-requests', permission: 'procurement.requisitions.view' },
       { label: 'Request for Quotation', icon: FileText,      path: '/procurement/rfq',              permission: 'procurement.rfq.view' },
       { label: 'Purchase Orders',       icon: Store,         path: '/procurement/purchase-orders',  permission: 'procurement.purchase_orders.view' },
       { label: 'Goods Received',        icon: Truck,         path: '/procurement/grn',              permission: 'procurement.grn.view' },
@@ -131,8 +143,6 @@ const navItems = [
     children: [
       { label: 'Overview',          icon: Eye,            path: '/finance' },
       { label: 'Projects',          icon: Briefcase,      path: '/finance/projects' },
-      { label: 'Approvals',         icon: ClipboardCheck, path: '/finance/approvals' },
-      { label: 'Purchase Requests', icon: ClipboardList,  path: '/finance/purchase-requests' },
     ],
   },
   {
@@ -145,7 +155,6 @@ const navItems = [
     seeAll: true,
     children: [
       { label: 'Overview',  icon: Eye,           path: '/operations' },
-      { label: 'Approvals', icon: ClipboardCheck, path: '/operations/approvals' },
     ],
   },
   {
