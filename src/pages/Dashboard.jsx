@@ -196,7 +196,7 @@ export default function Dashboard() {
                       {recentStaff.map((s) => (
                         <tr key={s.id}>
                           <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{s.name}</td>
-                          <td>{s.department || '—'}</td>
+                          <td>{s.department || 'Unassigned'}</td>
                           <td><span className={`status-badge ${s.status}`}><span className="status-dot" />{capitalize(s.status || 'active')}</span></td>
                           <td>{s.join_date ? fmtDate(s.join_date) : fmtDate(s.created_at)}</td>
                         </tr>

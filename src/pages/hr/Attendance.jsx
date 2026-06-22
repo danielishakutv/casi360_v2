@@ -296,7 +296,7 @@ export default function Attendance() {
                       allRecords.map((r) => (
                         <tr key={r.id}>
                           <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.employee_name}</td>
-                          <td>{r.department || '—'}</td>
+                          <td>{r.department || 'Unassigned'}</td>
                           <td>{fmtTime(r.clock_in)}</td>
                           <td>{fmtTime(r.clock_out)}</td>
                           <td>{fmtHours(r.work_hours)}</td>

@@ -342,7 +342,7 @@ export default function UserManagement() {
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{u.email}</td>
                   <td><span className={`card-badge ${ROLE_COLORS[u.role] || ''}`}>{fmtRole(u.role)}</span></td>
-                  <td>{u.department || '\u2014'}</td>
+                  <td>{u.department || 'Unassigned'}</td>
                   <td>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: u.status === 'active' ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)' }} />

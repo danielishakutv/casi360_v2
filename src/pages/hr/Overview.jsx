@@ -227,7 +227,7 @@ export default function HROverview() {
                         {emp.staff_id || '—'}
                       </td>
                       <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{emp.name}</td>
-                      <td>{typeof emp.department === 'string' ? emp.department : (emp.department?.name || '—')}</td>
+                      <td>{(typeof emp.department === 'string' ? emp.department : emp.department?.name) || 'Unassigned'}</td>
                       <td>{emp.position || emp.designation?.title || '—'}</td>
                       <td>
                         <span className={`status-badge ${(emp.status || 'inactive').replace(/ /g, '_')}`}>

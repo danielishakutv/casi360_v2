@@ -246,7 +246,7 @@ export default function Timesheets() {
                       title="View daily breakdown"
                     >
                       <td style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{r.employee_name}</td>
-                      <td>{r.department || '—'}</td>
+                      <td>{r.department || 'Unassigned'}</td>
                       <td>{r.days_present ?? 0}</td>
                       <td>{r.days_late ?? 0}</td>
                       <td>{r.days_on_leave ?? 0}</td>
