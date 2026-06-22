@@ -50,6 +50,9 @@ import { capitalize } from '../utils/capitalize'
 const DEPT = {
   FINANCE: { code: 'FINANCE', names: ['Finance'] },
   OPERATIONS: { code: 'OPERATIONS', names: ['Operations', 'Operations & Logistics'] },
+  HR: { code: 'HR', names: ['Human Resources', 'HR', 'HR Management'] },
+  PROCUREMENT: { code: 'PROCUREMENT', names: ['Procurement', 'Procurement & Logistics'] },
+  PROGRAMS: { code: 'PROGRAMS', names: ['Programs', 'Programmes', 'Program', 'Projects'] },
 }
 
 const navItems = [
@@ -60,9 +63,12 @@ const navItems = [
     path: '/',
   },
   {
+    /* Department-scoped: only HR-dept users (or org-wide oversight roles —
+       admins, Country Director, Operations) see the HR module. */
     id: 'hr',
     label: 'HR Management',
     icon: Users,
+    department: DEPT.HR,
     children: [
       { label: 'Overview',           icon: Eye,           path: '/hr',                       permission: 'hr.employees.view' },
       { label: 'Staff List',         icon: UserCheck,     path: '/hr/staff',                 permission: 'hr.employees.view' },
@@ -75,9 +81,12 @@ const navItems = [
     ],
   },
   {
+    /* Department-scoped: only Procurement-dept users (or org-wide oversight
+       roles) see the Procurement module. */
     id: 'procurement',
     label: 'Procurement',
     icon: ShoppingCart,
+    department: DEPT.PROCUREMENT,
     children: [
       // Cross-cutting views first
       { label: 'Overview',              icon: Eye,           path: '/procurement',                  permission: 'procurement.requisitions.view' },
@@ -99,9 +108,12 @@ const navItems = [
     ],
   },
   {
+    /* Department-scoped: only Programs-dept users (or org-wide oversight
+       roles) see the Projects module. */
     id: 'projects',
     label: 'Projects',
     icon: FolderKanban,
+    department: DEPT.PROGRAMS,
     children: [
       { label: 'Overview',          icon: Eye,          path: '/projects',                  permission: 'projects.projects.view' },
       { label: 'All Projects',      icon: Briefcase,    path: '/projects/list',             permission: 'projects.projects.view' },
