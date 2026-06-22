@@ -65,6 +65,16 @@
   --border-light:     #f1f5f9;
   --border-topbar:    #e2e8f0;
 
+  /* Legacy aliases — some components reference these shorter names. Map them
+     to the canonical tokens so they resolve (and theme) correctly instead of
+     falling back to wrong values like currentColor. Defined once here; they
+     pick up the active theme because they reference theme-aware tokens. */
+  --card:          var(--bg-card);
+  --card-bg:       var(--bg-card);
+  --border:        var(--border-color);
+  --bg-secondary:  var(--bg-card-hover);
+  --bg-hover:      var(--bg-card-hover);
+
   /* Shadows */
   --shadow-sm:  0 1px 2px rgba(0,0,0,.04);
   --shadow-md:  0 4px 12px rgba(0,0,0,.06);
@@ -250,6 +260,25 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 ul, ol { list-style: none; }
 img { max-width: 100%; display: block; }
 input, select, textarea { font-family: inherit; font-size: inherit; }
+
+/* Native date / time pickers — polished, theme-aware calendar icon so date
+   and calendar fields read consistently across the app (the documentElement
+   already sets color-scheme per theme, so the popup adapts to dark/light). */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
 
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -6390,15 +6419,45 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   background: var(--primary);
 }
 
-/* Inputs inside fields inherit existing global styles, but constrain widths */
+/* Themed form controls — match the rest of the app (hr-form-field / filters)
+   so System Settings, including the date-format, timezone and currency
+   pickers, reads as one consistent design instead of raw browser controls. */
 .syss-field input[type="text"],
 .syss-field input[type="url"],
 .syss-field input[type="email"],
 .syss-field input[type="tel"],
+.syss-field input[type="number"],
+.syss-field input[type="date"],
 .syss-field select,
 .syss-field textarea,
-.syss-field .syss-number {
+.syss-field .syss-number,
+.syss-loc-select,
+.syss-loc-symbol-input,
+.syss-loc-code-input,
+.syss-color-text,
+.syss-json {
   width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+
+.syss-field input:focus,
+.syss-field select:focus,
+.syss-field textarea:focus,
+.syss-loc-select:focus,
+.syss-loc-symbol-input:focus,
+.syss-loc-code-input:focus,
+.syss-color-text:focus,
+.syss-json:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .syss-number {
