@@ -98,7 +98,7 @@ export default function HROverview() {
     .slice(0, 5)
 
   return (
-    <>
+    <div className="page-stack">
       <div className="stats-grid">
         {statCards.map((stat) => {
           const Icon = stat.icon
@@ -246,6 +246,6 @@ export default function HROverview() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
